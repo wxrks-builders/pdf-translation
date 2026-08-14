@@ -2,8 +2,9 @@ const { Pool } = require("pg");
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  // Render's managed Postgres requires SSL; local dev connections don't use it.
-  ssl: process.env.DATABASE_URL?.includes("render.com") ? { rejectUnauthorized: false } : false,
+  // Managed Postgres over the public internet needs SSL (DATABASE_SSL=true);
+  // local dev and Coolify-internal-network connections don't.
+  ssl: process.env.DATABASE_SSL === "true" ? { rejectUnauthorized: false } : false,
 });
 
 function query(text, params) {

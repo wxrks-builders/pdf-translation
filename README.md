@@ -9,7 +9,7 @@ PDFs are auto-converted by wxrks on upload; on the current org unit the translat
 
 ## Stack
 
-Express 4 + Postgres (raw `pg`, idempotent migrate at boot) + React 18/Vite/Tailwind client. Single wxrks service account; org units pinned via env. Deliverables and uploads live in Postgres `bytea` behind `server/services/storage`-style seams, swept after `RETENTION_DAYS`.
+Express 4 + SQLite (better-sqlite3, WAL, idempotent migrate at boot — `./data/` locally, `/var/data/` in production) + React 18/Vite/Tailwind client. Single wxrks service account; org units pinned via env. Deliverables and uploads live in the database as BLOBs, swept after `RETENTION_DAYS`. No external database service.
 
 ## Run locally
 
@@ -39,4 +39,4 @@ Approving a project makes wxrks create one *task* per work unit — and nothing 
 
 ## Deploy
 
-See **[DEPLOY.md](DEPLOY.md)** — full step-by-step for the wxrks agent hub (Deploy Hub + Coolify): create the app, provision Postgres, the exact env-var table, verification checklist, and first-deploy troubleshooting. Short version: root `Dockerfile`, push to `main` auto-deploys, all state lives in Postgres, and the app exits at boot without `DATABASE_URL`.
+See **[DEPLOY.md](DEPLOY.md)** — full step-by-step for the wxrks agent hub (Deploy Hub + Coolify): create the app, mount the `/var/data` persistent volume, the exact env-var table, verification checklist, and first-deploy troubleshooting. Short version: root `Dockerfile`, push to `main` auto-deploys, all state lives in SQLite on the volume.

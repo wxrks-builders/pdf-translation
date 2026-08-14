@@ -18,7 +18,7 @@ async function main() {
   await store.grantCredits(user.id, amount, amount > 0 ? "grant" : "charge", note || `admin grant`);
   const balance = await store.getCreditBalance(user.id);
   console.log(`${email}: ${amount > 0 ? "+" : ""}${amount} credits → balance ${balance}`);
-  await db.pool.end();
+  db.close();
 }
 
 main().catch((err) => {

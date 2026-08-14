@@ -5,3 +5,4 @@ client/dist/
 spikes/out/
 *.log
 .DS_Store
+data/

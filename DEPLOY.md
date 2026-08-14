@@ -1,6 +1,6 @@
 # Deploying DocTranslate to the wxrks agent hub
 
-The app deploys at `<name>.agents.wxrks.app` via the Deploy Hub, with secrets and the database handled in Coolify. The repo is self-contained: the root `Dockerfile` builds the client and runs the server on port 3000, and the Postgres schema creates itself on first boot — there are no migration commands to run, ever.
+The app deploys at `<name>.agents.wxrks.app` via the Deploy Hub, with secrets and the persistent volume handled in Coolify. The repo is self-contained: the root `Dockerfile` builds the client and runs the server on port 3000, storage is SQLite on the `/var/data` volume, and the schema creates itself on first boot — there are no database services or migration commands, ever.
 
 ## One-time setup
 
@@ -15,16 +15,17 @@ The repo must live in the **wxrks-builders** GitHub org (it does: `wxrks-builder
 
 The hub is create-and-deploy only. After this, **updates are just `git push` to `main`** — auto-deploys, no hub visit needed.
 
-### 3. Database (Coolify)
-Create a **PostgreSQL** service in Coolify on the same server/network as the app and copy its **internal** connection string (`postgres://user:pass@host:5432/db`). No persistent volume on the app itself — all state, including uploaded files and translated deliverables, lives in Postgres (`bytea` columns, swept after `RETENTION_DAYS`).
+### 3. Persistent volume (Coolify)
+Storage is **SQLite** — no database service to provision. In Coolify, give the app a **persistent volume mounted at `/var/data`** (the platform's standard pattern, same as word-counter). The database file is created there automatically on first boot (`/var/data/doctranslate.db`, WAL mode). All state lives in it, including uploaded files and translated deliverables (BLOBs, swept after `RETENTION_DAYS`). Backups = backing up the volume.
+
+Without the volume the app still boots and works, but **all data is lost on every redeploy** — don't skip it.
 
 ### 4. Environment variables (Coolify → app → Environment Variables)
 
-Required — the app **exits at boot** without a reachable `DATABASE_URL`:
+Required:
 
 | Variable | Value |
 |---|---|
-| `DATABASE_URL` | connection string from step 3 |
 | `WXRKS_ACCESS_KEY` / `WXRKS_SECRET` | the wxrks service-account API credentials |
 | `WXRKS_PAID_ORG_UNIT_UUID` | `<org-unit-uuid>` — the **"Online PDF Translator"** org unit, which has automatic translation configured. Do not point at an org unit without task automation: jobs will stall at `translating` forever (see README's operational-prerequisite section). |
 | `COOKIE_SECRET` | any long random string (`openssl rand -hex 32`) |
@@ -36,7 +37,7 @@ Required for sign-in (the container runs `NODE_ENV=production`, so there is no d
 |---|---|
 | `MAILGUN_API_KEY` / `MAILGUN_DOMAIN` / `EMAIL_FROM` | Mailgun HTTP-API credentials + sender address |
 
-Optional tuning: `DATABASE_SSL=true` (only for a remote/managed Postgres over TLS — not needed for a Coolify-internal one), `FREE_TIER_MAX_WORDS` (1000), `POLL_INTERVAL_MS` (60000), `RETENTION_DAYS` (30), `MAX_UPLOAD_MB` (25), `WXRKS_FREE_ORG_UNIT_UUID` (separate org unit for free-tier jobs; falls back to the paid one).
+Optional tuning: `SQLITE_PATH` (defaults to `/var/data/doctranslate.db` in production), `FREE_TIER_MAX_WORDS` (1000), `POLL_INTERVAL_MS` (60000), `RETENTION_DAYS` (30), `MAX_UPLOAD_MB` (25), `WXRKS_FREE_ORG_UNIT_UUID` (separate org unit for free-tier jobs; falls back to the paid one).
 
 ### 5. Restart and verify
 Restart the app in Coolify after setting the vars. Then:
@@ -59,7 +60,8 @@ In the wxrks dashboard, add a webhook pointing at `https://<name>.agents.wxrks.a
 
 | Symptom | Cause |
 |---|---|
-| `503 no available server` | No healthy container — almost always a crash-loop from missing/unreachable `DATABASE_URL`, or the Docker build failed. Read the Coolify log. |
+| `503 no available server` | No healthy container — the Docker build failed or the app is crash-looping. Read the Coolify log. |
+| Data gone after redeploy | The `/var/data` persistent volume isn't mounted — the SQLite file lived in the container layer. |
 | First page load fails | TLS cert still issuing (~2 min on first deploy). |
 | Login returns an error | Mailgun vars not set (production has no dev fallback). |
 | Language pickers empty | Bad `WXRKS_ACCESS_KEY`/`WXRKS_SECRET`. |

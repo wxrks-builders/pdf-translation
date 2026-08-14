@@ -3,9 +3,15 @@
 //
 // VERDICT (run 2026-08-13): pdfDeliverable=none scannedMode=delivered-as-.pdf-1b truncatedTo=56chars
 //                            approveSec=10 deliveredCount=1/2
-//   - The text PDF's work unit never delivered — same blocker as spike 3 (no task execution on
-//     this account); the PDF→DOCX deliverable claim stays UNVERIFIED until the org unit gets
-//     AI/autopilot task execution configured in the dashboard. Re-run afterwards.
+//   - The text PDF's work unit never delivered on "Main Organizational Unit" — no task execution
+//     there (spike 3). RESOLVED on "Online PDF Translator" (6e429e88…): PDFs translate and deliver
+//     hands-free, but the deliverable is the extracted TRANSLATED TEXT under a ".pdf"-named ZIP
+//     entry — NOT a PDF and NOT the help center's promised DOCX (verified twice: fixture PDF and a
+//     real 1.5MB PDF; the translation-kit-job endpoint returns the same content honestly named
+//     .txt). The app's poller sniffs magic bytes and renames deliverables accordingly.
+//   - Metering race: pre-analysis on a 1.5MB PDF can "complete" at 0 words while wxrks is still
+//     converting the file — the job then translates unmetered. The pipeline retries zero-word
+//     analyses with backoff (pipeline.js).
 //   - Scanned (image-only) PDF parses to zero segments and auto-DELIVERS instantly; the "translated"
 //     file is a 1-byte stub named like the source. Treat zero-word docs as a UX case (warn user).
 //   - Filename truncation did NOT reproduce: a 56-char basename came back full-length in

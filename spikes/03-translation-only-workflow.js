@@ -2,7 +2,14 @@
 // deliver with zero human/dashboard touches on this org unit? Do the org unit's
 // extension-routing rules inject extra steps? Is autopilot active (DRAFT→PENDING on its own)?
 //
-// VERDICT (run 2026-08-13): handsFree=no autopilot=none observedWorkflows=TRANSLATION txtDeliverSec=null
+// VERDICT (re-run 2026-08-13, org unit "Online PDF Translator" 6e429e88-2e42-4bec-89f1-cdce5625e001):
+//   handsFree=YES autopilot=observed(PENDING) txtDeliverSec=10
+//   The purpose-made org unit translates automatically: autopilot advanced DRAFT→PENDING within
+//   15s of WU creation and the TRANSLATION work unit went NEW→DELIVERED 10s after approval.
+//   Its active inherited routing rule (HTML→TRANSLATION+EDITING, JSON→FAST_POST_EDITING) did NOT
+//   override our explicit workflows:["TRANSLATION"] — explicit WU workflows win.
+//
+// VERDICT (first run 2026-08-13, org unit "Main Organizational Unit"): handsFree=no autopilot=none txtDeliverSec=null
 //   THE BLOCKER FINDING. Routing rules on the org unit are all active:false (nothing injects extra
 //   steps) and only TRANSLATION work units were created — but after APPROVED, wxrks creates one
 //   task per work unit and NOTHING on this account ever assigns or executes it (task PENDING,

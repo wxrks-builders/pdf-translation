@@ -23,6 +23,20 @@ let running = false;
 const pokedProjects = new Set();
 let lastSweepDay = null;
 
+// wxrks's translated-file container formats disagree with entry names at
+// times; trust the magic bytes over the claimed extension.
+function sniffExtension(buffer, claimedExt) {
+  const head = buffer.slice(0, 5).toString("latin1");
+  if (head.startsWith("%PDF")) return ".pdf";
+  if (head.startsWith("PK")) {
+    // OOXML (docx/xlsx/pptx) and other zip-based formats: keep a zip-based
+    // claimed extension, otherwise assume the documented PDF→DOCX conversion.
+    return [".docx", ".xlsx", ".pptx", ".zip", ".odt"].includes(claimedExt) ? claimedExt : ".docx";
+  }
+  if (claimedExt === ".pdf" || claimedExt === ".docx") return ".txt"; // plain text under a doc name
+  return claimedExt;
+}
+
 async function fetchDeliverable(job, jobFiles, wu) {
   const file = matchJobFile(jobFiles, wu.filename);
   if (!file) {
@@ -41,9 +55,12 @@ async function fetchDeliverable(job, jobFiles, wu) {
   const entry = entries.find((e) => !e.entryName.endsWith("/"));
   if (!entry) throw new wxrks.RetryLaterError("empty ZIP");
 
-  // Deliverable keeps the user's original name but wxrks's output extension
-  // (a PDF source comes back as .docx after wxrks's conversion).
-  const outExt = path.extname(entry.entryName) || path.extname(file.original_filename);
+  // Deliverable keeps the user's original name but wxrks's output extension —
+  // corrected by sniffing the bytes: the project download can keep the source
+  // extension on content of a different type (observed live: translated PDF
+  // text under a ".pdf" entry name).
+  const claimedExt = path.extname(entry.entryName) || path.extname(file.original_filename);
+  const outExt = sniffExtension(entry.buffer, claimedExt);
   const base = path.basename(file.original_filename, path.extname(file.original_filename));
   const stored = await store.storeDeliverable({
     jobId: job.id,

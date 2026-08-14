@@ -12,6 +12,7 @@
  */
 const store = require("../store");
 const wxrks = require("./wxrks");
+const convert = require("./convert");
 const { buildWxrksFilename } = require("./filenames");
 
 const FREE_TIER_MAX_WORDS = parseInt(process.env.FREE_TIER_MAX_WORDS || "1000", 10);
@@ -36,12 +37,29 @@ async function runPipeline(jobId) {
   await store.updateJob(jobId, { wxrks_project_uuid: project.uuid });
   await setStatus(jobId, "uploading", "project_created", { projectUuid: project.uuid });
 
-  // 2. Resources + content
+  // 2. Resources + content. PDFs are converted to DOCX first, replicating the
+  // wxrks dashboard's upload behavior (the public API has no conversion — a
+  // raw PDF gets parsed as plain text and its translation loses all layout).
+  // The converted upload is named `<name>.pdf.docx`, the dashboard's own
+  // convention; job_files.wxrks_filename is updated to match so the poller's
+  // filename matching sees what wxrks will echo back.
   const files = await store.listJobFiles(jobId);
   for (const file of files) {
-    const resource = await wxrks.createResource(project.uuid, file.wxrks_filename);
-    const content = await store.getJobFileContent(file.id);
-    await wxrks.uploadResourceContent(project.uuid, resource.uuid, file.wxrks_filename, content);
+    let uploadName = file.wxrks_filename;
+    let content = await store.getJobFileContent(file.id);
+    if (/\.pdf$/i.test(file.wxrks_filename)) {
+      if (await convert.isAvailable()) {
+        content = await convert.pdfToDocx(content, file.original_filename);
+        uploadName = `${file.wxrks_filename}.docx`;
+        await store.updateJobFile(file.id, { wxrksFilename: uploadName });
+        await store.appendJobEvent(jobId, "pdf_converted", { file: file.original_filename });
+      } else {
+        console.warn(`[pipeline] LibreOffice unavailable — uploading ${file.original_filename} as raw PDF (text-only output)`);
+        await store.appendJobEvent(jobId, "pdf_conversion_skipped", { file: file.original_filename });
+      }
+    }
+    const resource = await wxrks.createResource(project.uuid, uploadName);
+    await wxrks.uploadResourceContent(project.uuid, resource.uuid, uploadName, content);
     await store.updateJobFile(file.id, { resourceUuid: resource.uuid, status: "uploaded" });
   }
   await store.appendJobEvent(jobId, "files_uploaded", { count: files.length });

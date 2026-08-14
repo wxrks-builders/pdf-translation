@@ -5,7 +5,7 @@ Upload documents (PDF, DOCX, TXT, CSV, JSON, …), pick target languages, downlo
 - **Free tier** (anonymous): 1 document/day, up to 1,000 source words.
 - **Paid tier**: accounts (magic-link sign-in) with word credits — $99/year = 100,000 credits; 1 credit = 1 source word into 1 language. Payments aren't wired yet; grant credits with `node scripts/grant-credits.js <email> <amount>`.
 
-PDFs are auto-converted by wxrks on upload; on the current org unit the translated deliverable is the document's **extracted text** (a `.txt`), not a re-laid-out PDF/DOCX — the poller sniffs each deliverable's real format and names it honestly. Limits: 25 MB/file (app), 400 pages per PDF, 150 pages for scanned PDFs (image-only PDFs have no extractable text and deliver an empty stub).
+PDFs are converted to DOCX **app-side** (headless LibreOffice in the container) before upload and delivered as translated DOCX — the same conversion the wxrks dashboard performs at upload, which the public API doesn't expose (a raw PDF sent via API is parsed as plain text and loses layout; without LibreOffice, e.g. bare local dev, the app falls back to exactly that). The poller sniffs each deliverable's real format and names it honestly. Limits: 25 MB/file (app), 400 pages per PDF; scanned (image-only) PDFs have no extractable text — no OCR — and deliver an empty stub.
 
 ## Stack
 

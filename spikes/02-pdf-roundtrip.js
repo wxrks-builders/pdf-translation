@@ -12,6 +12,12 @@
 //   - Metering race: pre-analysis on a 1.5MB PDF can "complete" at 0 words while wxrks is still
 //     converting the file — the job then translates unmetered. The pipeline retries zero-word
 //     analyses with backoff (pipeline.js).
+//   - ROOT CAUSE FOUND (2026-08-14, via dashboard project 57a6e736-8915-4c46-8832-91ed44dba773):
+//     the wxrks DASHBOARD converts PDF→DOCX at upload (resource lands as "<name>.pdf.docx",
+//     Adobe tooling) and translates the DOCX with full layout; the public API has no conversion
+//     endpoint at all, so API-uploaded raw PDFs go through a plain-text extractor. Fix: the app
+//     now converts PDF→DOCX itself (headless LibreOffice, services/convert.js) and uploads
+//     "<name>.pdf.docx" exactly like the dashboard.
 //   - Scanned (image-only) PDF parses to zero segments and auto-DELIVERS instantly; the "translated"
 //     file is a 1-byte stub named like the source. Treat zero-word docs as a UX case (warn user).
 //   - Filename truncation did NOT reproduce: a 56-char basename came back full-length in

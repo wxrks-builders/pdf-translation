@@ -37,6 +37,13 @@ Approving a project makes wxrks create one *task* per work unit — and nothing 
 
 `spikes/` holds the live verification scripts run before the app was built (`node spikes/01-….js`). Each file's header comment records its verdict. `spikes/lib/wxrksMin.js` is a standalone client for experiments.
 
-## Deploy
+## Deploy (wxrks agent hub)
 
-`render.yaml` provisions the web service + Postgres on Render. After first deploy set `APP_BASE_URL` and the wxrks dashboard webhook.
+Deploys via the Deploy Hub at deploy.agents.wxrks.app — the root `Dockerfile` builds the client and runs the server on port 3000. Process: repo lives in the **wxrks-builders** GitHub org, create the app in the hub (pick repo + size preset; S is plenty), and it comes up at `<name>.agents.wxrks.app` (first hit may fail for ~2 min while the TLS cert issues). After that, push to `main` to auto-deploy.
+
+Things to set in **Coolify** (the hub form doesn't handle them):
+
+- Secrets: `DATABASE_URL` (a Postgres instance — add `DATABASE_SSL=true` only if it's remote/managed over TLS), `WXRKS_ACCESS_KEY`, `WXRKS_SECRET`, `WXRKS_PAID_ORG_UNIT_UUID` (currently `6e429e88-2e42-4bec-89f1-cdce5625e001`, the "Online PDF Translator" unit), `COOKIE_SECRET` (long random), `APP_BASE_URL=https://<name>.agents.wxrks.app`, and `MAILGUN_API_KEY`/`MAILGUN_DOMAIN`/`EMAIL_FROM` for login emails.
+- No persistent volume needed — all state (including file blobs) lives in Postgres.
+
+Then point the wxrks dashboard webhook at `https://<name>.agents.wxrks.app/api/webhooks/wxrks` (optional latency hint; the poller alone suffices).

@@ -70,8 +70,8 @@ export default function Upload() {
       <div>
         <h1 className="text-2xl font-semibold">Translate a document</h1>
         <p className="mt-1 text-sm text-slate-600">
-          PDF, DOCX, TXT, CSV, JSON and more. Up to 25&nbsp;MB per file; PDFs up to 400 pages (150 if scanned).
-          PDFs are delivered as editable DOCX files.
+          PDF, DOCX, TXT, CSV, JSON and more. Up to 25&nbsp;MB per file; PDFs up to 400 pages.
+          PDF translations are delivered as editable text — scanned (image-only) PDFs can't be translated.
         </p>
         {!user && (
           <p className="mt-2 rounded-md bg-brand-50 px-3 py-2 text-sm text-brand-700">

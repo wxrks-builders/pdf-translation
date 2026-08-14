@@ -5,7 +5,7 @@ Upload documents (PDF, DOCX, TXT, CSV, JSON, …), pick target languages, downlo
 - **Free tier** (anonymous): 1 document/day, up to 1,000 source words.
 - **Paid tier**: accounts (magic-link sign-in) with word credits — $99/year = 100,000 credits; 1 credit = 1 source word into 1 language. Payments aren't wired yet; grant credits with `node scripts/grant-credits.js <email> <amount>`.
 
-PDFs are auto-converted by wxrks and delivered as DOCX. Limits: 25 MB/file (app), 400 pages per PDF, 150 pages for scanned PDFs.
+PDFs are auto-converted by wxrks on upload; on the current org unit the translated deliverable is the document's **extracted text** (a `.txt`), not a re-laid-out PDF/DOCX — the poller sniffs each deliverable's real format and names it honestly. Limits: 25 MB/file (app), 400 pages per PDF, 150 pages for scanned PDFs (image-only PDFs have no extractable text and deliver an empty stub).
 
 ## Stack
 
@@ -31,7 +31,7 @@ The wxrks webhook (configure `APP_BASE_URL/api/webhooks/wxrks` in the wxrks dash
 
 ## ⚠ Operational prerequisite: task automation on the org unit
 
-Approving a project makes wxrks create one *task* per work unit — but they run on the org unit's own settings. On an org unit without AI/autopilot task execution configured in the wxrks dashboard, work units sit at `workStatus=NEW` with `PENDING` unassigned tasks forever, and jobs stall at `translating` (verified live: a month-old project on the current account is still stuck). **Before launch, configure the chosen org unit(s) so TRANSLATION tasks are auto-assigned to and completed by the AI engine.** To sanity-check delivery plumbing without automation, upload an image-only (scanned) PDF: zero segments auto-deliver instantly. Diagnose with `GET /api/v3/task?projectUuid=…` on the wxrks side.
+Approving a project makes wxrks create one *task* per work unit — and they run on the org unit's own settings, so the org unit must be configured (wxrks dashboard) to run TRANSLATION tasks automatically. Verified both ways live: on a unit without automation, work units sit at `workStatus=NEW` with `PENDING` unassigned tasks forever and jobs stall at `translating`; on the purpose-made **"Online PDF Translator"** unit (`<org-unit-uuid>`, the one pinned in env), autopilot advances the project on its own and a `.txt` work unit delivered 10s after approval. If jobs ever stall, diagnose with `GET /api/v3/task?projectUuid=…` — unassigned PENDING tasks mean org-unit config, not app code. (Image-only/scanned PDFs parse to zero segments and auto-deliver a stub instantly, which is also a handy plumbing test.)
 
 ## Spikes
 

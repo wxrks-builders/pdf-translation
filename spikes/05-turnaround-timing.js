@@ -2,12 +2,13 @@
 // timestamps per phase (upload → analyzed → approved → delivered per locale).
 // PDF timing comes from spike 2's verdict; txt single-locale from spike 3.
 //
-// VERDICT (2026-08-13): NOT RUN — blocked on the spike-3 finding (no task execution on this
-//   account, so delivery never happens and full-turnaround timing is unmeasurable). Partial
-//   timings from the other spikes: upload <1s, pre-analysis ~4s (txt+pdf), approval ~10–36s
-//   (dominated by retrying wxrks's transient 422s). RE-RUN this spike after AI/autopilot task
-//   execution is configured on the org unit in the wxrks dashboard, and use its numbers for the
-//   UI's turnaround copy and the poller's safety timeout.
+// VERDICT (run 2026-08-13, org unit "Online PDF Translator" <uuid>):
+//   uploadSec=1 analyzeSec=4 approveSec=4 deliverSecByLocale={es:8, pt_br:8}
+//   ~17s end-to-end for a small .txt into TWO languages on the automated org unit. Also confirms
+//   the multi-target summary shape: one row per target language, each carrying the full source
+//   word count (53+53) — charge = sum of rows = words × targets. UI copy can honestly say
+//   "usually a few minutes"; the poller's 24h safety timeout is generous.
+//   (On the unautomated "Main Organizational Unit" this spike would never complete — see spike 3.)
 const w = require("./lib/wxrksMin.js");
 const fs = require("fs");
 const path = require("path");

@@ -53,9 +53,18 @@ async function runPipeline(jobId) {
     uploaded.map((f) => ({ projectResourceUuid: f.resource_uuid, workflows: ["TRANSLATION"], targetLocales: targets }))
   );
 
-  // 4. Analyze
+  // 4. Analyze. A zero-word summary can be a race with wxrks's still-running
+  // file conversion (observed live on a 1.5MB PDF: analysis "completed" at 0
+  // words, then the document translated anyway — an unmetered job). Retry
+  // with backoff before trusting a zero; genuinely empty docs stay 0.
   await setStatus(jobId, "analyzing");
-  const summary = await wxrks.runPreAnalysis(project.uuid);
+  let summary;
+  for (let attempt = 1; ; attempt++) {
+    summary = await wxrks.runPreAnalysis(project.uuid);
+    if (summary.some((r) => r.totalWords > 0) || attempt >= 5) break;
+    await store.appendJobEvent(jobId, "analysis_empty_retry", { attempt });
+    await new Promise((r) => setTimeout(r, attempt * 15000));
+  }
   // One row per target language, each with the full source word count.
   const analyzedWords = Math.max(0, ...summary.map((r) => r.totalWords || 0));
   const charge = summary.reduce((sum, r) => sum + (r.totalWords || 0), 0);

@@ -237,10 +237,11 @@ async function getJobFileContent(id) {
   return row?.source_content || null;
 }
 
-async function updateJobFile(id, { resourceUuid, status }) {
+async function updateJobFile(id, { resourceUuid, status, wxrksFilename }) {
   db.prepare(
-    `UPDATE job_files SET resource_uuid = COALESCE(?, resource_uuid), status = COALESCE(?, status) WHERE id = ?`
-  ).run(resourceUuid || null, status || null, id);
+    `UPDATE job_files SET resource_uuid = COALESCE(?, resource_uuid), status = COALESCE(?, status),
+       wxrks_filename = COALESCE(?, wxrks_filename) WHERE id = ?`
+  ).run(resourceUuid || null, status || null, wxrksFilename || null, id);
 }
 
 // --- deliverables + dedupe ---

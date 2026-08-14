@@ -1,6 +1,6 @@
 # Deploying DocTranslate to the wxrks agent hub
 
-The app deploys at `<name>.agents.wxrks.app` via the Deploy Hub, with secrets and the persistent volume handled in Coolify. The repo is self-contained: the root `Dockerfile` builds the client and runs the server on port 3000, storage is SQLite on the `/var/data` volume, and the schema creates itself on first boot — there are no database services or migration commands, ever.
+The app deploys at `<name>.agents.wxrks.app` via the Deploy Hub, with secrets and the persistent volume handled in Coolify. The repo is self-contained: the root `Dockerfile` builds the client, bundles headless LibreOffice (PDF→DOCX conversion before upload — no config needed), and runs the server on port 3000; storage is SQLite on the `/var/data` volume, and the schema creates itself on first boot — there are no database services or migration commands, ever. The LibreOffice layer makes the image ~600MB larger and the first build a few minutes slower; that's expected.
 
 ## One-time setup
 

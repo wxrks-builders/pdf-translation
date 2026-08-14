@@ -1,0 +1,42 @@
+# DocTranslate
+
+Upload documents (PDF, DOCX, TXT, CSV, JSON, …), pick target languages, download translations. Built on the [wxrks](https://wxrks.com) API.
+
+- **Free tier** (anonymous): 1 document/day, up to 1,000 source words.
+- **Paid tier**: accounts (magic-link sign-in) with word credits — $99/year = 100,000 credits; 1 credit = 1 source word into 1 language. Payments aren't wired yet; grant credits with `node scripts/grant-credits.js <email> <amount>`.
+
+PDFs are auto-converted by wxrks and delivered as DOCX. Limits: 25 MB/file (app), 400 pages per PDF, 150 pages for scanned PDFs.
+
+## Stack
+
+Express 4 + Postgres (raw `pg`, idempotent migrate at boot) + React 18/Vite/Tailwind client. Single wxrks service account; org units pinned via env. Deliverables and uploads live in Postgres `bytea` behind `server/services/storage`-style seams, swept after `RETENTION_DAYS`.
+
+## Run locally
+
+```bash
+npm run install:all
+createdb doctranslate
+cp .env.example .env   # fill in WXRKS_* and COOKIE_SECRET
+npm run dev            # server on :3000
+npm run client:dev     # vite on :5173 (proxies /api)
+```
+
+Without Mailgun configured, login links are logged to stdout and returned as `devLoginUrl` (non-production only).
+
+## How a job flows
+
+`POST /api/jobs` (multipart) → background pipeline: create wxrks project (tagged with the user id or `free`) → upload resources (filenames prefixed with the job id — wxrks truncates long names and reports everything by filename) → create `TRANSLATION` work units per target locale → pre-analysis logfile for word counts (**requires work units to exist** — verified live) → gate (free word limit / transactional credit charge; failures cancel the wxrks project and refund) → approve (`DRAFT→PENDING→APPROVED`, retrying `422 BWX-002`/`423` races; never passes `calculateCosts`) → the poller (`POLL_INTERVAL_MS`) watches work units, downloads each `DELIVERED` (file × locale) as a ZIP, stores deliverables, and flips the job to `delivered`.
+
+The wxrks webhook (configure `APP_BASE_URL/api/webhooks/wxrks` in the wxrks dashboard) is only a latency hint that pokes the poller; the poller alone is sufficient.
+
+## ⚠ Operational prerequisite: task automation on the org unit
+
+Approving a project makes wxrks create one *task* per work unit — but they run on the org unit's own settings. On an org unit without AI/autopilot task execution configured in the wxrks dashboard, work units sit at `workStatus=NEW` with `PENDING` unassigned tasks forever, and jobs stall at `translating` (verified live: a month-old project on the current account is still stuck). **Before launch, configure the chosen org unit(s) so TRANSLATION tasks are auto-assigned to and completed by the AI engine.** To sanity-check delivery plumbing without automation, upload an image-only (scanned) PDF: zero segments auto-deliver instantly. Diagnose with `GET /api/v3/task?projectUuid=…` on the wxrks side.
+
+## Spikes
+
+`spikes/` holds the live verification scripts run before the app was built (`node spikes/01-….js`). Each file's header comment records its verdict. `spikes/lib/wxrksMin.js` is a standalone client for experiments.
+
+## Deploy
+
+`render.yaml` provisions the web service + Postgres on Render. After first deploy set `APP_BASE_URL` and the wxrks dashboard webhook.

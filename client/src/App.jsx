@@ -13,7 +13,7 @@ function Header() {
     <header className="border-b border-slate-200 bg-white">
       <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
         <Link to="/" className="text-lg font-semibold text-brand-600">
-          DocTranslate
+          wxrks Translate
         </Link>
         <nav className="flex items-center gap-4 text-sm">
           {user ? (
@@ -74,7 +74,7 @@ export default function App() {
         <a href="https://wxrks.com" className="underline hover:text-slate-600">
           wxrks
         </a>
-        . DocTranslate is open source under the AGPL-3.0 —{" "}
+        . wxrks Translate is open source under the AGPL-3.0:{" "}
         <a href="https://github.com/wxrks-builders/pdf-translation" className="underline hover:text-slate-600">
           source code
         </a>

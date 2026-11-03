@@ -96,6 +96,7 @@ async function runPipeline(jobId) {
   // Approving would translate whatever wxrks reads later without charging for
   // it, so the job stops here.
   if (analyzedWords === 0) {
+    if (job.tier === "free") await store.releaseFreeTierUsage(jobId);
     await wxrks.cancelProject(project.uuid, "no text found");
     await setStatus(jobId, "no_text");
     return;
@@ -105,6 +106,8 @@ async function runPipeline(jobId) {
   if (job.tier === "free") {
     await store.setFreeTierUsageWords(jobId, analyzedWords);
     if (analyzedWords > FREE_TIER_MAX_WORDS) {
+      // Nothing gets translated, so the day's free document is still theirs (store.js caps this).
+      await store.releaseFreeTierUsage(jobId);
       await wxrks.cancelProject(project.uuid, "free tier word limit exceeded");
       await setStatus(jobId, "over_free_limit", "over_free_limit", { words: analyzedWords, limit: FREE_TIER_MAX_WORDS });
       return;

@@ -64,7 +64,7 @@ export default function Upload() {
     } catch (err) {
       setError(
         err.code === "free_limit_reached"
-          ? "You've used today's free document. Sign in for unlimited translations."
+          ? "You've used today's free document. Come back tomorrow, or sign in to translate with credits."
           : err.message
       );
       setSubmitting(false);
@@ -84,7 +84,7 @@ export default function Upload() {
         </p>
         {!user && (
           <p className="mt-2 rounded-md bg-brand-50 px-3 py-2 text-sm text-brand-700">
-            Free tier: 1 document per day, up to 1,000 words.{" "}
+            Free: 1 document a day, up to 1,000 words. Check page 1 in your language before you download.{" "}
             <Link to="/login" className="underline">
               Sign in
             </Link>{" "}

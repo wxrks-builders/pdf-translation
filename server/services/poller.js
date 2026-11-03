@@ -11,6 +11,7 @@ const store = require("../store");
 const wxrks = require("./wxrks");
 const layout = require("./layout");
 const pipeline = require("./pipeline");
+const leads = require("./leads");
 const { matchJobFile } = require("./filenames");
 const { normalize } = require("./locales");
 
@@ -101,9 +102,10 @@ async function processTranslatingJob(job) {
   const deliverables = await store.listDeliverables(job.id);
   const translations = deliverables.filter((d) => d.variant === "translation").length;
   if (translations >= expected && expected > 0 && (await layoutSettled(job, jobFiles))) {
-    await store.updateJob(job.id, { status: "delivered" });
+    const delivered = await store.updateJob(job.id, { status: "delivered" });
     await store.appendJobEvent(job.id, "delivered");
     console.log(`[poller] job ${job.id} delivered (${deliverables.length} files)`);
+    await leads.sendFilesIfRequested(delivered); // an email left while it was translating
   } else if (Date.now() - new Date(job.created_at).getTime() > TRANSLATING_TIMEOUT_MS) {
     await pipeline.markJobFailed(job.id, new Error("translation timed out after 24h"));
   }

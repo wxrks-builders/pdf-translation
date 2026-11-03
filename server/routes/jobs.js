@@ -4,6 +4,11 @@ const store = require("../store");
 const pipeline = require("../services/pipeline");
 const freeTier = require("../services/freeTier");
 const locales = require("../services/locales");
+const layout = require("../services/layout");
+const leads = require("../services/leads");
+const email = require("../services/email");
+const { canSeeJob, isUnlocked } = require("../services/access");
+const { createRateLimiter } = require("../middleware/rateLimit");
 const { buildWxrksFilename, extensionAllowed, findTruncationCollision, ALLOWED_EXTENSIONS } = require("../services/filenames");
 const { optionalSession } = require("../middleware/auth");
 
@@ -21,16 +26,18 @@ function orgUnitFor(tier) {
   return tier === "free" ? free : paid;
 }
 
-// A job is visible to its owning user, or — for anonymous jobs — to the
-// browser carrying the anon cookie it was created under.
-function canSeeJob(req, job) {
-  if (job.user_id) return req.user && req.user.id === job.user_id;
-  return job.anon_cookie_id && job.anon_cookie_id === req.anonId;
-}
+const unlockLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 10 });
 
-async function serializeJob(job) {
+async function serializeJob(job, req) {
   const files = await store.listJobFiles(job.id);
   const deliverables = await store.listDeliverables(job.id);
+  // One page-1 preview per language: the first design-kept PDF.
+  const previews = [];
+  for (const d of deliverables) {
+    if (d.variant === "pdf-design" && !previews.some((p) => p.locale === d.locale)) {
+      previews.push({ locale: d.locale, deliverableId: d.id });
+    }
+  }
   return {
     id: job.id,
     tier: job.tier,
@@ -41,6 +48,10 @@ async function serializeJob(job) {
     creditsCharged: job.credits_charged,
     error: job.error,
     timeline: job.timeline,
+    unlocked: isUnlocked(req, job),
+    unlockedEmail: job.unlocked_email,
+    emailDelivery: email.isConfigured(),
+    previews,
     createdAt: job.created_at,
     updatedAt: job.updated_at,
     files: files.map((f) => ({ id: f.id, name: f.original_filename, sizeBytes: f.size_bytes, status: f.status })),
@@ -142,14 +153,56 @@ router.get("/", optionalSession, async (req, res) => {
 router.get("/:id", optionalSession, freeTier.anonCookie, async (req, res) => {
   const job = await store.getJob(req.params.id);
   if (!job || !canSeeJob(req, job)) return res.status(404).json({ error: "not_found" });
-  res.json(await serializeJob(job));
+  res.json(await serializeJob(job, req));
 });
 
 router.post("/:id/cancel", optionalSession, freeTier.anonCookie, async (req, res) => {
   const job = await store.getJob(req.params.id);
   if (!job || !canSeeJob(req, job)) return res.status(404).json({ error: "not_found" });
   const updated = await pipeline.cancelJob(job.id);
-  res.json(await serializeJob(updated));
+  res.json(await serializeJob(updated, req));
+});
+
+// The free tier's email step: leave an address, the downloads open, and the links arrive by
+// email once the files are ready (services/leads.js).
+router.post("/:id/unlock", unlockLimiter, optionalSession, freeTier.anonCookie, async (req, res) => {
+  const job = await store.getJob(req.params.id);
+  if (!job || !canSeeJob(req, job)) return res.status(404).json({ error: "not_found" });
+  const address = leads.normalizeEmail(req.body?.email);
+  if (!address) return res.status(400).json({ error: "invalid_email", message: "Check the email address." });
+  const updated = job.tier === "free" ? await leads.unlock(req, job, { address, marketingOptIn: req.body?.marketingOptIn === true }) : job;
+  res.json(await serializeJob(updated, req));
+});
+
+// Page 1 of the original or of the design-kept translation, as a JPEG. Rendered on demand
+// and kept for a while; it's what the free tier shows before the email step.
+const previewCache = new Map();
+const PREVIEW_CACHE_MAX = 40;
+
+router.get("/:id/preview/:deliverableId/:side", optionalSession, freeTier.anonCookie, async (req, res) => {
+  const job = await store.getJob(req.params.id);
+  if (!job || !canSeeJob(req, job)) return res.status(404).json({ error: "not_found" });
+  const d = await store.getDeliverable(req.params.deliverableId);
+  if (!d || d.job_id !== job.id || d.variant !== "pdf-design" || !["original", "translated"].includes(req.params.side)) {
+    return res.status(404).json({ error: "not_found" });
+  }
+  const key = `${d.id}:${req.params.side}`;
+  try {
+    let jpeg = previewCache.get(key);
+    if (!jpeg) {
+      const pdf = req.params.side === "original" ? await store.getJobFileContent(d.job_file_id) : d.content;
+      if (!pdf?.length) return res.status(404).json({ error: "expired" });
+      jpeg = await layout.preview(pdf);
+      if (previewCache.size >= PREVIEW_CACHE_MAX) previewCache.delete(previewCache.keys().next().value);
+      previewCache.set(key, jpeg);
+    }
+    res.setHeader("Content-Type", "image/jpeg");
+    res.setHeader("Cache-Control", "private, max-age=3600");
+    res.send(jpeg);
+  } catch (err) {
+    console.error(`[preview] job ${job.id}: ${err.message}`);
+    res.status(500).json({ error: "preview_failed" });
+  }
 });
 
 module.exports = router;

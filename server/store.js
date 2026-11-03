@@ -190,7 +190,16 @@ async function listActiveJobs() {
 }
 
 async function updateJob(id, fields) {
-  const allowed = ["status", "wxrks_project_uuid", "layout_project_uuid", "analyzed_words", "credits_charged", "error"];
+  const allowed = [
+    "status",
+    "wxrks_project_uuid",
+    "layout_project_uuid",
+    "analyzed_words",
+    "credits_charged",
+    "error",
+    "unlocked_at",
+    "unlocked_email",
+  ];
   const sets = [];
   const params = [];
   for (const [k, v] of Object.entries(fields)) {
@@ -317,16 +326,47 @@ async function getDeliverable(id) {
 
 // --- free tier ---
 
+// A released row (the document was never translated) doesn't use the day up, but only
+// MAX_RELEASED_PER_DAY of them, so a visitor can't keep the analysis running all day.
+const MAX_RELEASED_PER_DAY = 3;
+
 async function findFreeTierUsageToday({ ip, cookieId }) {
-  return (
-    db
-      .prepare(
-        `SELECT * FROM free_tier_usage
-         WHERE used_on = ? AND (ip = ? OR (cookie_id IS NOT NULL AND cookie_id = ?))
-         LIMIT 1`
-      )
-      .get(todayUtc(), ip, cookieId || null) || null
-  );
+  const rows = db
+    .prepare(
+      `SELECT * FROM free_tier_usage
+       WHERE used_on = ? AND (ip = ? OR (cookie_id IS NOT NULL AND cookie_id = ?))`
+    )
+    .all(todayUtc(), ip, cookieId || null);
+  const used = rows.find((r) => !r.released);
+  if (used) return used;
+  return rows.length >= MAX_RELEASED_PER_DAY ? rows[0] : null;
+}
+
+async function releaseFreeTierUsage(jobId) {
+  db.prepare(`UPDATE free_tier_usage SET released = 1 WHERE job_id = ?`).run(jobId);
+}
+
+// --- leads (the free tier's email step) ---
+
+async function recordLead({ email, jobId, marketingOptIn, suspectedBot, ip, userAgent }) {
+  db.prepare(
+    `INSERT INTO leads (id, email, job_id, marketing_opt_in, suspected_bot, ip, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(newId(), email, jobId || null, marketingOptIn ? 1 : 0, suspectedBot ? 1 : 0, ip || null, userAgent || null);
+}
+
+// Exactly one files email per job: whoever sets files_emailed_at first sends it.
+async function claimFilesEmail(jobId) {
+  const row = db
+    .prepare(`UPDATE jobs SET files_emailed_at = ? WHERE id = ? AND files_emailed_at IS NULL RETURNING *`)
+    .get(nowIso(), jobId);
+  return parseJob(row);
+}
+
+async function countFilesEmailsSince(sinceIso, email) {
+  const sql = email
+    ? `SELECT COUNT(*) AS n FROM jobs WHERE files_emailed_at >= ? AND unlocked_email = ?`
+    : `SELECT COUNT(*) AS n FROM jobs WHERE files_emailed_at >= ?`;
+  return db.prepare(sql).get(...(email ? [sinceIso, email] : [sinceIso])).n;
 }
 
 async function recordFreeTierUsage({ ip, cookieId, jobId }) {
@@ -397,5 +437,9 @@ module.exports = {
   findFreeTierUsageToday,
   recordFreeTierUsage,
   setFreeTierUsageWords,
+  releaseFreeTierUsage,
+  recordLead,
+  claimFilesEmail,
+  countFilesEmailsSince,
   sweepOldBlobs,
 };

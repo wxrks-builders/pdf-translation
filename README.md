@@ -7,6 +7,16 @@ Upload documents (PDF, DOCX, TXT, CSV, JSON, …), pick target languages, downlo
 
 PDFs are uploaded as-is and **wxrks converts them to DOCX** — the dashboard's own conversion, on the public API since BW-8262 (2026-10-07): a few seconds after upload the resource is renamed in place to `<name>.pdf.docx`, and the pipeline waits for that before creating work units. Translations come back as DOCX. If a PDF isn't converted within 3 minutes the job goes on with the raw PDF (`pdf_conversion_skipped`, text-only output). The poller sniffs each deliverable's real format and names it honestly. Limits: 25 MB/file (app), 400 pages per PDF; scanned (image-only) PDFs have no extractable text — no OCR — and deliver an empty stub.
 
+### Design-kept PDFs (beta)
+
+Each PDF also comes back as **"<name> (design kept).pdf"** and **"<name> (page images).pdf"**. The DOCX rebuilds the page in Word and loses the design. Here the original pages stay as they are, and only the text is swapped (`server/layout/pdf_layout.py`, PyMuPDF):
+
+1. At upload, the PDF's text is read as units: lines grouped by paragraph, style, and position. It is stored on the job file as `layout_units`.
+2. Once the job is approved, the units go to wxrks as a JSON resource in a **second project** (`doctranslate-<job>-layout`). That project is never metered, so the user pays for the words once.
+3. When it delivers, the poller removes the source text from each page, leaving images and vector art untouched. It draws the translation back on the original baselines and colors, in a substitute font (`server/layout/fonts/`, all OFL), shrunk to fit. "Page images" is the same result flattened to one picture per page.
+
+This path is soft. If a PDF can't be read, needs a script the bundled fonts don't cover (CJK, Arabic, …), or has more than `LAYOUT_MAX_PAGES` (100) pages, it gets no PDF. Its DOCX still delivers, and a job never waits more than 20 minutes for its PDFs. Known limits are in `spikes/07-inplace-pdf.py`: phrases split across design elements translate piecewise, inline bold is lost, dense cards cramp, and text inside images stays untranslated.
+
 ## Stack
 
 Express 4 + SQLite (better-sqlite3, WAL, idempotent migrate at boot — `./data/` locally, `/var/data/` in production) + React 18/Vite/Tailwind client. Single wxrks service account; org units pinned via env. Deliverables and uploads live in the database as BLOBs, swept after `RETENTION_DAYS`. No external database service.
@@ -38,6 +48,10 @@ The app's unit is **"Online PDF Translator"** (`0ae2ce8f-96e3-4ce4-913d-4586b63b
 ## Spikes
 
 `spikes/` holds the live verification scripts run before the app was built (`node spikes/01-….js`). Each file's header comment records its verdict. `spikes/lib/wxrksMin.js` is a standalone client for experiments.
+
+## License
+
+AGPL-3.0 ([LICENSE](LICENSE)). The design-kept PDFs run on PyMuPDF, which is AGPL-3.0, so this whole service is too. Anyone using the running site is entitled to this source, and the site links to it in its footer. The fonts in `server/layout/fonts/` are under the SIL Open Font License; their `OFL-*.txt` files sit beside them.
 
 ## Deploy
 

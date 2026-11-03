@@ -16,6 +16,10 @@ const AdmZip = require("adm-zip");
 
 const BASE = process.env.WXRKS_API_URL || "https://app.wxrks.com/api/v3";
 const TOKEN_TTL_MS = 50 * 60 * 1000; // wxrks documents no TTL; 50 min proven in production
+// Every call has a deadline: the poller runs one tick at a time, so a single request that never
+// answers would silently stop delivery for every job (seen locally, 2026-11-03).
+const REQUEST_TIMEOUT_MS = 2 * 60 * 1000;
+const DOWNLOAD_TIMEOUT_MS = 5 * 60 * 1000;
 
 let session = null; // { token, obtainedAt }
 
@@ -31,7 +35,7 @@ async function authenticate() {
   const accessKey = process.env.WXRKS_ACCESS_KEY;
   const secret = process.env.WXRKS_SECRET;
   if (!accessKey || !secret) throw new Error("WXRKS_ACCESS_KEY and WXRKS_SECRET must be configured");
-  const res = await axios.post(`${BASE}/auth`, { accessKey, secret });
+  const res = await axios.post(`${BASE}/auth`, { accessKey, secret }, { timeout: REQUEST_TIMEOUT_MS });
   const token = res.headers["x-auth-token"];
   if (!token) throw new Error("wxrks /auth response had no X-AUTH-TOKEN header");
   session = { token, obtainedAt: Date.now() };
@@ -46,10 +50,13 @@ async function getToken() {
 async function request(opts, { retried = false } = {}) {
   const token = await getToken();
   try {
+    const timeout = opts.timeout || REQUEST_TIMEOUT_MS;
     return await axios({
       ...opts,
       url: opts.url.startsWith("http") ? opts.url : `${BASE}${opts.url}`,
       headers: { "X-AUTH-TOKEN": token, ...(opts.headers || {}) },
+      timeout,
+      signal: AbortSignal.timeout(timeout + 5000), // timeout alone is per-socket-idle in Node
     });
   } catch (err) {
     const status = err.response?.status;
@@ -293,6 +300,7 @@ async function downloadZipSync(projectUuid, { resources, locales }) {
         locales: locales.join(","),
       })}`,
       responseType: "arraybuffer",
+      timeout: DOWNLOAD_TIMEOUT_MS,
     });
     return unzipEntries(res.data);
   } catch (err) {

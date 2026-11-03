@@ -9,6 +9,7 @@
 const path = require("path");
 const store = require("../store");
 const wxrks = require("./wxrks");
+const layout = require("./layout");
 const pipeline = require("./pipeline");
 const { matchJobFile } = require("./filenames");
 const { normalize } = require("./locales");
@@ -17,6 +18,8 @@ const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS || "60000", 10);
 const RETENTION_DAYS = parseInt(process.env.RETENTION_DAYS || "30", 10);
 const APPROVING_RETRY_AGE_MS = 2 * 60 * 1000;
 const TRANSLATING_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+// A design-kept PDF never holds the DOCX hostage: past this age the job delivers without it.
+const LAYOUT_WAIT_MS = 20 * 60 * 1000;
 
 let timer = null;
 let running = false;
@@ -90,16 +93,83 @@ async function processTranslatingJob(job) {
     }
   }
 
-  // Job is done when every (file × target locale) has a stored deliverable.
+  await processLayout(job, jobFiles);
+
+  // Job is done when every (file × target locale) has its translation, and the design-kept
+  // PDFs have either arrived or given up.
   const expected = jobFiles.length * job.target_locales.length;
   const deliverables = await store.listDeliverables(job.id);
-  if (deliverables.length >= expected && expected > 0) {
+  const translations = deliverables.filter((d) => d.variant === "translation").length;
+  if (translations >= expected && expected > 0 && (await layoutSettled(job, jobFiles))) {
     await store.updateJob(job.id, { status: "delivered" });
     await store.appendJobEvent(job.id, "delivered");
     console.log(`[poller] job ${job.id} delivered (${deliverables.length} files)`);
   } else if (Date.now() - new Date(job.created_at).getTime() > TRANSLATING_TIMEOUT_MS) {
     await pipeline.markJobFailed(job.id, new Error("translation timed out after 24h"));
   }
+}
+
+// Design-kept PDFs: each DELIVERED (file × locale) of the layout project is a JSON of
+// translated segments; rebuild the PDF from it and store both PDF variants.
+async function processLayout(job, jobFiles) {
+  const files = jobFiles.filter((f) => f.layout_status === "translating");
+  if (!job.layout_project_uuid || !files.length) return;
+  const wus = (await wxrks.listWorkUnits(job.layout_project_uuid)).content || [];
+  for (const wu of wus) {
+    if (wu.workStatus !== "DELIVERED") continue;
+    const file = files.find((f) => f.layout_filename === wu.filename);
+    const locale = normalize(wu.targetLanguage);
+    if (!file || (await store.isProcessed(job.layout_project_uuid, wu.filename, locale))) continue;
+    try {
+      const entries = await wxrks.downloadZipSync(job.layout_project_uuid, {
+        resources: [file.layout_resource_uuid],
+        locales: [wu.targetLanguage],
+      });
+      const entry = entries.find((e) => !e.entryName.endsWith("/"));
+      if (!entry) throw new wxrks.RetryLaterError("empty ZIP");
+      const translated = JSON.parse(entry.buffer.toString("utf8"));
+      const { design, images } = await layout.rebuild(
+        await store.getJobFileContent(file.id),
+        await store.getJobFileLayoutUnits(file.id),
+        translated
+      );
+      const base = path.basename(file.original_filename, path.extname(file.original_filename));
+      const stored = await store.storeDeliverable({
+        jobId: job.id,
+        jobFileId: file.id,
+        locale,
+        projectUuid: job.layout_project_uuid,
+        wxrksFilename: wu.filename,
+        files: [
+          { variant: "pdf-design", filename: `${base} (design kept).pdf`, content: design },
+          { variant: "pdf-images", filename: `${base} (page images).pdf`, content: images },
+        ],
+      });
+      if (stored) await store.appendJobEvent(job.id, "layout_pdf_stored", { file: file.original_filename, locale });
+    } catch (err) {
+      // Download hiccups retry next tick; a rebuild that can't succeed (a script the bundled
+      // fonts don't cover, a crash) or a garbled JSON ends this file × locale without a PDF.
+      if (err.retryLater || !(err instanceof layout.LayoutError || err instanceof SyntaxError)) {
+        if (!err.retryLater) console.error(`[poller] job ${job.id} layout ${wu.filename} → ${locale}: ${wxrks.errInfo(err)}`);
+        continue;
+      }
+      console.warn(`[poller] job ${job.id}: no design-kept PDF for ${file.original_filename} → ${locale}: ${err.message}`);
+      await store.markProcessed(job.layout_project_uuid, wu.filename, locale);
+      await store.appendJobEvent(job.id, "layout_pdf_skipped", { file: file.original_filename, locale, reason: err.message.slice(0, 160) });
+    }
+  }
+}
+
+async function layoutSettled(job, jobFiles) {
+  const waiting = jobFiles.filter((f) => ["pending", "translating"].includes(f.layout_status));
+  if (!waiting.length) return true;
+  if (Date.now() - new Date(job.created_at).getTime() > LAYOUT_WAIT_MS) {
+    await store.appendJobEvent(job.id, "layout_timeout");
+    return true;
+  }
+  // 'pending' = the layout project is still being set up (pipeline step 7)
+  if (!job.layout_project_uuid || waiting.some((f) => f.layout_status === "pending")) return false;
+  return (await store.countProcessed(job.layout_project_uuid)) >= waiting.length * job.target_locales.length;
 }
 
 async function tick() {

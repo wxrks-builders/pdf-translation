@@ -200,6 +200,20 @@ async function listResources(projectUuid) {
   return (await request({ method: "GET", url: `/project/${projectUuid}/resource/simple` })).data;
 }
 
+// wxrks converts an uploaded PDF to DOCX itself (the dashboard's conversion,
+// on the public API since the platform change, 2026-10-07): a few seconds after upload the
+// same resource is renamed in place to "<name>.pdf.docx" (verified live,
+// spike 6). Returns the converted name, or null if no rename by the deadline.
+async function waitForPdfConversion(projectUuid, resourceUuid, { timeoutMs = 3 * 60 * 1000, intervalMs = 3000 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const resource = (await listResources(projectUuid)).find((r) => r.uuid === resourceUuid);
+    if (resource && /\.docx$/i.test(resource.name)) return resource.name;
+    if (Date.now() > deadline) return null;
+    await sleep(intervalMs);
+  }
+}
+
 // --- work units ---
 
 // Body is a plain JSON array; the response is one work unit per
@@ -310,6 +324,7 @@ module.exports = {
   createResource,
   uploadResourceContent,
   listResources,
+  waitForPdfConversion,
   createWorkUnitsBulk,
   listWorkUnits,
   createPreAnalysis,

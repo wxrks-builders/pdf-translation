@@ -3,5 +3,7 @@
 @tailwind utilities;
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  @apply antialiased;
+  background: var(--wx-surface-sidebar);
+  color: var(--wx-text);
 }

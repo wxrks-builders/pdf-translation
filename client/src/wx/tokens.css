@@ -1,0 +1,74 @@
+/* wxrks platform design system tokens (light). The components in components.css read these.
+   Visual Sans is loaded from wxrks.com's own site CDN rather than shipped in this public repo. */
+@font-face{font-family:"Visual Sans";src:url(https://cdn.prod.website-files.com/65a6d693980f7ac91c0d37a3/67071445ed07576cd693c986_wfvisualsans-regulartext.woff2) format("woff2");font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:"Visual Sans";src:url(https://cdn.prod.website-files.com/65a6d693980f7ac91c0d37a3/6703e7ba549e0a9656c72ae5_wfvisualsans-medium.woff2) format("woff2");font-weight:500;font-style:normal;font-display:swap}
+:root, [data-theme="light"] {
+  --wx-surface: #ffffff;
+  --wx-surface-sidebar: #f3f5f7;
+  --wx-surface-subtle: #f7f8fa;
+  --wx-surface-summary: #f5f7f9;
+  --wx-surface-selected: #e7ebef;
+  --wx-text: #252a31;
+  --wx-text-muted: #57616d;
+  --wx-border: #dfe3e8;
+  --wx-border-control: #757d88;
+  --wx-action: #252a31;
+  --wx-action-hover: #181b1f;
+  --wx-action-pressed: #111418;
+  --wx-on-action: #ffffff;
+  --wx-accent: #00742c;
+  --wx-focus: #00742c;
+  --wx-pending-text: #785000;
+  --wx-pending-surface: #fff2d1;
+  --wx-success-text: #176b45;
+  --wx-success-surface: #e7f5ec;
+  --wx-danger-text: #a52b36;
+  --wx-danger-surface: #fdedef;
+  --wx-info-text: #315b7c;
+  --wx-info-surface: #eaf2f8;
+  --wx-track: #e7ebef;
+  --wx-progress: #57616d;
+  --wx-disabled-text: #57616d;
+  --wx-disabled-surface: #e7ebef;
+  --wx-overlay: #11141880;
+  --wx-shadow: #11141814;
+  --wx-brand-green: #01ff33;
+}
+
+:root {
+  --wx-spacing-1: 4px;
+  --wx-spacing-2: 6px;
+  --wx-spacing-3: 8px;
+  --wx-spacing-4: 12px;
+  --wx-spacing-5: 16px;
+  --wx-spacing-6: 20px;
+  --wx-spacing-7: 24px;
+  --wx-spacing-8: 32px;
+  --wx-spacing-9: 48px;
+  --wx-radius-badge: 4px;
+  --wx-radius-control: 6px;
+  --wx-radius-summary: 7px;
+  --wx-radius-shell: 10px;
+  --wx-radius-round: 999px;
+  --wx-size-control: 34px;
+  --wx-size-control-comfortable: 40px;
+  --wx-size-touch: 44px;
+  --wx-size-icon: 17px;
+  --wx-size-icon-small: 12px;
+  --wx-size-progress: 4px;
+  --wx-font-family: "Visual Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --wx-font-weight-regular: 400;
+  --wx-font-weight-medium: 500;
+  --wx-font-size-meta: 11px;
+  --wx-font-size-table: 12px;
+  --wx-font-size-body: 13px;
+  --wx-font-size-section: 15px;
+  --wx-font-size-metric: 22px;
+  --wx-font-size-page: 29px;
+  --wx-font-line-body: 1.45;
+  --wx-font-line-heading: 1.15;
+  --wx-icon-stroke: 1.75;
+  --wx-motion-fast: 120ms;
+  --wx-motion-standard: 180ms;
+  --wx-motion-easing: cubic-bezier(0.2, 0, 0, 1);
+}

@@ -94,6 +94,9 @@ router.post("/", optionalSession, freeTier.anonCookie, upload.array("files"), as
   const tier = req.user ? "paid" : "free";
   if (tier === "free") {
     if (files.length > 1) return res.status(400).json({ error: "free_tier_one_file" });
+    if (targetLocales.length > 1) {
+      return res.status(400).json({ error: "free_tier_one_language", message: "The free translator does one language a day. Sign in for more." });
+    }
     const used = await freeTier.findUsageToday(req);
     if (used) return res.status(429).json({ error: "free_limit_reached", message: "Free tier allows 1 document per day." });
   }

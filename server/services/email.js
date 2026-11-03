@@ -32,13 +32,13 @@ function layoutEmail(inner) {
   return `<!doctype html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
-<body style="margin:0;padding:0;background-color:#f5f6fb;">
-<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;background-color:#f5f6fb;">
+<body style="margin:0;padding:0;background-color:#f3f5f7;">
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;background-color:#f3f5f7;">
   <tr>
     <td align="center" style="padding:32px 16px;">
       <table role="presentation" cellpadding="0" cellspacing="0" width="600" style="border-collapse:collapse;width:600px;max-width:600px;">
         <tr>
-          <td bgcolor="#ffffff" style="background-color:#ffffff;border:1px solid #dee2ee;border-radius:12px;padding:40px 40px 36px;font-family:helvetica,'helvetica neue',arial,sans-serif;">
+          <td bgcolor="#ffffff" style="background-color:#ffffff;border:1px solid #dfe3e8;border-radius:10px;padding:40px 40px 36px;font-family:helvetica,'helvetica neue',arial,sans-serif;">
 ${inner}
           </td>
         </tr>
@@ -50,11 +50,14 @@ ${inner}
 </html>`;
 }
 
-function button(href, label) {
+// The platform's graphite button; secondary is the outlined one.
+function button(href, label, primary = true) {
+  const fill = primary ? "background-color:#252a31;" : "background-color:#ffffff;border:1px solid #757d88;";
+  const ink = primary ? "#ffffff" : "#252a31";
   return `<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 10px;">
               <tr>
-                <td align="center" bgcolor="#3b5bfd" style="background-color:#3b5bfd;border-radius:6px;">
-                  <a href="${href}" target="_blank" style="display:inline-block;padding:12px 22px;font-family:helvetica,'helvetica neue',arial,sans-serif;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:6px;">${label}</a>
+                <td align="center" ${primary ? 'bgcolor="#252a31" ' : ""}style="${fill}border-radius:6px;">
+                  <a href="${href}" target="_blank" style="display:inline-block;padding:12px 22px;font-family:helvetica,'helvetica neue',arial,sans-serif;font-size:15px;font-weight:500;color:${ink};text-decoration:none;border-radius:6px;">${label}</a>
                 </td>
               </tr>
             </table>`;
@@ -65,16 +68,17 @@ function renderFilesEmail({ documentName, groups, jobUrl }) {
   const sections = groups
     .filter((g) => g.files.length)
     .map(
-      (g) => `            <p style="Margin:20px 0 10px;font-size:15px;line-height:22px;color:#1a1d2c;font-weight:600;">${escapeHtml(g.language)}</p>
-            ${g.files.map((f) => button(f.url, `Download ${escapeHtml(f.filename)}`)).join("\n            ")}`
+      (g) => `            <p style="Margin:20px 0 10px;font-size:15px;line-height:22px;color:#252a31;font-weight:600;">${escapeHtml(g.language)}</p>
+            ${g.files.map((f, i) => button(f.url, `Download ${escapeHtml(f.filename)}`, i === 0)).join("\n            ")}`
     )
     .join("\n");
-  return layoutEmail(`            <h1 style="Margin:0 0 12px;font-size:22px;line-height:30px;color:#1a1d2c;font-weight:600;">Your translation is ready</h1>
-            <p style="Margin:0;font-size:15px;line-height:23px;color:#5b6178;">Here is ${escapeHtml(documentName)}, translated. The links work for 30 days, and then the files are deleted.</p>
+  return layoutEmail(`            <p style="Margin:0 0 20px;font-size:15px;line-height:20px;color:#252a31;font-weight:600;">wxrks <span style="color:#57616d;font-weight:400;">Translate</span></p>
+            <h1 style="Margin:0 0 12px;font-size:22px;line-height:30px;color:#252a31;font-weight:600;">Your translation is ready</h1>
+            <p style="Margin:0;font-size:15px;line-height:23px;color:#57616d;">Here is ${escapeHtml(documentName)}, translated. The links work for 30 days, and then the files are deleted.</p>
 ${sections}
-            <p style="Margin:24px 0 0;font-size:14px;line-height:21px;color:#5b6178;">You can also <a href="${jobUrl}" style="color:#3b5bfd;">open the translation page</a> on any device. Tomorrow you can translate another document for free.</p>
-            <p style="Margin:24px 0 0;font-size:14px;line-height:21px;color:#5b6178;">Translating for a team? In <a href="https://wxrks.com/?utm_source=translate.wxrks.com&amp;utm_medium=email&amp;utm_campaign=free-translator&amp;utm_content=files-email" style="color:#3b5bfd;">wxrks</a>, your glossary and reviewers shape every file.</p>
-            <p style="Margin:28px 0 0;font-size:12px;line-height:18px;color:#8b90a6;">You got this email because you asked for these files on translate.wxrks.com. Reply if something looks wrong; a person reads it.</p>`);
+            <p style="Margin:24px 0 0;font-size:14px;line-height:21px;color:#57616d;">You can also <a href="${jobUrl}" style="color:#252a31;">open the translation page</a> on any device. Tomorrow you can translate another document for free.</p>
+            <p style="Margin:24px 0 0;font-size:14px;line-height:21px;color:#57616d;">Translating for a team? In <a href="https://wxrks.com/?utm_source=translate.wxrks.com&amp;utm_medium=email&amp;utm_campaign=free-translator&amp;utm_content=files-email" style="color:#252a31;">wxrks</a>, your glossary and reviewers shape every file.</p>
+            <p style="Margin:28px 0 0;font-size:12px;line-height:18px;color:#57616d;">We sent this because you asked for these files on translate.wxrks.com. Reply if something looks wrong; a person reads it.</p>`);
 }
 
 async function sendFilesEmail(to, details) {
@@ -85,26 +89,26 @@ function renderLoginEmail(loginUrl) {
   return `<!doctype html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
-<body style="margin:0;padding:0;background-color:#f5f6fb;">
-<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;background-color:#f5f6fb;">
+<body style="margin:0;padding:0;background-color:#f3f5f7;">
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;background-color:#f3f5f7;">
   <tr>
     <td align="center" style="padding:32px 16px;">
       <table role="presentation" cellpadding="0" cellspacing="0" width="600" style="border-collapse:collapse;width:600px;max-width:600px;">
         <tr>
-          <td bgcolor="#ffffff" style="background-color:#ffffff;border:1px solid #dee2ee;border-radius:12px;padding:40px 40px 36px;">
+          <td bgcolor="#ffffff" style="background-color:#ffffff;border:1px solid #dfe3e8;border-radius:10px;padding:40px 40px 36px;">
             <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
               <tr>
                 <td align="center" style="font-family:helvetica,'helvetica neue',arial,sans-serif;">
-                  <h1 style="Margin:0 0 12px;font-size:22px;line-height:30px;color:#1a1d2c;font-weight:600;">Sign in to wxrks Translate</h1>
-                  <p style="Margin:0 0 28px;font-size:15px;line-height:23px;color:#5b6178;">Click the button below to sign in. No password needed.</p>
+                  <h1 style="Margin:0 0 12px;font-size:22px;line-height:30px;color:#252a31;font-weight:600;">Sign in to wxrks Translate</h1>
+                  <p style="Margin:0 0 28px;font-size:15px;line-height:23px;color:#57616d;">Click the button below to sign in. No password needed.</p>
                   <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="border-collapse:collapse;margin:0 auto 28px;">
                     <tr>
-                      <td align="center" bgcolor="#3b5bfd" style="background-color:#3b5bfd;border-radius:6px;">
+                      <td align="center" bgcolor="#252a31" style="background-color:#252a31;border-radius:6px;">
                         <a href="${loginUrl}" target="_blank" style="display:inline-block;padding:16px 34px;font-family:helvetica,'helvetica neue',arial,sans-serif;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:6px;">Sign in</a>
                       </td>
                     </tr>
                   </table>
-                  <p style="Margin:0;font-size:13px;line-height:20px;color:#8b90a6;">This link expires in 15 minutes and can only be used once. Didn't request this? You can safely ignore this email.</p>
+                  <p style="Margin:0;font-size:13px;line-height:20px;color:#57616d;">This link expires in 15 minutes and can only be used once. Didn't request this? You can safely ignore this email.</p>
                 </td>
               </tr>
             </table>

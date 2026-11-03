@@ -10,10 +10,11 @@ function Header() {
   const { user, creditBalance, logout } = useAuth();
   const navigate = useNavigate();
   return (
-    <header className="border-b border-slate-200 bg-white">
-      <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
-        <Link to="/" className="text-lg font-semibold text-brand-600">
-          wxrks Translate
+    <header className="border-b border-brand-200 bg-white">
+      <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4">
+        <Link to="/" className="flex items-center gap-2" aria-label="wxrks Translate, home">
+          <img src="/wxrks-logo.svg" alt="wxrks" className="h-[18px] w-auto" />
+          <span className="text-[15px] font-medium text-brand-500">Translate</span>
         </Link>
         <nav className="flex items-center gap-4 text-sm">
           {user ? (
@@ -47,7 +48,7 @@ function Header() {
 
 export default function App() {
   return (
-    <div className="min-h-screen">
+    <div className="wx min-h-screen" style={{ background: "var(--wx-surface-sidebar)" }}>
       <Header />
       <main className="mx-auto max-w-4xl px-4 py-8">
         <Routes>
@@ -61,7 +62,7 @@ export default function App() {
         </Routes>
       </main>
       {/* AGPL-3.0 §13: users of the network service get a way to the source. */}
-      <footer className="mx-auto max-w-4xl px-4 pb-8 text-xs text-slate-400">
+      <footer className="mx-auto max-w-4xl px-4 pb-8 text-xs text-brand-500">
         <Link to="/pdf" className="underline hover:text-slate-600">
           PDF translator
         </Link>{" "}

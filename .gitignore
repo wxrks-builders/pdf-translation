@@ -6,3 +6,4 @@ spikes/out/
 *.log
 .DS_Store
 data/
+__pycache__/

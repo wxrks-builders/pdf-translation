@@ -58,6 +58,18 @@ export default function App() {
           <Route path="/account" element={<Account />} />
         </Routes>
       </main>
+      {/* AGPL-3.0 §13: users of the network service get a way to the source. */}
+      <footer className="mx-auto max-w-4xl px-4 pb-8 text-xs text-slate-400">
+        Translations by{" "}
+        <a href="https://wxrks.com" className="underline hover:text-slate-600">
+          wxrks
+        </a>
+        . DocTranslate is open source under the AGPL-3.0 —{" "}
+        <a href="https://github.com/wxrks-builders/pdf-translation" className="underline hover:text-slate-600">
+          source code
+        </a>
+        .
+      </footer>
     </div>
   );
 }

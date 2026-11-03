@@ -102,16 +102,19 @@ async function migrate() {
     );
     CREATE INDEX IF NOT EXISTS job_files_job_idx ON job_files (job_id);
 
+    -- variant: 'translation' (what wxrks delivers, e.g. the DOCX) or a design-kept PDF
+    -- ('pdf-design', 'pdf-images') rebuilt by services/layout.js.
     CREATE TABLE IF NOT EXISTS deliverables (
       id TEXT PRIMARY KEY,
       job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
       job_file_id TEXT NOT NULL REFERENCES job_files(id) ON DELETE CASCADE,
       locale TEXT NOT NULL,
+      variant TEXT NOT NULL DEFAULT 'translation',
       filename TEXT NOT NULL,
       content BLOB NOT NULL,
       size_bytes INTEGER NOT NULL,
       created_at TEXT NOT NULL DEFAULT ${NOW},
-      UNIQUE (job_file_id, locale)
+      UNIQUE (job_file_id, locale, variant)
     );
 
     -- Poller/webhook dedupe: one row per delivered-and-stored (project,
@@ -136,6 +139,48 @@ async function migrate() {
     CREATE INDEX IF NOT EXISTS free_usage_ip_idx ON free_tier_usage (ip, used_on);
     CREATE INDEX IF NOT EXISTS free_usage_cookie_idx ON free_tier_usage (cookie_id, used_on);
   `);
+
+  // --- additive migrations for databases created before a column existed ---
+
+  // Design-kept PDFs: the second wxrks project, and per-file layout state.
+  addColumn("jobs", "layout_project_uuid", "TEXT");
+  addColumn("job_files", "layout_status", "TEXT"); // pending | translating | done | skipped | failed
+  addColumn("job_files", "layout_filename", "TEXT");
+  addColumn("job_files", "layout_resource_uuid", "TEXT");
+  addColumn("job_files", "layout_units", "TEXT"); // JSON from pdf_layout.py extract
+
+  // deliverables gained `variant` and a wider UNIQUE; SQLite can't alter a table constraint,
+  // so an old table is rebuilt once, keeping every row as the 'translation' variant.
+  if (!columns("deliverables").includes("variant")) {
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE deliverables_v2 (
+          id TEXT PRIMARY KEY,
+          job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+          job_file_id TEXT NOT NULL REFERENCES job_files(id) ON DELETE CASCADE,
+          locale TEXT NOT NULL,
+          variant TEXT NOT NULL DEFAULT 'translation',
+          filename TEXT NOT NULL,
+          content BLOB NOT NULL,
+          size_bytes INTEGER NOT NULL,
+          created_at TEXT NOT NULL DEFAULT ${NOW},
+          UNIQUE (job_file_id, locale, variant)
+        );
+        INSERT INTO deliverables_v2 (id, job_id, job_file_id, locale, variant, filename, content, size_bytes, created_at)
+          SELECT id, job_id, job_file_id, locale, 'translation', filename, content, size_bytes, created_at FROM deliverables;
+        DROP TABLE deliverables;
+        ALTER TABLE deliverables_v2 RENAME TO deliverables;
+      `);
+    })();
+  }
+}
+
+function columns(table) {
+  return db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+}
+
+function addColumn(table, column, definition) {
+  if (!columns(table).includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
 }
 
 function close() {

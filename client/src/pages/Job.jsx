@@ -48,6 +48,7 @@ export default function Job() {
     job.status === "delivered" ? STEPS.length : Math.max(0, STEPS.indexOf(job.status));
   const byLocale = {};
   for (const d of job.deliverables) (byLocale[d.locale] ||= []).push(d);
+  const hasDesignPdf = job.deliverables.some((d) => d.variant?.startsWith("pdf-"));
 
   return (
     <div className="space-y-6">
@@ -153,6 +154,13 @@ export default function Job() {
               );
             })}
           </div>
+          {hasDesignPdf && (
+            <p className="mt-3 text-xs text-slate-500">
+              Beta: the “design kept” PDF redraws the translation into your original pages in a similar
+              font, and “page images” is the same thing as one picture per page. Check them before you
+              share; the DOCX is the version to edit.
+            </p>
+          )}
         </div>
       )}
 

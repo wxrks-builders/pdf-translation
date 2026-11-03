@@ -12,6 +12,7 @@
  */
 const store = require("../store");
 const wxrks = require("./wxrks");
+const layout = require("./layout");
 const { buildWxrksFilename } = require("./filenames");
 
 const FREE_TIER_MAX_WORDS = parseInt(process.env.FREE_TIER_MAX_WORDS || "1000", 10);
@@ -58,6 +59,11 @@ async function runPipeline(jobId) {
     }
   }
   await store.appendJobEvent(jobId, "files_uploaded", { count: files.length });
+
+  // 2b. Design-kept PDFs (beta): read each PDF's text and layout now, so the poller knows from
+  // the start which files also get a rebuilt PDF. Soft — a PDF that can't be read just goes
+  // without one; the DOCX never depends on it.
+  await prepareLayout(jobId, files);
 
   // 3. Work units (must exist before pre-analysis returns real numbers)
   const uploaded = await store.listJobFiles(jobId);
@@ -106,6 +112,66 @@ async function runPipeline(jobId) {
   await setStatus(jobId, "approving");
   await wxrks.approveProject(project.uuid);
   await setStatus(jobId, "translating", "approved");
+
+  // 7. The design-kept PDFs' text goes through its own wxrks project, created only once the
+  // job is paid for and never metered (the user pays for the words once, above).
+  await startLayout(jobId);
+}
+
+async function prepareLayout(jobId, files) {
+  const pdfs = files.filter((f) => /\.pdf$/i.test(f.original_filename));
+  if (!pdfs.length || !(await layout.isAvailable())) return;
+  for (const [i, file] of pdfs.entries()) {
+    try {
+      const { units, segments } = await layout.extract(await store.getJobFileContent(file.id));
+      if (!Object.keys(segments).length) {
+        await store.updateJobFile(file.id, { layoutStatus: "skipped" });
+        continue;
+      }
+      await store.updateJobFile(file.id, { layoutStatus: "pending", layoutFilename: `${jobId}-${i + 1}.layout.json`, layoutUnits: units });
+    } catch (err) {
+      console.warn(`[pipeline] job ${jobId}: no design-kept PDF for ${file.original_filename}: ${err.message}`);
+      await store.updateJobFile(file.id, { layoutStatus: err.soft ? "skipped" : "failed" });
+      await store.appendJobEvent(jobId, "layout_skipped", { file: file.original_filename, reason: err.message.slice(0, 160) });
+    }
+  }
+}
+
+async function startLayout(jobId) {
+  const job = await store.getJob(jobId);
+  const files = (await store.listJobFiles(jobId)).filter((f) => f.layout_status === "pending");
+  if (!files.length) return;
+  try {
+    const project = await wxrks.createProject({
+      reference: `doctranslate-${jobId}-layout`,
+      sourceLocale: job.source_locale,
+      orgUnitUUID: job.org_unit_uuid,
+      tags: [job.user_id || "free", "layout"],
+    });
+    await store.updateJob(jobId, { layout_project_uuid: project.uuid });
+    for (const file of files) {
+      const { units } = await store.getJobFileLayoutUnits(file.id);
+      const segments = Object.fromEntries(units.filter((u) => u.translate).map((u) => [u.id, u.text]));
+      const resource = await wxrks.createResource(project.uuid, file.layout_filename);
+      await wxrks.uploadResourceContent(project.uuid, resource.uuid, file.layout_filename, Buffer.from(JSON.stringify(segments)));
+      await store.updateJobFile(file.id, { layoutResourceUuid: resource.uuid, layoutStatus: "translating" });
+    }
+    const sent = (await store.listJobFiles(jobId)).filter((f) => f.layout_status === "translating");
+    await wxrks.createWorkUnitsBulk(
+      project.uuid,
+      sent.map((f) => ({ projectResourceUuid: f.layout_resource_uuid, workflows: ["TRANSLATION"], targetLocales: job.target_locales }))
+    );
+    await wxrks.approveProject(project.uuid);
+    await store.appendJobEvent(jobId, "layout_started", { files: sent.length });
+  } catch (err) {
+    console.warn(`[pipeline] job ${jobId}: design-kept PDFs failed to start: ${wxrks.errInfo(err)}`);
+    for (const f of await store.listJobFiles(jobId)) {
+      if (["pending", "translating"].includes(f.layout_status)) await store.updateJobFile(f.id, { layoutStatus: "failed" });
+    }
+    await store.appendJobEvent(jobId, "layout_failed", { error: wxrks.errInfo(err).slice(0, 200) });
+    const current = await store.getJob(jobId);
+    if (current.layout_project_uuid) await wxrks.cancelProject(current.layout_project_uuid, "design-kept PDFs failed");
+  }
 }
 
 // Re-entered by the poller for jobs stuck in 'approving' (crash recovery):
@@ -125,6 +191,7 @@ async function markJobFailed(jobId, err) {
     const refunded = await store.refundForJob(jobId);
     if (refunded) await store.appendJobEvent(jobId, "credits_refunded");
     if (job?.wxrks_project_uuid) await wxrks.cancelProject(job.wxrks_project_uuid, "job failed");
+    if (job?.layout_project_uuid) await wxrks.cancelProject(job.layout_project_uuid, "job failed");
   } catch (inner) {
     console.error(`[pipeline] cleanup for ${jobId} also failed:`, inner.message);
   }
@@ -139,6 +206,7 @@ async function cancelJob(jobId) {
   const refunded = await store.refundForJob(jobId);
   if (refunded) await store.appendJobEvent(jobId, "credits_refunded");
   if (job.wxrks_project_uuid) await wxrks.cancelProject(job.wxrks_project_uuid, "cancelled by user");
+  if (job.layout_project_uuid) await wxrks.cancelProject(job.layout_project_uuid, "cancelled by user");
   return store.getJob(jobId);
 }
 

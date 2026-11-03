@@ -149,6 +149,27 @@ async function migrate() {
   addColumn("job_files", "layout_resource_uuid", "TEXT");
   addColumn("job_files", "layout_units", "TEXT"); // JSON from pdf_layout.py extract
 
+  // Free tier: downloads open once the visitor leaves an email (routes/jobs.js unlock). Jobs
+  // from before the email step stay open.
+  if (addColumn("jobs", "unlocked_at", "TEXT")) db.exec(`UPDATE jobs SET unlocked_at = created_at`);
+  addColumn("jobs", "unlocked_email", "TEXT");
+  addColumn("jobs", "files_emailed_at", "TEXT");
+  // A free document that was never translated (over the word limit, no text) gives the day back.
+  addColumn("free_tier_usage", "released", "INTEGER NOT NULL DEFAULT 0");
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS leads (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      job_id TEXT REFERENCES jobs(id) ON DELETE SET NULL,
+      marketing_opt_in INTEGER NOT NULL DEFAULT 0,
+      suspected_bot INTEGER NOT NULL DEFAULT 0,
+      ip TEXT,
+      user_agent TEXT,
+      created_at TEXT NOT NULL DEFAULT ${NOW}
+    );
+    CREATE INDEX IF NOT EXISTS leads_email_idx ON leads (email, created_at);
+  `);
+
   // deliverables gained `variant` and a wider UNIQUE; SQLite can't alter a table constraint,
   // so an old table is rebuilt once, keeping every row as the 'translation' variant.
   if (!columns("deliverables").includes("variant")) {
@@ -179,8 +200,11 @@ function columns(table) {
   return db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
 }
 
+// → true when the column was just added
 function addColumn(table, column, definition) {
-  if (!columns(table).includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  if (columns(table).includes(column)) return false;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  return true;
 }
 
 function close() {

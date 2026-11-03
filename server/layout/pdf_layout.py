@@ -9,6 +9,8 @@ font, shrunk to fit. Proven on spike 7 (spikes/07-inplace-pdf.py has the verdict
       → out_dir/units.json (layout) + out_dir/segments.json ({id: source text}, sent to wxrks)
   pdf_layout.py rebuild <in.pdf> <units.json> <translated.json> <out_dir>
       → out_dir/design.pdf (live text) + out_dir/images.pdf (one picture per page)
+  pdf_layout.py preview <in.pdf> <out.jpg>
+      → page 1 as a JPEG, PREVIEW_WIDTH px wide (the free tier shows it before the email step)
 
 Exit codes: 0 ok · 3 a translation needs characters the bundled fonts lack (non-Latin script)
 · 4 too many pages (LAYOUT_MAX_PAGES) · anything else is a crash.
@@ -27,6 +29,7 @@ import pymupdf
 FONTS = Path(__file__).parent / "fonts"
 MAX_PAGES = int(os.environ.get("LAYOUT_MAX_PAGES", "100"))
 MIN_SCALE = 0.7
+PREVIEW_WIDTH = 720
 
 # A PDF embeds only the glyphs its source text used (no ã/ç/é for an English source), so every
 # font is replaced by a full one: by family where we bundle it, otherwise by look — condensed,
@@ -519,6 +522,14 @@ def rebuild(pdf, units_path, translated_path, out_dir):
     print(json.dumps({"pages": len(doc)}))
 
 
+def preview(pdf, out_path):
+    doc = pymupdf.open(pdf)
+    page = doc[0]
+    zoom = min(PREVIEW_WIDTH / page.rect.width, 3)
+    pix = page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), alpha=False)
+    Path(out_path).write_bytes(pix.tobytes("jpeg", jpg_quality=82))
+
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     try:
@@ -526,6 +537,8 @@ if __name__ == "__main__":
             extract(args[1], args[2])
         elif args[:1] == ["rebuild"] and len(args) == 5:
             rebuild(args[1], args[2], args[3], args[4])
+        elif args[:1] == ["preview"] and len(args) == 3:
+            preview(args[1], args[2])
         else:
             sys.exit(__doc__)
     except Unsupported as e:

@@ -29,7 +29,7 @@ Required for sign-in (the container runs `NODE_ENV=production`, so there is no d
 |---|---|
 | `MAILGUN_API_KEY` / `MAILGUN_DOMAIN` / `EMAIL_FROM` | Mailgun HTTP-API credentials + sender address |
 
-Optional tuning: `SQLITE_PATH` (defaults to `/var/data/doctranslate.db` in production), `FREE_TIER_MAX_WORDS` (1000), `POLL_INTERVAL_MS` (60000), `RETENTION_DAYS` (30), `MAX_UPLOAD_MB` (25), `WXRKS_FREE_ORG_UNIT_UUID` (separate org unit for free-tier jobs; falls back to the paid one), `LAYOUT_MAX_PAGES` (100; larger PDFs get no design-kept PDF). `LAYOUT_PYTHON` is set by the Dockerfile (`/opt/layout/bin/python`, with PyMuPDF); without PyMuPDF the app runs normally and skips design-kept PDFs.
+Optional tuning: `SQLITE_PATH` (defaults to `/var/data/doctranslate.db` in production), `FREE_TIER_MAX_WORDS` (1000), `POLL_INTERVAL_MS` (60000), `RETENTION_DAYS` (30), `MAX_UPLOAD_MB` (25), `WXRKS_FREE_ORG_UNIT_UUID` (separate org unit for free-tier jobs; falls back to the paid one), `LAYOUT_MAX_PAGES` (100; larger PDFs get no design-kept PDF), `LEAD_WEBHOOK_URL` (receives each free-tier email as JSON; unset = kept in the `leads` table only), `FILES_EMAIL_DAILY_CAP` (300) and `FILES_EMAIL_PER_ADDRESS_DAILY` (3) for the files email, `EMAIL_REPLY_TO` (help@wxrks.com). `LAYOUT_PYTHON` is set by the Dockerfile (`/opt/layout/bin/python`, with PyMuPDF); without PyMuPDF the app runs normally and skips design-kept PDFs.
 
 ### 4. Restart and verify
 Restart the app after setting the vars. Then:

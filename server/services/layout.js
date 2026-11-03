@@ -79,4 +79,13 @@ async function rebuild(pdfBuffer, units, translated) {
   });
 }
 
-module.exports = { isAvailable, extract, rebuild, LayoutError };
+// → page 1 of a PDF as a JPEG Buffer
+async function preview(pdfBuffer) {
+  return withTempDir(async (dir) => {
+    await fs.writeFile(path.join(dir, "in.pdf"), pdfBuffer);
+    await run(["preview", path.join(dir, "in.pdf"), path.join(dir, "page1.jpg")]);
+    return fs.readFile(path.join(dir, "page1.jpg"));
+  });
+}
+
+module.exports = { isAvailable, extract, rebuild, preview, LayoutError };

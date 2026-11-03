@@ -2,19 +2,18 @@ const express = require("express");
 const AdmZip = require("adm-zip");
 const store = require("../store");
 const freeTier = require("../services/freeTier");
+const { canSeeJob, isUnlocked } = require("../services/access");
 const { optionalSession } = require("../middleware/auth");
 
 const router = express.Router();
 
-function canSeeJob(req, job) {
-  if (job.user_id) return req.user && req.user.id === job.user_id;
-  return job.anon_cookie_id && job.anon_cookie_id === req.anonId;
-}
+const EMAIL_REQUIRED = { error: "email_required", message: "Leave your email on the job page to download." };
 
 // One ZIP with every translated file for a language.
 router.get("/:id/download/:locale", optionalSession, freeTier.anonCookie, async (req, res) => {
   const job = await store.getJob(req.params.id);
   if (!job || !canSeeJob(req, job)) return res.status(404).json({ error: "not_found" });
+  if (!isUnlocked(req, job)) return res.status(403).json(EMAIL_REQUIRED);
 
   const all = await store.listDeliverables(job.id, { withContent: true });
   const matching = all.filter((d) => d.locale === req.params.locale && d.content?.length);
@@ -31,6 +30,7 @@ router.get("/:id/download/:locale", optionalSession, freeTier.anonCookie, async 
 router.get("/:id/files/:deliverableId", optionalSession, freeTier.anonCookie, async (req, res) => {
   const job = await store.getJob(req.params.id);
   if (!job || !canSeeJob(req, job)) return res.status(404).json({ error: "not_found" });
+  if (!isUnlocked(req, job)) return res.status(403).json(EMAIL_REQUIRED);
 
   const d = await store.getDeliverable(req.params.deliverableId);
   if (!d || d.job_id !== job.id || !d.content?.length) return res.status(404).json({ error: "not_found" });

@@ -27,7 +27,9 @@ export const api = {
   languages: () => request("/api/languages"),
   createJob: (formData) => request("/api/jobs", { method: "POST", body: formData }),
   listJobs: () => request("/api/jobs"),
-  getJob: (id) => request(`/api/jobs/${id}`),
+  getJob: (id, k) => request(`/api/jobs/${id}${k ? `?k=${encodeURIComponent(k)}` : ""}`),
   cancelJob: (id) => request(`/api/jobs/${id}/cancel`, { method: "POST" }),
+  unlockJob: (id, body, k) =>
+    request(`/api/jobs/${id}/unlock${k ? `?k=${encodeURIComponent(k)}` : ""}`, { method: "POST", body: JSON.stringify(body) }),
   credits: () => request("/api/credits"),
 };

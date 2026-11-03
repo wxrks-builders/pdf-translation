@@ -1,9 +1,9 @@
 /**
- * The URL is
- * configured manually in the wxrks dashboard (events "Work Unit Status
- * Changed" / "Work Unit Translation File Ready"). The payload is therefore
- * treated purely as an untrusted latency hint: acknowledge immediately,
- * and if the referenced project belongs to an active job, poke the poller —
+ * The URL is configured in the wxrks dashboard (events "Work Unit Status
+ * Changed" / "Work Unit Translation File Ready"). This app does not verify
+ * the sender, so the payload is treated purely as an untrusted latency hint:
+ * acknowledge immediately, and if the referenced project belongs to an active
+ * job, poke the poller —
  * which re-reads the truth from wxrks itself. No state is ever written from
  * webhook data.
  */

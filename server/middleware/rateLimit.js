@@ -1,8 +1,8 @@
 /**
  * Small in-memory sliding-window limiter. Process-local and best-effort:
- * fine for a single Render instance; a shared store (Redis) would be needed
+ * fine for a single instance; a shared store (Redis) would be needed
  * to scale out. Requires app.set("trust proxy", 1) upstream so req.ip
- * reflects the real client behind Render's proxy.
+ * reflects the real client behind the hosting proxy.
  */
 function createRateLimiter({ windowMs, max }) {
   const hitsByKey = new Map();

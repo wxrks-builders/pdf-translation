@@ -62,8 +62,9 @@ async function runPipeline(jobId) {
 
   // 2b. Design-kept PDFs (beta): read each PDF's text and layout now, so the poller knows from
   // the start which files also get a rebuilt PDF. Soft — a PDF that can't be read just goes
-  // without one; the DOCX never depends on it.
-  await prepareLayout(jobId, files);
+  // without one; the DOCX never depends on it. Returns the words those PDFs will send to
+  // wxrks, which the gate charges for when wxrks counts fewer.
+  const layoutWords = await prepareLayout(jobId, files);
 
   // 3. Work units (must exist before pre-analysis returns real numbers)
   const uploaded = await store.listJobFiles(jobId);
@@ -72,10 +73,8 @@ async function runPipeline(jobId) {
     uploaded.map((f) => ({ projectResourceUuid: f.resource_uuid, workflows: ["TRANSLATION"], targetLocales: targets }))
   );
 
-  // 4. Analyze. A zero-word summary can be a race with wxrks's still-running
-  // file conversion (observed live on a 1.5MB PDF: analysis "completed" at 0
-  // words, then the document translated anyway — an unmetered job). Retry
-  // with backoff before trusting a zero; genuinely empty docs stay 0.
+  // 4. Analyze. A zero-word summary can come back while a PDF is still being
+  // converted, so retry with backoff before trusting a zero.
   await setStatus(jobId, "analyzing");
   let summary;
   for (let attempt = 1; ; attempt++) {
@@ -84,11 +83,23 @@ async function runPipeline(jobId) {
     await store.appendJobEvent(jobId, "analysis_empty_retry", { attempt });
     await new Promise((r) => setTimeout(r, attempt * 15000));
   }
-  // One row per target language, each with the full source word count.
-  const analyzedWords = Math.max(0, ...summary.map((r) => r.totalWords || 0));
-  const charge = summary.reduce((sum, r) => sum + (r.totalWords || 0), 0);
+  // One row per target language, each with the full source word count. The
+  // design-kept project translates every word layoutWords counted, so the job
+  // pays for whichever count is higher.
+  const wxrksWords = Math.max(0, ...summary.map((r) => r.totalWords || 0));
+  const analyzedWords = Math.max(wxrksWords, layoutWords);
+  const charge = Math.max(summary.reduce((sum, r) => sum + (r.totalWords || 0), 0), layoutWords * targets.length);
   await store.updateJob(jobId, { analyzed_words: analyzedWords });
-  await store.appendJobEvent(jobId, "analyzed", { words: analyzedWords, charge, targets: targets.length });
+  await store.appendJobEvent(jobId, "analyzed", { words: analyzedWords, wxrksWords, layoutWords, charge, targets: targets.length });
+
+  // Still zero: a scanned PDF (no OCR), or a conversion that never finished.
+  // Approving would translate whatever wxrks reads later without charging for
+  // it, so the job stops here.
+  if (analyzedWords === 0) {
+    await wxrks.cancelProject(project.uuid, "no text found");
+    await setStatus(jobId, "no_text");
+    return;
+  }
 
   // 5. Gate
   if (job.tier === "free") {
@@ -114,27 +125,30 @@ async function runPipeline(jobId) {
   await setStatus(jobId, "translating", "approved");
 
   // 7. The design-kept PDFs' text goes through its own wxrks project, created only once the
-  // job is paid for and never metered (the user pays for the words once, above).
+  // job is paid for and not metered again (the charge above already covers its words).
   await startLayout(jobId);
 }
 
 async function prepareLayout(jobId, files) {
+  let words = 0;
   const pdfs = files.filter((f) => /\.pdf$/i.test(f.original_filename));
-  if (!pdfs.length || !(await layout.isAvailable())) return;
+  if (!pdfs.length || !(await layout.isAvailable())) return words;
   for (const [i, file] of pdfs.entries()) {
     try {
-      const { units, segments } = await layout.extract(await store.getJobFileContent(file.id));
-      if (!Object.keys(segments).length) {
+      const extracted = await layout.extract(await store.getJobFileContent(file.id));
+      if (!Object.keys(extracted.segments).length) {
         await store.updateJobFile(file.id, { layoutStatus: "skipped" });
         continue;
       }
-      await store.updateJobFile(file.id, { layoutStatus: "pending", layoutFilename: `${jobId}-${i + 1}.layout.json`, layoutUnits: units });
+      await store.updateJobFile(file.id, { layoutStatus: "pending", layoutFilename: `${jobId}-${i + 1}.layout.json`, layoutUnits: extracted.units });
+      words += extracted.words;
     } catch (err) {
       console.warn(`[pipeline] job ${jobId}: no design-kept PDF for ${file.original_filename}: ${err.message}`);
       await store.updateJobFile(file.id, { layoutStatus: err.soft ? "skipped" : "failed" });
       await store.appendJobEvent(jobId, "layout_skipped", { file: file.original_filename, reason: err.message.slice(0, 160) });
     }
   }
+  return words;
 }
 
 async function startLayout(jobId) {

@@ -1,21 +1,21 @@
 // Spike 6 — does the public API now convert PDF→DOCX at upload, like the dashboard?
-// The API's PDF conversion reached
-// production 2026-10-07. Upload a raw PDF (no app-side LibreOffice), then check:
+// The API started converting PDFs on 2026-10-07. Upload a raw PDF (no app-side LibreOffice),
+// then check:
 //   - does the resource land as "<name>.pdf.docx"?
 //   - which workflows do the work units carry (the dashboard adds ICR for PDFs)?
 //   - is the delivered file a real DOCX (ZIP with word/document.xml), not extracted text?
 //
-// VERDICT (run 2026-11-03, new "wxrks pdf" account, org unit "Default" <uuid>):
+// VERDICT (run 2026-11-03, an org unit with no task automation):
 //   convertedAtUpload=<name>.pdf.docx deliverable=undelivered
-//   - the platform change is live: a raw PDF uploaded through PUT …/resource/{uuid}/content was renamed
+//   - Conversion is live: a raw PDF uploaded through PUT …/resource/{uuid}/content was renamed
 //     "<name>.pdf.docx" within 5s, the same as the dashboard. The work unit was created on the
 //     .docx. App-side LibreOffice is no longer needed for conversion.
-//   - Delivery not verified: "Default" has no task automation, so the one TRANSLATION task sat
+//   - Delivery not verified: the unit has no task automation, so the one TRANSLATION task sat
 //     PENDING with no assignee for 6 min (the August failure mode, README). Re-run on a unit with
 //     automatic translation to confirm the deliverable is a real DOCX.
-//   - Re-run 2026-11-03 on "Online PDF Translator" (<uuid>, augmented actions
-//     on): converted again in 5s; the task still sat PENDING/unassigned. AI on is not enough —
-//     hands-free delivery needs a Pipeline or the confidence gate (help article 17271804).
+//   - Re-run 2026-11-03 on a unit with AI features on: converted again in 5s; the task still sat
+//     PENDING/unassigned. AI on is not enough — the unit also needs a Pipeline or auto-confirm
+//     (help article 17271804).
 //   - PASS 2026-11-03 19:14, after turning on the unit's Translation & Editor Settings →
 //     Pre-translation: Context Sensitive + Machine translation (TM was already on), and Confirm &
 //     lock → "Auto confirm pre-translated segments" ("Complete task once all segments are

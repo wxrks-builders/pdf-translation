@@ -9,6 +9,7 @@ const BADGE = {
   cancelled: "bg-slate-100 text-slate-500",
   over_free_limit: "bg-amber-100 text-amber-700",
   needs_credits: "bg-amber-100 text-amber-700",
+  no_text: "bg-amber-100 text-amber-700",
 };
 
 export default function Jobs() {

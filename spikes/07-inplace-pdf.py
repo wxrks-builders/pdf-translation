@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # Spike 7 — translate a PDF in place: keep every page's artwork, swap only the text.
-# The DOCX route (spike 6) rebuilds the page in Word and loses design: on the conference deck
-# every condensed display headline came back in Calibri. Here the original page stays as-is; the
-# English text is removed (redaction of text only — images and vector art untouched) and the
+# The DOCX route (spike 6) rebuilds the page in Word and loses design: on a 16-slide conference
+# deck every headline in its condensed display face came back in Calibri. Here the original page
+# stays as-is; the English text is removed (redaction of text only — images and vector art untouched) and the
 # translation is drawn back on the same baselines, in a substitute font, shrunk to fit.
 #
 #   python spikes/07-inplace-pdf.py extract <in.pdf> <workdir>   → units.json + segments.json
@@ -13,16 +13,16 @@
 # Needs PyMuPDF (pip install pymupdf). Fonts: the PDF only embeds the glyphs the source used
 # (no ã/ç/é), so every font is replaced by a full one — FONT_MAP below.
 #
-# VERDICT (run 2026-11-03, a conference deck, 16 slides, en → pt-BR via wxrks in 21s):
+# VERDICT (run 2026-11-03, a 16-slide conference deck, en → pt-BR via wxrks in 21s):
 #   - Works: every photo, gradient, shape and icon is untouched; the Portuguese sits on the
 #     original baselines in the original colors; most slides read like the source. Live-text PDF
 #     14.1 MB (source 13.9 MB); page-image variant 4.7 MB at 150 dpi.
 #   - Redaction removes any character whose box touches the rect, and display type has tall boxes:
 #     a line-box redaction of a caption took the 180pt figure above it. A band 10% of the size
 #     tall, just above the baseline (baseline −0.25…−0.15 em), removes the line and spares it.
-#   - Subset fonts carry only the source's characters (the deck's embedded display font map 66–73
-#     codepoints, no ã/ç/é), so every font is substituted; Barlow Condensed stands in for that condensed
-#     display face — close, wider.
+#   - Subset fonts carry only the source's characters (the deck's embedded display
+#     face maps 66–73 codepoints, no ã/ç/é), so every font is substituted; Barlow Condensed stands
+#     in for that condensed face — close, wider.
 #   - Open problems: (1) phrases split across design elements translate piecewise — "the /
 #     TRANSLATION / Portal" → "o TRADUÇÃO Portal", "across" → "por toda parte"; needs fragments
 #     translated as one sentence and split back. (2) Inline bold is lost (paragraph drawn in its
@@ -38,10 +38,9 @@ from pathlib import Path
 
 import pymupdf
 
-# PDF base font (subset prefix stripped) → (alias, substitute font file)
+# PDF base font (subset prefix stripped) → (alias, substitute font file). Add a source's own
+# display faces here by name; anything unlisted falls back to Montserrat.
 FONT_MAP = {
-    "Brand-NarrowDark": ("dark", "BarlowCondensed-ExtraBold.ttf"),
-    "Brand-NarrowLight": ("light", "BarlowCondensed-Light.ttf"),
     "Montserrat-Regular": ("mont", "Montserrat-Regular.ttf"),
     "PressStart2P-Regular": ("press", "PressStart2P-Regular.ttf"),
     "CoveredByYourGrace": ("grace", "CoveredByYourGrace.ttf"),

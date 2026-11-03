@@ -2,7 +2,7 @@
 // timestamps per phase (upload → analyzed → approved → delivered per locale).
 // PDF timing comes from spike 2's verdict; txt single-locale from spike 3.
 //
-// VERDICT (run 2026-08-13, org unit "Online PDF Translator" <uuid>):
+// VERDICT (run 2026-08-13, the automated org unit from spike 3):
 //   uploadSec=1 analyzeSec=4 approveSec=4 deliverSecByLocale={es:8, pt_br:8}
 //   ~17s end-to-end for a small .txt into TWO languages on the automated org unit. Also confirms
 //   the multi-target summary shape: one row per target language, each carrying the full source

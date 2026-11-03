@@ -1,6 +1,6 @@
 # Deploying DocTranslate to the wxrks agent hub
 
-The app deploys at `<name>.agents.wxrks.app` via the Deploy Hub, with secrets and the persistent volume handled in Coolify. The repo is self-contained: the root `Dockerfile` builds the client, bundles headless LibreOffice (PDF→DOCX conversion before upload — no config needed), and runs the server on port 3000; storage is SQLite on the `/var/data` volume, and the schema creates itself on first boot — there are no database services or migration commands, ever. The LibreOffice layer makes the image ~600MB larger and the first build a few minutes slower; that's expected.
+The app deploys at `<name>.agents.wxrks.app` via the Deploy Hub, with secrets and the persistent volume handled in Coolify. The repo is self-contained: the root `Dockerfile` builds the client and runs the server on port 3000 (PDF→DOCX conversion happens on the wxrks side — nothing to install); storage is SQLite on the `/var/data` volume, and the schema creates itself on first boot — there are no database services or migration commands, ever.
 
 ## One-time setup
 
@@ -26,7 +26,7 @@ Required:
 
 | Variable | Value |
 |---|---|
-| `WXRKS_ACCESS_KEY` / `WXRKS_SECRET` | the wxrks service-account API credentials |
+| `WXRKS_ACCESS_KEY` / `WXRKS_SECRET` | the API key pair of the "wxrks pdf" account's admin user |
 | `WXRKS_PAID_ORG_UNIT_UUID` | `<org-unit-uuid>` — the **"Online PDF Translator"** org unit, which has automatic translation configured. Do not point at an org unit without task automation: jobs will stall at `translating` forever (see README's operational-prerequisite section). |
 | `COOKIE_SECRET` | any long random string (`openssl rand -hex 32`) |
 | `APP_BASE_URL` | `https://<name>.agents.wxrks.app` |

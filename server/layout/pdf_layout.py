@@ -19,6 +19,7 @@ import json
 import os
 import re
 import sys
+import unicodedata
 from pathlib import Path
 
 import pymupdf
@@ -45,6 +46,16 @@ FAMILIES = {
 }
 SERIF_HINTS = r"serif|times|georgia|garamond|minion|caslon|baskerville|cambria|palatino|bookman|century|didot|bodoni"
 
+# Symbols the bundled fonts may lack get a plain stand-in, so one arrow doesn't cost the whole PDF
+# (live, 2026-11-03: "English (US) → Spanish (US)" in the Context Sensitivity paper). Missing
+# letters are different: they mean the target script isn't covered at all.
+SYMBOL_STAND_INS = {
+    "→": "->", "←": "<-", "↔": "<->", "⇒": "=>", "⇐": "<=", "⇔": "<=>", "↑": "^", "↓": "v",
+    "✓": "v", "✔": "v", "✗": "x", "✘": "x", "★": "*", "☆": "*", "●": "•", "▪": "•", "■": "•",
+    "◦": "·", "□": "·", "≥": ">=", "≤": "<=", "≠": "!=", "≈": "~", "×": "x", "÷": "/", "−": "-",
+    "…": "...", "“": '"', "”": '"', "‘": "'", "’": "'", "–": "-", "—": "-", "•": "·",
+}
+
 
 class Unsupported(Exception):
     pass
@@ -57,7 +68,11 @@ def base_font(name):
 def pick_font(name, flags):
     n = base_font(name).lower().replace(" ", "")
     italic = bool(flags & 2) or "italic" in n or "oblique" in n
-    if re.search(r"black|heavy|ultra", n):
+    axis = re.search(r"wght([0-9a-f]{3})0000", n)  # variable-font instance, weight in hex (2bc = 700)
+    if axis:
+        w = int(axis.group(1), 16)
+        weight = "black" if w >= 850 else "extrabold" if w >= 750 else "bold" if w >= 600 else "light" if w <= 300 else "regular"
+    elif re.search(r"black|heavy|ultra", n):
         weight = "black"
     elif re.search(r"extrabold|xbold|dark", n):
         weight = "extrabold"
@@ -96,12 +111,32 @@ def overlap(a, b):
 # --- extract ---
 
 
+def color_gap(a, b):
+    return max(abs(((a >> s) & 255) - ((b >> s) & 255)) for s in (16, 8, 0))
+
+
 def distinct(a, b):
-    """Spans that read as separate elements: very different sizes ("across" + "31") or a
+    """Spans that read as separate elements: very different sizes ("across" + "31") or a clearly
     different color (red "AI" + white "was the cure for all"). A bold phrase inside a paragraph
-    (font changes, color doesn't) stays inline."""
+    stays inline, even when it's a shade darker (#252a31 in #3d434b body text)."""
     sizes = sorted([a["size"], b["size"]])
-    return sizes[1] / sizes[0] > 1.25 or a["color"] != b["color"]
+    return sizes[1] / sizes[0] > 1.25 or color_gap(a["color"], b["color"]) > 64
+
+
+def font_names(page):
+    """Browser-made PDFs (Chrome/Skia) set all text in Type3 fonts that spans report only as
+    "Type3 (10 0 R)"; the real name ("SourceSerif4Roman-Regular_wght2BC0000…") is in the font
+    descriptor, and it's what tells serif from sans and bold from regular."""
+    doc, names = page.parent, {}
+    for f in page.get_fonts():
+        if f[2] != "Type3":
+            continue
+        fd = doc.xref_get_key(f[0], "FontDescriptor")
+        if fd[0] == "xref":
+            fn = doc.xref_get_key(int(fd[1].split()[0]), "FontName")
+            if fn[0] == "name":
+                names[f"Type3 ({f[0]} 0 R)"] = fn[1].lstrip("/")
+    return names
 
 
 def join_spans(run):
@@ -117,11 +152,14 @@ def join_spans(run):
 
 def page_lines(page):
     out = []
+    real = font_names(page)
     for b in page.get_text("dict")["blocks"]:
         if b["type"] != 0:
             continue
         for l in b["lines"]:
             spans = [s for s in l["spans"] if s["text"].strip()]
+            for s in spans:
+                s["font"] = real.get(s["font"], s["font"])
             if not spans or tuple(round(v, 3) for v in l["dir"]) != (1.0, 0.0):
                 continue  # rotated text is left alone
             runs = [[spans[0]]]
@@ -169,9 +207,13 @@ def extract(pdf, out_dir):
             home = None
             for g in groups:
                 last = g["lines"][-1]
-                stacked = 0 < ln["baseline"] - last["baseline"] < ln["size"] * 1.6
+                # Body text (≤16pt) runs up to ~1.7× line spacing (the Context Sensitivity paper);
+                # display type at that spacing is a list (the deck's checklist), not a paragraph.
+                reach = 2.0 if ln["size"] <= 16 else 1.6
+                stacked = 0 < ln["baseline"] - last["baseline"] < ln["size"] * reach
                 x_overlap = min(ln["x1"], last["x1"]) - max(ln["x0"], last["x0"]) > 0
-                if stacked and x_overlap and (g["size"], g["color"]) == (ln["size"], ln["color"]) and set(ln["fonts"]) & g["fonts"]:
+                same_style = abs(g["size"] - ln["size"]) < 0.5 and color_gap(g["color"], ln["color"]) <= 64
+                if stacked and x_overlap and same_style and set(ln["fonts"]) & g["fonts"]:
                     home = g
                     break
             if home:
@@ -180,10 +222,13 @@ def extract(pdf, out_dir):
             else:
                 groups.append({"size": ln["size"], "color": ln["color"], "fonts": set(ln["fonts"]), "lines": [ln]})
         for g in groups:
-            weight = {}
+            # drawn in the font and color that carry most of the paragraph's characters
+            weight, tint = {}, {}
             for ln in g["lines"]:
                 weight[(ln["font"], ln["flags"])] = weight.get((ln["font"], ln["flags"]), 0) + len(ln["text"])
+                tint[ln["color"]] = tint.get(ln["color"], 0) + len(ln["text"])
             g["font"], g["flags"] = max(weight, key=weight.get)
+            g["color"] = max(tint, key=tint.get)
         groups.sort(key=lambda g: (round(g["lines"][0]["baseline"] / 20), g["lines"][0]["x0"]))
         for k, g in enumerate(groups, 1):
             text = ""
@@ -270,6 +315,8 @@ def room(u, align, obs, page_w):
     if box:
         inset = box.width * 0.12
         lo, hi = max(lo, box.x0 + inset), min(hi, box.x1 - inset)
+    paragraph = len(u["lines"]) >= 3
+    px0, px1 = min(l["x0"] for l in u["lines"]), max(l["x1"] for l in u["lines"])
     widths = []
     for l in u["lines"]:
         r = pymupdf.Rect(l["x0"], l["baseline"] - l["size"] * 0.75, l["x1"], l["baseline"] + l["size"] * 0.2)
@@ -277,9 +324,20 @@ def room(u, align, obs, page_w):
         band = [o for o in obs if o.y1 > r.y0 and o.y0 < r.y1 and not behind(o)]
         free_r = min([o.x0 for o in band if o.x0 >= r.x1 - 2] + [hi]) - 6
         free_l = max([o.x1 for o in band if o.x1 <= r.x0 + 2] + [lo]) + 6
+        if paragraph:
+            # A reflowed paragraph's lines don't map to the original ones (its short last line
+            # says nothing about the new last line): measure every line from the paragraph's
+            # edges, widen at most 15% (it grows downward first, see lines_below).
+            cap = (px1 - px0) * 0.15
+            right_edge, left_edge = min(free_r, px1 + cap), max(free_l, px0 - cap)
+            widths.append(right_edge - px0 if align == "left" else px1 - left_edge if align == "right"
+                          else (px1 - px0) + 2 * max(0, min(right_edge - px1, px0 - left_edge)))
+            continue
         cap = r.width * 0.4
         grow_r, grow_l = max(0, min(cap, free_r - r.x1)), max(0, min(cap, r.x0 - free_l))
         widths.append(r.width + (grow_r if align == "left" else grow_l if align == "right" else 2 * min(grow_r, grow_l)))
+    if paragraph:
+        widths = [min(widths)]  # the tightest line's room is the column's
     if box:
         widths = [min(w, hi - lo) for w in widths]
     return widths
@@ -309,11 +367,25 @@ def balanced(font, text, size, widths, lines):
     return even if len(even) == len(lines) else lines
 
 
-def layout(font, text, u, widths):
-    """Biggest size (original down to the floor) at which the translation fits the per-line
-    widths in the original line count — one extra line allowed for paragraphs."""
+def lines_below(u, obs):
+    """Extra lines a paragraph can take in the free space under it, before the next thing in its
+    column (at least one, at most doubling it)."""
     n = len(u["lines"])
-    max_lines = n + 1 if n >= 3 else n
+    if n < 3:
+        return 0
+    r = unit_rect(u)
+    base = [l["baseline"] for l in u["lines"]]
+    pitch = (base[-1] - base[0]) / (n - 1)
+    below = [o.y0 for o in obs if o.y0 >= r.y1 - 1 and o.x1 > r.x0 and o.x0 < r.x1]
+    free = (min(below) if below else r.y1 + pitch * n) - r.y1 - u["size"] * 0.3
+    return max(1, min(n, int(free // pitch)))
+
+
+def layout(font, text, u, widths, extra=0):
+    """Biggest size (original down to the floor) at which the translation fits the per-line
+    widths in the original line count, plus the `extra` lines a paragraph has room for below."""
+    n = len(u["lines"])
+    max_lines = n + extra
     floor = 0.6 if n == 1 else MIN_SCALE
     scale = 1.0
     while scale >= floor - 1e-9:
@@ -338,28 +410,54 @@ def rebuild(pdf, units_path, translated_path, out_dir):
     translated = json.loads(Path(translated_path).read_text())
     fonts = {}
 
+    def load(fname):
+        if fname not in fonts:
+            fonts[fname] = pymupdf.Font(fontfile=str(FONTS / fname))
+        return fonts[fname]
+
+    def covers(f, s):
+        return all(f.has_glyph(ord(c)) for c in s if not c.isspace())
+
     def font_for(u, text):
+        """(font file, font, text to draw), or None when the unit can't be drawn. Prefers the
+        matched font, then plain sans and serif. Otherwise symbols get stand-ins and a few stray
+        uncovered letters are dropped ("Faça o 申博" — a translation glitch — draws "Faça o");
+        a unit mostly in an uncovered script is None."""
         fname = pick_font(u["font"], u.get("flags", 0))
-        for candidate in (fname, FAMILIES["sans"]["regular"]):
-            if candidate not in fonts:
-                fonts[candidate] = pymupdf.Font(fontfile=str(FONTS / candidate))
-            f = fonts[candidate]
-            if all(f.has_glyph(ord(c)) for c in text if not c.isspace()):
-                return candidate, f
-        raise Unsupported(f"no bundled font covers {text[:40]!r}")
+        for candidate in (fname, FAMILIES["sans"]["regular"], FAMILIES["serif"]["regular"]):
+            if covers(load(candidate), text):
+                return candidate, load(candidate), text
+        f = load(fname)
+        missing = {c for c in text if not c.isspace() and not f.has_glyph(ord(c))}
+        letters = [c for c in text if unicodedata.category(c)[0] in "LM"]
+        lost = [c for c in letters if c in missing]
+        if letters and len(lost) / len(letters) > 0.2:
+            return None
+        stand_in = lambda c: c if c not in missing else (SYMBOL_STAND_INS.get(c, "") if covers(f, SYMBOL_STAND_INS.get(c, "")) else "")
+        return fname, f, "".join(stand_in(c) for c in text)
+
+    # A target script the fonts don't cover shows up as most units undrawable: refuse the PDF
+    # (the DOCX still delivers). A handful of undrawable units just keep their source text.
+    wanted = [u for u in units if u["translate"] and translated.get(u["id"])]
+    drawable = {}
+    for u in wanted:
+        got = font_for(u, re.sub(r"\s+", " ", translated[u["id"]]).strip())
+        if got and got[2].strip():
+            drawable[u["id"]] = got
+    if wanted and len(drawable) < len(wanted) * 0.8:
+        raise Unsupported(f"the bundled fonts cover only {len(drawable)} of {len(wanted)} translated units")
 
     doc = pymupdf.open(pdf)
     for pno, page in enumerate(doc):
         page_w = page.rect.width
-        todo = [u for u in units if u["page"] == pno and u["translate"] and translated.get(u["id"])]
+        todo = [u for u in wanted if u["page"] == pno and u["id"] in drawable]
         if not todo:
             continue
         page_units = [u for u in units if u["page"] == pno]
         obs = obstacles(page, units, pno)
         plans = []
         for u in todo:
-            text = re.sub(r"\s+", " ", translated[u["id"]]).strip()
-            fname, font = font_for(u, text)
+            fname, font, text = drawable[u["id"]]
             own = [o for o in obs if o != unit_rect(u)]
             align = alignment(u, page_w, page_units)
             box = container(u, own)
@@ -367,7 +465,7 @@ def rebuild(pdf, units_path, translated_path, out_dir):
             if box and len(u["lines"]) == 1 and abs(r.x0 + r.width / 2 - (box.x0 + box.width / 2)) < box.width * 0.08:
                 align = "center"  # a single line centered in its shape stays centered
             widths = room(u, align, own, page_w)
-            lines, size = layout(font, text, u, widths)
+            lines, size = layout(font, text, u, widths, lines_below(u, own))
             plans.append({"u": u, "fname": fname, "font": font, "text": text, "align": align, "widths": widths, "lines": lines, "size": size})
         scale_of = {}
         for p in plans:
@@ -394,7 +492,10 @@ def rebuild(pdf, units_path, translated_path, out_dir):
             u, lines, size, font = p["u"], p["lines"], p["size"], p["font"]
             base = [l["baseline"] for l in u["lines"]]
             pitch = ((base[-1] - base[0]) / (len(base) - 1) if len(base) > 1 else u["size"] * 1.05) * size / u["size"]
-            first = (base[0] + base[-1]) / 2 - pitch * (len(lines) - 1) / 2
+            if len(u["lines"]) >= 3:  # a paragraph hangs from its first line and grows downward
+                first = base[0] - (u["size"] - size) * 0.7
+            else:  # display type stays centered on where it was
+                first = (base[0] + base[-1]) / 2 - pitch * (len(lines) - 1) / 2
             left = min(l["x0"] for l in u["lines"])
             right = max(l["x1"] for l in u["lines"])
             center = sum((l["x0"] + l["x1"]) / 2 for l in u["lines"]) / len(u["lines"])

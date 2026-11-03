@@ -1,13 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
 
 const ACCEPT = ".pdf,.docx,.doc,.txt,.csv,.json,.yml,.yaml,.xlsx,.pptx,.md,.html,.xml,.srt";
 
+// Landing pages share this upload screen; keep the headings in step with PAGES in server/seo.js.
+const LANDING = {
+  "/": "Translate a document",
+  "/pdf": "Translate a PDF and keep its design",
+  "/documents": "Translate Word, PowerPoint, Excel and more",
+};
+
 export default function Upload() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [languages, setLanguages] = useState([]);
   const [files, setFiles] = useState([]);
   const [sourceLocale, setSourceLocale] = useState("en");
@@ -68,7 +76,7 @@ export default function Upload() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Translate a document</h1>
+        <h1 className="text-2xl font-semibold">{LANDING[pathname] || LANDING["/"]}</h1>
         <p className="mt-1 text-sm text-slate-600">
           PDF, DOCX, TXT, CSV, JSON and more. Up to 25&nbsp;MB per file; PDFs up to 400 pages.
           PDFs come back as an editable DOCX and, in beta, as a PDF that keeps the original design.

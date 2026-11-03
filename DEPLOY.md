@@ -37,7 +37,7 @@ Required for sign-in (the container runs `NODE_ENV=production`, so there is no d
 |---|---|
 | `MAILGUN_API_KEY` / `MAILGUN_DOMAIN` / `EMAIL_FROM` | Mailgun HTTP-API credentials + sender address |
 
-Optional tuning: `SQLITE_PATH` (defaults to `/var/data/doctranslate.db` in production), `FREE_TIER_MAX_WORDS` (1000), `POLL_INTERVAL_MS` (60000), `RETENTION_DAYS` (30), `MAX_UPLOAD_MB` (25), `WXRKS_FREE_ORG_UNIT_UUID` (separate org unit for free-tier jobs; falls back to the paid one).
+Optional tuning: `SQLITE_PATH` (defaults to `/var/data/doctranslate.db` in production), `FREE_TIER_MAX_WORDS` (1000), `POLL_INTERVAL_MS` (60000), `RETENTION_DAYS` (30), `MAX_UPLOAD_MB` (25), `WXRKS_FREE_ORG_UNIT_UUID` (separate org unit for free-tier jobs; falls back to the paid one), `LAYOUT_MAX_PAGES` (100; larger PDFs get no design-kept PDF). `LAYOUT_PYTHON` is set by the Dockerfile (`/opt/layout/bin/python`, with PyMuPDF); without PyMuPDF the app runs normally and skips design-kept PDFs.
 
 ### 5. Restart and verify
 Restart the app in Coolify after setting the vars. Then:
@@ -46,6 +46,7 @@ Restart the app in Coolify after setting the vars. Then:
 - `https://<name>.agents.wxrks.app/api/health` → `{"ok":true}`.
 - The home page renders the upload screen with language pickers populated (they're fed live from the wxrks `/language` API — if they're empty, the `WXRKS_*` credentials are wrong).
 - Full smoke test: upload a small `.txt` anonymously → the job page should reach **delivered** in well under a minute → download the translation.
+- PDF smoke test: a text PDF should come back as three files, the DOCX plus "(design kept).pdf" and "(page images).pdf". The job timeline shows `layout_started` and then `layout_pdf_stored`. `layout_skipped` or `layout_pdf_skipped` give the reason when there is no PDF.
 
 ### 6. wxrks dashboard webhook (optional)
 In the wxrks dashboard, add a webhook pointing at `https://<name>.agents.wxrks.app/api/webhooks/wxrks` for events "Work Unit Status Changed" and "Work Unit Translation File Ready". This only shaves delivery latency — the built-in poller delivers everything on its own.

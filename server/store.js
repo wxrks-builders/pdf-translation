@@ -190,7 +190,7 @@ async function listActiveJobs() {
 }
 
 async function updateJob(id, fields) {
-  const allowed = ["status", "wxrks_project_uuid", "analyzed_words", "credits_charged", "error"];
+  const allowed = ["status", "wxrks_project_uuid", "layout_project_uuid", "analyzed_words", "credits_charged", "error"];
   const sets = [];
   const params = [];
   for (const [k, v] of Object.entries(fields)) {
@@ -228,7 +228,7 @@ async function createJobFile({ jobId, originalFilename, wxrksFilename, sizeBytes
 async function listJobFiles(jobId, { withContent = false } = {}) {
   const cols = withContent
     ? "*"
-    : "id, job_id, original_filename, wxrks_filename, resource_uuid, size_bytes, content_type, status";
+    : "id, job_id, original_filename, wxrks_filename, resource_uuid, size_bytes, content_type, status, layout_status, layout_filename, layout_resource_uuid";
   return db.prepare(`SELECT ${cols} FROM job_files WHERE job_id = ? ORDER BY original_filename`).all(jobId);
 }
 
@@ -237,11 +237,27 @@ async function getJobFileContent(id) {
   return row?.source_content || null;
 }
 
-async function updateJobFile(id, { resourceUuid, status, wxrksFilename }) {
+async function getJobFileLayoutUnits(id) {
+  const row = db.prepare(`SELECT layout_units FROM job_files WHERE id = ?`).get(id);
+  return row?.layout_units ? JSON.parse(row.layout_units) : null;
+}
+
+async function updateJobFile(id, { resourceUuid, status, wxrksFilename, layoutStatus, layoutFilename, layoutResourceUuid, layoutUnits }) {
   db.prepare(
     `UPDATE job_files SET resource_uuid = COALESCE(?, resource_uuid), status = COALESCE(?, status),
-       wxrks_filename = COALESCE(?, wxrks_filename) WHERE id = ?`
-  ).run(resourceUuid || null, status || null, wxrksFilename || null, id);
+       wxrks_filename = COALESCE(?, wxrks_filename), layout_status = COALESCE(?, layout_status),
+       layout_filename = COALESCE(?, layout_filename), layout_resource_uuid = COALESCE(?, layout_resource_uuid),
+       layout_units = COALESCE(?, layout_units) WHERE id = ?`
+  ).run(
+    resourceUuid || null,
+    status || null,
+    wxrksFilename || null,
+    layoutStatus || null,
+    layoutFilename || null,
+    layoutResourceUuid || null,
+    layoutUnits ? JSON.stringify(layoutUnits) : null,
+    id
+  );
 }
 
 // --- deliverables + dedupe ---
@@ -255,15 +271,31 @@ const storeDeliverableTx = db.transaction((args) => {
     )
     .run(args.projectUuid, args.wxrksFilename, args.locale);
   if (dedupe.changes === 0) return false; // already processed by a concurrent worker
-  db.prepare(
-    `INSERT OR IGNORE INTO deliverables (id, job_id, job_file_id, locale, filename, content, size_bytes)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(newId(), args.jobId, args.jobFileId, args.locale, args.filename, args.content, args.content.length);
+  // One work unit can yield several files (a design-kept PDF + its page-image version).
+  const files = args.files || [{ variant: "translation", filename: args.filename, content: args.content }];
+  for (const f of files) {
+    db.prepare(
+      `INSERT OR IGNORE INTO deliverables (id, job_id, job_file_id, locale, variant, filename, content, size_bytes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(newId(), args.jobId, args.jobFileId, args.locale, f.variant, f.filename, f.content, f.content.length);
+  }
   return true;
 });
 
 async function storeDeliverable(args) {
   return storeDeliverableTx(args);
+}
+
+// A work unit that ends without a file (a design-kept PDF that couldn't be rebuilt) is still
+// marked processed, so the job can complete without it.
+async function markProcessed(projectUuid, wxrksFilename, locale) {
+  db.prepare(
+    `INSERT OR IGNORE INTO processed_work_units (wxrks_project_uuid, wxrks_filename, locale) VALUES (?, ?, ?)`
+  ).run(projectUuid, wxrksFilename, locale);
+}
+
+async function countProcessed(projectUuid) {
+  return db.prepare(`SELECT COUNT(*) AS n FROM processed_work_units WHERE wxrks_project_uuid = ?`).get(projectUuid).n;
 }
 
 async function isProcessed(projectUuid, wxrksFilename, locale) {
@@ -275,7 +307,7 @@ async function isProcessed(projectUuid, wxrksFilename, locale) {
 }
 
 async function listDeliverables(jobId, { withContent = false } = {}) {
-  const cols = withContent ? "*" : "id, job_id, job_file_id, locale, filename, size_bytes, created_at";
+  const cols = withContent ? "*" : "id, job_id, job_file_id, locale, variant, filename, size_bytes, created_at";
   return db.prepare(`SELECT ${cols} FROM deliverables WHERE job_id = ? ORDER BY locale, filename`).all(jobId);
 }
 
@@ -354,8 +386,11 @@ module.exports = {
   createJobFile,
   listJobFiles,
   getJobFileContent,
+  getJobFileLayoutUnits,
   updateJobFile,
   storeDeliverable,
+  markProcessed,
+  countProcessed,
   isProcessed,
   listDeliverables,
   getDeliverable,

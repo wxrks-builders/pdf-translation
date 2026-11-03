@@ -48,6 +48,7 @@ async function serializeJob(job) {
       id: d.id,
       fileId: d.job_file_id,
       locale: d.locale,
+      variant: d.variant,
       filename: d.filename,
       sizeBytes: d.size_bytes,
     })),

@@ -38,7 +38,6 @@ export default function Upload() {
   const [files, setFiles] = useState([]);
   const [sourceLocale, setSourceLocale] = useState("en");
   const [targetLocales, setTargetLocales] = useState([]);
-  const [targetQuery, setTargetQuery] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -55,15 +54,6 @@ export default function Upload() {
     setSourceLocale(en.code);
   }, [languages, sourceLocale]);
 
-  const targetMatches = useMemo(() => {
-    const q = targetQuery.trim().toLowerCase();
-    if (!q) return [];
-    return languages
-      .filter((l) => !targetLocales.includes(l.code) && l.code !== sourceLocale)
-      .filter((l) => l.name.toLowerCase().includes(q) || l.code.toLowerCase().includes(q))
-      .slice(0, 8);
-  }, [targetQuery, languages, targetLocales, sourceLocale]);
-
   function addFiles(list) {
     const incoming = Array.from(list);
     setFiles((prev) => {
@@ -76,14 +66,15 @@ export default function Upload() {
 
   async function submit() {
     if (!files.length) return setError("Add a document first.");
-    if (!targetLocales.length) return setError("Pick the language to translate into.");
+    const targets = targetLocales.filter((c) => c !== sourceLocale);
+    if (!targets.length) return setError("Pick the language to translate into.");
     setSubmitting(true);
     setError(null);
     try {
       const form = new FormData();
       for (const f of files) form.append("files", f);
       form.append("sourceLocale", sourceLocale);
-      form.append("targetLocales", targetLocales.join(","));
+      form.append("targetLocales", targets.join(","));
       const { jobId } = await api.createJob(form);
       navigate(`/jobs/${jobId}`);
     } catch (err) {
@@ -96,8 +87,6 @@ export default function Upload() {
     }
   }
 
-  const nameOf = (code) => languages.find((l) => l.code === code)?.name || code;
-  const sorted = useMemo(() => [...languages].sort((a, b) => a.name.localeCompare(b.name)), [languages]);
 
   return (
     <section className="mx-auto max-w-xl">
@@ -164,91 +153,26 @@ export default function Upload() {
             </ul>
           )}
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="wx-field">
-              <label className="wx-label" htmlFor="source">
-                From
-              </label>
-              <select id="source" className="wx-select" value={sourceLocale} onChange={(e) => setSourceLocale(e.target.value)}>
-                {sorted.map((l) => (
-                  <option key={l.code} value={l.code}>
-                    {l.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {user ? (
-              <div className="wx-field">
-                <label className="wx-label" htmlFor="targets">
-                  Translate into
-                </label>
-                <div className="relative">
-                  <input
-                    id="targets"
-                    className="wx-input w-full"
-                    value={targetQuery}
-                    onChange={(e) => setTargetQuery(e.target.value)}
-                    placeholder="Type a language, e.g. Portuguese"
-                  />
-                  {targetMatches.length > 0 && (
-                    <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-md border border-brand-200 bg-white shadow-lg">
-                      {targetMatches.map((l) => (
-                        <li key={l.code}>
-                          <button
-                            type="button"
-                            className="w-full px-3 py-2 text-left text-[13px] hover:bg-brand-50"
-                            onClick={() => {
-                              setTargetLocales([...targetLocales, l.code]);
-                              setTargetQuery("");
-                            }}
-                          >
-                            {l.name}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-                {targetLocales.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {targetLocales.map((code) => (
-                      <span key={code} className="inline-flex items-center gap-1.5 rounded-md border border-[#757d88] px-2 py-1 text-xs">
-                        {nameOf(code)}
-                        <button
-                          type="button"
-                          aria-label={`Remove ${nameOf(code)}`}
-                          onClick={() => setTargetLocales(targetLocales.filter((c) => c !== code))}
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="wx-field">
-                <label className="wx-label" htmlFor="target">
-                  Translate into
-                </label>
-                <select
-                  id="target"
-                  className="wx-select"
-                  value={targetLocales[0] || ""}
-                  onChange={(e) => setTargetLocales(e.target.value ? [e.target.value] : [])}
-                >
-                  <option value="">Choose a language</option>
-                  {sorted
-                    .filter((l) => l.code !== sourceLocale)
-                    .map((l) => (
-                      <option key={l.code} value={l.code}>
-                        {l.name}
-                      </option>
-                    ))}
-                </select>
-              </div>
-            )}
+          {/* items-start: chips under "Translate into" must not stretch the "From" field */}
+          <div className="grid items-start gap-4 sm:grid-cols-2">
+            <LanguagePicker
+              id="source"
+              label="From"
+              languages={languages}
+              selected={[sourceLocale]}
+              onChange={(codes) => setSourceLocale(codes[0])}
+              placeholder="Type a language"
+            />
+            <LanguagePicker
+              id="target"
+              label="Translate into"
+              languages={languages}
+              selected={targetLocales}
+              onChange={setTargetLocales}
+              exclude={[sourceLocale]}
+              multiple={Boolean(user)}
+              placeholder="Type a language, e.g. Portuguese"
+            />
           </div>
 
           {error && <div className="wx-alert wx-alert--danger"><span>{error}</span></div>}
@@ -275,5 +199,112 @@ export default function Upload() {
         </div>
       </div>
     </section>
+  );
+}
+
+// Type a few letters, then click a match or press Enter. There are 100+ languages, so typing
+// beats scrolling a list. Single mode shows the chosen name in the box; multiple mode adds chips.
+function LanguagePicker({ id, label, languages, selected, onChange, exclude = [], multiple = false, placeholder }) {
+  const [query, setQuery] = useState("");
+  const [focused, setFocused] = useState(false);
+  const [active, setActive] = useState(0);
+  const nameOf = (code) => languages.find((l) => l.code === code)?.name || code;
+
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return languages
+      .filter((l) => !exclude.includes(l.code) && !(multiple && selected.includes(l.code)))
+      .filter((l) => l.name.toLowerCase().includes(q) || l.code.toLowerCase().includes(q))
+      .sort((a, b) => Number(b.name.toLowerCase().startsWith(q)) - Number(a.name.toLowerCase().startsWith(q)) || a.name.localeCompare(b.name))
+      .slice(0, 8);
+  }, [query, languages, exclude, multiple, selected]);
+
+  function pick(l) {
+    onChange(multiple ? [...selected, l.code] : [l.code]);
+    setQuery("");
+    setActive(0);
+    if (!multiple) document.getElementById(id)?.blur();
+  }
+
+  function onKeyDown(e) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActive((i) => Math.min(i + 1, matches.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActive((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter" && matches[active]) {
+      e.preventDefault();
+      pick(matches[active]);
+    } else if (e.key === "Escape") {
+      setQuery("");
+    }
+  }
+
+  const shown = !multiple && !focused && selected[0] ? nameOf(selected[0]) : query;
+  const open = focused && matches.length > 0;
+
+  return (
+    <div className="wx-field">
+      <label className="wx-label" htmlFor={id}>
+        {label}
+      </label>
+      <div className="relative">
+        <input
+          id={id}
+          className="wx-input w-full"
+          role="combobox"
+          aria-expanded={open}
+          aria-controls={`${id}-list`}
+          aria-autocomplete="list"
+          autoComplete="off"
+          value={shown}
+          placeholder={!multiple && selected[0] ? nameOf(selected[0]) : placeholder}
+          onFocus={() => {
+            setFocused(true);
+            setQuery("");
+          }}
+          onBlur={() => {
+            setFocused(false);
+            setQuery("");
+          }}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setActive(0);
+          }}
+          onKeyDown={onKeyDown}
+        />
+        {open && (
+          <ul id={`${id}-list`} role="listbox" className="absolute z-10 mt-1 w-full overflow-hidden rounded-md border border-brand-200 bg-white shadow-lg">
+            {matches.map((l, i) => (
+              <li key={l.code} role="option" aria-selected={i === active}>
+                <button
+                  type="button"
+                  className={`w-full px-3 py-2 text-left text-[13px] ${i === active ? "bg-brand-50" : ""} hover:bg-brand-50`}
+                  onMouseDown={(e) => e.preventDefault()} // keep focus so the click lands before blur
+                  onMouseEnter={() => setActive(i)}
+                  onClick={() => pick(l)}
+                >
+                  {l.name}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      {multiple && selected.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {selected.map((code) => (
+            <span key={code} className="inline-flex items-center gap-1.5 rounded-md border border-[#757d88] px-2 py-1 text-xs">
+              {nameOf(code)}
+              <button type="button" aria-label={`Remove ${nameOf(code)}`} onClick={() => onChange(selected.filter((c) => c !== code))}>
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

@@ -4,6 +4,7 @@ const express = require("express");
 const cors = require("cors");
 const db = require("./db");
 const poller = require("./services/poller");
+const seo = require("./seo");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -11,6 +12,7 @@ const PORT = process.env.PORT || 3000;
 // Render terminates TLS at its proxy; req.ip must be the real client for
 // rate limiting and the free tier's IP key.
 app.set("trust proxy", 1);
+app.use(seo.legacyRedirect);
 app.use(cors());
 app.use(express.json());
 
@@ -23,14 +25,20 @@ app.use("/api/jobs", require("./routes/downloads"));
 app.use("/api/credits", require("./routes/credits"));
 app.use("/api/webhooks", require("./routes/webhooks"));
 
+app.get("/robots.txt", seo.robots);
+app.get("/sitemap.xml", seo.sitemap);
+
 // Production: serve the built client; every non-API route falls through to
-// the SPA entry point.
+// the SPA entry point, with that page's title/description/canonical written in
+// (index: false, so "/" goes through the same path).
 const clientDist = path.join(__dirname, "..", "client", "dist");
-app.use(express.static(clientDist));
+app.use(express.static(clientDist, { index: false }));
 app.get(/^(?!\/api\/).*/, (req, res) => {
-  res.sendFile(path.join(clientDist, "index.html"), (err) => {
-    if (err) res.status(404).send("Client not built. Run: npm run client:build");
-  });
+  try {
+    res.type("html").send(seo.render(clientDist, req.path));
+  } catch {
+    res.status(404).send("Client not built. Run: npm run client:build");
+  }
 });
 
 // eslint-disable-next-line no-unused-vars

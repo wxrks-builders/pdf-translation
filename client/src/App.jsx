@@ -52,6 +52,8 @@ export default function App() {
       <main className="mx-auto max-w-4xl px-4 py-8">
         <Routes>
           <Route path="/" element={<Upload />} />
+          <Route path="/pdf" element={<Upload />} />
+          <Route path="/documents" element={<Upload />} />
           <Route path="/jobs" element={<Jobs />} />
           <Route path="/jobs/:id" element={<Job />} />
           <Route path="/login" element={<Login />} />
@@ -60,6 +62,14 @@ export default function App() {
       </main>
       {/* AGPL-3.0 §13: users of the network service get a way to the source. */}
       <footer className="mx-auto max-w-4xl px-4 pb-8 text-xs text-slate-400">
+        <Link to="/pdf" className="underline hover:text-slate-600">
+          PDF translator
+        </Link>{" "}
+        ·{" "}
+        <Link to="/documents" className="underline hover:text-slate-600">
+          Document translator
+        </Link>
+        <br />
         Translations by{" "}
         <a href="https://wxrks.com" className="underline hover:text-slate-600">
           wxrks

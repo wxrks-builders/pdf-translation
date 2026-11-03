@@ -5,7 +5,7 @@ Upload documents (PDF, DOCX, TXT, CSV, JSON, …), pick target languages, downlo
 - **Free tier** (anonymous): 1 document/day, up to 1,000 source words.
 - **Paid tier**: accounts (magic-link sign-in) with word credits — $99/year = 100,000 credits; 1 credit = 1 source word into 1 language. Payments aren't wired yet; grant credits with `node scripts/grant-credits.js <email> <amount>`.
 
-PDFs are converted to DOCX **app-side** (headless LibreOffice in the container) before upload and delivered as translated DOCX — the same conversion the wxrks dashboard performs at upload, which the public API doesn't expose (a raw PDF sent via API is parsed as plain text and loses layout; without LibreOffice, e.g. bare local dev, the app falls back to exactly that). The poller sniffs each deliverable's real format and names it honestly. Limits: 25 MB/file (app), 400 pages per PDF; scanned (image-only) PDFs have no extractable text — no OCR — and deliver an empty stub.
+PDFs are uploaded as-is and **wxrks converts them to DOCX** — the dashboard's own conversion, on the public API since BW-8262 (2026-10-07): a few seconds after upload the resource is renamed in place to `<name>.pdf.docx`, and the pipeline waits for that before creating work units. Translations come back as DOCX. If a PDF isn't converted within 3 minutes the job goes on with the raw PDF (`pdf_conversion_skipped`, text-only output). The poller sniffs each deliverable's real format and names it honestly. Limits: 25 MB/file (app), 400 pages per PDF; scanned (image-only) PDFs have no extractable text — no OCR — and deliver an empty stub.
 
 ## Stack
 
@@ -31,7 +31,9 @@ The wxrks webhook (configure `APP_BASE_URL/api/webhooks/wxrks` manually in the w
 
 ## ⚠ Operational prerequisite: task automation on the org unit
 
-Approving a project makes wxrks create one *task* per work unit — and nothing in the public API executes them, so the org unit must be configured (wxrks dashboard) to run TRANSLATION tasks automatically. Verified both ways live: on a unit without automation, work units sit at `workStatus=NEW` with `PENDING` unassigned tasks forever and jobs stall at `translating`; on the purpose-made **"Online PDF Translator"** unit (`6e429e88-2e42-4bec-89f1-cdce5625e001`, the one pinned in env), autopilot advances the project on its own and a `.txt` work unit delivered 10s after approval. If jobs ever stall, diagnose with `GET /api/v3/task?projectUuid=…` — unassigned PENDING tasks mean org-unit config, not app code. (Image-only/scanned PDFs parse to zero segments and auto-deliver a stub instantly, which is also a handy plumbing test.)
+Approving a project makes wxrks create one *task* per work unit — and nothing in the public API executes them, so the org unit must be configured (wxrks dashboard) to run TRANSLATION tasks automatically. Verified both ways live: on a unit without automation, work units sit at `workStatus=NEW` with `PENDING` unassigned tasks forever and jobs stall at `translating`.
+
+The app's unit is **"Online PDF Translator"** (`0ae2ce8f-96e3-4ce4-913d-4586b63b6af3`) on the dedicated "wxrks pdf" account (Quantum plan, 100%-off coupon, augmented actions on). In its **Translation & Editor Settings**: Pre-translation from **Context Sensitive**, **Machine translation** and **Translation memory**; **Auto confirm pre-translated segments** on; **Complete task once all segments are confirmed** on. With that, a raw PDF went from upload to `DELIVERED` DOCX in 27s with no pipeline and no person (spike 6). Turning AI on alone is not enough — without auto-confirm the task still waits for a linguist. (The August unit `6e429e88…` lived on the old demo account, whose key is gone.) If jobs ever stall, diagnose with `GET /api/v3/task?projectUuid=…` — unassigned PENDING tasks mean org-unit config, not app code. (Image-only/scanned PDFs parse to zero segments and auto-deliver a stub instantly, which is also a handy plumbing test.)
 
 ## Spikes
 

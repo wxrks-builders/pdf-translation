@@ -3,23 +3,22 @@
 //
 // VERDICT (run 2026-08-13): pdfDeliverable=none scannedMode=delivered-as-.pdf-1b truncatedTo=56chars
 //                            approveSec=10 deliveredCount=1/2
-//   - The text PDF's work unit never delivered on "Main Organizational Unit" — no task execution
-//     there (spike 3). RESOLVED on "Online PDF Translator" (6e429e88…): PDFs translate and deliver
-//     hands-free, but the deliverable is the extracted TRANSLATED TEXT under a ".pdf"-named ZIP
-//     entry — NOT a PDF and NOT the help center's promised DOCX (verified twice: fixture PDF and a
-//     real 1.5MB PDF; the translation-kit-job endpoint returns the same content honestly named
-//     .txt). The app's poller sniffs magic bytes and renames deliverables accordingly.
-//   - Metering race: pre-analysis on a 1.5MB PDF can "complete" at 0 words while wxrks is still
-//     converting the file — the job then translates unmetered. The pipeline retries zero-word
-//     analyses with backoff (pipeline.js).
-//   - ROOT CAUSE FOUND (2026-08-14, via dashboard project 57a6e736-8915-4c46-8832-91ed44dba773):
-//     the wxrks DASHBOARD converts PDF→DOCX at upload (resource lands as "<name>.pdf.docx",
-//     Adobe tooling) and translates the DOCX with full layout; the public API has no conversion
-//     endpoint at all, so API-uploaded raw PDFs go through a plain-text extractor. Fix: the app
-//     now converts PDF→DOCX itself (headless LibreOffice, services/convert.js) and uploads
-//     "<name>.pdf.docx" exactly like the dashboard.
+//   - The text PDF's work unit never delivered on an org unit without task automation (spike 3).
+//     On an automated unit PDFs translate and deliver hands-free, but in August the deliverable
+//     was the extracted TRANSLATED TEXT under a ".pdf"-named ZIP entry, not a PDF or a DOCX
+//     (verified twice: fixture PDF and a real 1.5MB PDF; the translation-kit-job endpoint returns
+//     the same content named .txt). The app's poller sniffs magic bytes and renames deliverables
+//     accordingly.
+//   - Pre-analysis on a 1.5MB PDF can "complete" at 0 words while the file is still converting.
+//     The pipeline retries zero-word analyses with backoff and never approves a job that stays
+//     at zero (pipeline.js).
+//   - ROOT CAUSE FOUND (2026-08-14): the wxrks dashboard converts PDF→DOCX at upload (the
+//     resource lands as "<name>.pdf.docx") and translates the DOCX with full layout; API uploads
+//     didn't get that step yet, so raw PDFs went through a plain-text extractor. Fix at the time:
+//     the app converted PDF→DOCX itself (headless LibreOffice) and uploaded "<name>.pdf.docx"
+//     like the dashboard. Since 2026-10-07 the API converts too (spike 6).
 //   - Scanned (image-only) PDF parses to zero segments and auto-DELIVERS instantly; the "translated"
-//     file is a 1-byte stub named like the source. Treat zero-word docs as a UX case (warn user).
+//     file is a 1-byte stub named like the source. The app now stops zero-word jobs as "no text".
 //   - Filename truncation did NOT reproduce: a 56-char basename came back full-length in
 //     resource/simple, work-unit filenames, and the ZIP entry. Keep the defensive prefix matching
 //     (costs nothing), but truncation may only bite at longer lengths than the blueprint's ~31.

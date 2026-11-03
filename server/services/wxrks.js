@@ -208,7 +208,7 @@ async function listResources(projectUuid) {
 }
 
 // wxrks converts an uploaded PDF to DOCX itself (the dashboard's conversion,
-// on the public API since BW-8262, 2026-10-07): a few seconds after upload the
+// on the API since 2026-10-07): a few seconds after upload the
 // same resource is renamed in place to "<name>.pdf.docx" (verified live,
 // spike 6). Returns the converted name, or null if no rename by the deadline.
 async function waitForPdfConversion(projectUuid, resourceUuid, { timeoutMs = 3 * 60 * 1000, intervalMs = 3000 } = {}) {

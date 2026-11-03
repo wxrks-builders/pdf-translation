@@ -2,7 +2,7 @@
 // deliver with zero human/dashboard touches on this org unit? Do the org unit's
 // extension-routing rules inject extra steps? Is autopilot active (DRAFT→PENDING on its own)?
 //
-// VERDICT (re-run 2026-08-13, org unit "Online PDF Translator" 6e429e88-2e42-4bec-89f1-cdce5625e001):
+// VERDICT (re-run 2026-08-13, a purpose-made org unit with task automation):
 //   handsFree=YES autopilot=observed(PENDING) txtDeliverSec=10
 //   The purpose-made org unit translates automatically: autopilot advanced DRAFT→PENDING within
 //   15s of WU creation and the TRANSLATION work unit went NEW→DELIVERED 10s after approval.
@@ -12,11 +12,10 @@
 // VERDICT (first run 2026-08-13, org unit "Main Organizational Unit"): handsFree=no autopilot=none txtDeliverSec=null
 //   THE BLOCKER FINDING. Routing rules on the org unit are all active:false (nothing injects extra
 //   steps) and only TRANSLATION work units were created — but after APPROVED, wxrks creates one
-//   task per work unit and NOTHING on this account ever assigns or executes it (task PENDING,
-//   assignee null; a month-old Webflow-connector project on this account is stuck the same way).
-//   The account has no AI/service translator user and the public API has no "run MT" endpoint, so
-//   hands-free delivery requires configuring AI/autopilot task execution on the org unit in the
-//   wxrks DASHBOARD before launch. Empty documents (zero segments, e.g. image-only PDFs) skip
+//   task per work unit and nothing on this unit ever assigns or executes it (task PENDING,
+//   assignee null). Tasks run on the org unit's own settings, so hands-free delivery requires
+//   configuring automatic translation on the org unit in the wxrks dashboard before launch
+//   (README, "Operational prerequisite"). Empty documents (zero segments, e.g. image-only PDFs) skip
 //   translation and auto-deliver instantly — useful for testing the delivery plumbing.
 const w = require("./lib/wxrksMin.js");
 const fs = require("fs");

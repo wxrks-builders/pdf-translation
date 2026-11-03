@@ -16,6 +16,7 @@ const STATUS_COPY = {
   cancelled: "Cancelled.",
   over_free_limit: "Over the free-tier word limit.",
   needs_credits: "Not enough credits.",
+  no_text: "We couldn't find any text to translate.",
 };
 
 const STEPS = ["uploading", "analyzing", "translating", "delivered"];
@@ -92,6 +93,11 @@ export default function Job() {
               Sign in
             </Link>{" "}
             to translate longer documents with credits.
+          </p>
+        )}
+        {job.status === "no_text" && (
+          <p className="mt-2 text-sm text-slate-600">
+            Scanned pages are pictures of text, and we can't read those yet. Try a file where you can select the text.
           </p>
         )}
         {job.status === "needs_credits" && (

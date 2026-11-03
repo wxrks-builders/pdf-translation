@@ -202,7 +202,7 @@ def extract(pdf, out_dir):
         groups = []
         # A line joins the group stacked right above it when size and color match and they share
         # a font — a paragraph survives a bold phrase, but a line set wholly in another font
-        # ("(CCEP)" under "Partners") starts its own unit.
+        # (a short label under a heading) starts its own unit.
         for ln in sorted((l for l in lines if "duplicate_of" not in l), key=lambda l: l["baseline"]):
             home = None
             for g in groups:
@@ -479,7 +479,7 @@ def rebuild(pdf, units_path, translated_path, out_dir):
 
         # A character is removed when its box touches a redaction rect, and display type has tall
         # boxes — redact a band 10% of the size tall just above each baseline (every glyph of the
-        # line crosses it), or a big "41K" above "employees" disappears with it.
+        # line crosses it), or a big figure above a caption disappears with it.
         for p in plans:
             u = p["u"]
             for l in u["lines"]:

@@ -2,7 +2,7 @@
  * Anonymous free tier: 1 document/day, enforced on IP + a signed cookie.
  * Deliberately imperfect (cookie clearing / IP rotation evades it) — it's a
  * funnel, not a wall. Requires app.set("trust proxy", 1) so req.ip is the
- * real client behind Render's proxy.
+ * real client behind the hosting proxy.
  */
 const crypto = require("crypto");
 const store = require("../store");

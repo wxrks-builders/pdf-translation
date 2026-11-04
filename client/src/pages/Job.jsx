@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
-import { useParams, Link, useSearchParams } from "react-router-dom";
+import { useParams, Link, useSearchParams, useNavigate } from "react-router-dom";
 import { api } from "../api";
+import { useAuth } from "../context/AuthContext";
 import { TrustStrip } from "./Upload";
+import { PackGrid } from "./Pricing";
 import { PACKS, packFor, packLabel } from "../pricing";
+import { toneLine } from "../tone";
 
 const ACTIVE = ["created", "uploading", "analyzing", "approving", "translating"];
 
@@ -30,6 +33,16 @@ const TEAM_URL =
 
 const norm = (code) => String(code || "").toLowerCase().replace(/[-_]/g, "");
 
+const FREE_WORDS = 1000;
+
+// Over the free limit, a PDF's page 1 is translated as a preview (server/services/excerpt.js);
+// keep asking while it runs, and for a moment before it has started.
+function stillWorking(j) {
+  if (ACTIVE.includes(j.status)) return true;
+  if (j.status !== "over_free_limit") return false;
+  return j.excerpt ? ACTIVE.includes(j.excerpt.status) : Date.now() - new Date(j.updatedAt).getTime() < 30000;
+}
+
 export default function Job() {
   const { id } = useParams();
   const [params] = useSearchParams();
@@ -52,7 +65,7 @@ export default function Job() {
       try {
         const j = await api.getJob(id, k);
         setJob(j);
-        if (ACTIVE.includes(j.status)) timer = setTimeout(load, 3000);
+        if (stillWorking(j)) timer = setTimeout(load, 3000);
       } catch (err) {
         setError(err.status === 404 ? "We couldn't find this translation." : err.message);
       }
@@ -73,6 +86,7 @@ export default function Job() {
   for (const d of job.deliverables) (byLocale[d.locale] ||= []).push(d);
   for (const list of Object.values(byLocale)) list.sort((a, b) => (VARIANT_ORDER[a.variant] ?? 9) - (VARIANT_ORDER[b.variant] ?? 9));
   const preview = job.previews?.[0];
+  const tone = toneLine(job.tone);
   const bar = (
     <>
       <span className="min-w-0 truncate">{job.files.length > 1 ? `${job.files.length} files` : fileName}</span>
@@ -88,6 +102,7 @@ export default function Job() {
           {job.status === "translating" ? `Translating into ${languages}` : STAGE_COPY[job.status]}
         </h1>
         <p className="mt-1 text-[13px] text-brand-500">Usually under a minute for a short document.</p>
+        {tone && <p className="mt-1 text-[11px] text-brand-500">Tone: {tone}, by Sous-Chef</p>}
         <div className="mt-5">
           <div className="mb-1.5 flex justify-between text-xs">
             <span className="font-medium">
@@ -99,6 +114,13 @@ export default function Job() {
             <span style={{ width: `${pct}%` }} />
           </div>
         </div>
+        {job.analyzedWords != null && (
+          <p className="mt-3 text-[11px] text-brand-500">
+            {job.tier === "free"
+              ? `Uses ${job.analyzedWords.toLocaleString()} of your ${FREE_WORDS.toLocaleString()} free words today.`
+              : `Uses ${(job.creditsCharged ?? job.analyzedWords * job.targetLocales.length).toLocaleString()} credits.`}
+          </p>
+        )}
         <p className="mt-4 text-[11px] text-brand-500">Your file stays private and is deleted after 30 days.</p>
 
         {job.tier === "free" && job.emailDelivery && (
@@ -125,25 +147,24 @@ export default function Job() {
     );
   }
 
-  if (job.status === "over_free_limit") return <OverLimit bar={bar} words={job.analyzedWords} />;
+  if (job.status === "over_free_limit") return <OverLimit job={job} bar={bar} nameOf={nameOf} tone={tone} />;
+  if (job.status === "needs_credits") return <NeedsCredits job={job} bar={bar} />;
 
   if (!delivered) {
     return (
       <Screen bar={bar}>
         <h1 className="text-[22px] font-medium tracking-[-0.3px]">
-          {job.status === "no_text" ? "We couldn't find any text to translate" : job.status === "cancelled" ? "Cancelled" : job.status === "needs_credits" ? "Not enough credits" : "Something went wrong"}
+          {job.status === "no_text" ? "We couldn't find any text to translate" : job.status === "cancelled" ? "Cancelled" : "Something went wrong"}
         </h1>
         <p className="mt-2 text-[13px] text-brand-500">
           {job.status === "no_text"
             ? "Scanned pages are pictures of text, and we can't read those yet. Try a file where you can select the text. This one doesn't count as your free document."
-            : job.status === "needs_credits"
-              ? `This job needs more credits than your account has. Word packs start at ${packLabel(PACKS[0])}, paid once.`
-              : job.status === "cancelled"
-                ? "Nothing more will be translated for this job."
-                : "The translation didn't finish. Try again, or reply to any of our emails and a person will look at it."}
+            : job.status === "cancelled"
+              ? "Nothing more will be translated for this job."
+              : "The translation didn't finish. Try again, or reply to any of our emails and a person will look at it."}
         </p>
-        <Link to={job.status === "needs_credits" ? "/account" : "/"} className="wx-button wx-button--primary mt-5" style={{ minHeight: 40 }}>
-          {job.status === "needs_credits" ? "See your account" : "Translate another document"}
+        <Link to="/" className="wx-button wx-button--primary mt-5" style={{ minHeight: 40 }}>
+          Translate another document
         </Link>
       </Screen>
     );
@@ -188,6 +209,7 @@ export default function Job() {
       {job.tier === "free" && job.unlockedEmail && job.emailDelivery && (
         <p className="mt-1 text-[13px] text-brand-500">We also sent the links to {job.unlockedEmail}.</p>
       )}
+      {tone && <p className="mt-1 text-[11px] text-brand-500">Tone: {tone}, by Sous-Chef</p>}
       {preview && (
         <div className="mt-5">
           <Preview job={job} preview={preview} language={nameOf(preview.locale)} q={q} />
@@ -239,7 +261,11 @@ export default function Job() {
         <div className="mt-6 rounded-md bg-[#f5f7f9] p-4">
           <p className="text-[13px] font-medium">Next file?</p>
           <p className="mt-1 text-[13px] text-brand-500">
-            You can translate another document for free tomorrow. Translating for a team?{" "}
+            Your next free document is tomorrow. To keep going today,{" "}
+            <Link to="/pricing" className="underline">
+              buy words
+            </Link>{" "}
+            from ${PACKS[0].price}, paid once. Translating for a team?{" "}
             <a href={TEAM_URL} className="underline">
               See what wxrks does
             </a>{" "}
@@ -354,16 +380,51 @@ function EmailForm({ job, k, onDone, intro, cta, compact }) {
   );
 }
 
-// Quote the pack that covers the file in hand. A free job has one target language, so its
-// words are its credits.
-function packNote(words) {
-  const pack = words != null ? packFor(words) : null;
-  const price = pack ? `${packLabel(pack)} covers this file` : `From ${packLabel(PACKS[0])} to ${packLabel(PACKS[PACKS.length - 1])}`;
-  return `${price}. Paid once, no subscription. Sign in to start.`;
+// The file's words against the free 1,000, as a bar: how much the free part covers.
+function WordMeter({ words }) {
+  const covered = Math.min(100, (FREE_WORDS / words) * 100);
+  return (
+    <div className="mt-4">
+      <div className="wx-progress" role="meter" aria-label="Free words against this file" aria-valuemin="0" aria-valuemax={words} aria-valuenow={FREE_WORDS}>
+        <span style={{ width: `${covered}%` }} />
+      </div>
+      <div className="mt-1.5 flex justify-between text-[11px] text-brand-500">
+        <span>{FREE_WORDS.toLocaleString()} free</span>
+        <span>{(words - FREE_WORDS).toLocaleString()} more</span>
+      </div>
+    </div>
+  );
 }
 
-function OverLimit({ bar, words }) {
+// Run the file again as a paid job, without uploading it again (routes/jobs.js rerun).
+function useRerun(job) {
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  async function rerun() {
+    setBusy(true);
+    setError(null);
+    try {
+      const { jobId } = await api.rerunJob(job.id);
+      navigate(`/jobs/${jobId}`);
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  }
+  return { rerun, busy, error };
+}
+
+function OverLimit({ job, bar, nameOf, tone }) {
+  const { user, creditBalance } = useAuth();
+  const { rerun, busy, error } = useRerun(job);
+  const words = job.analyzedWords;
   const count = words != null ? words.toLocaleString() : "more than 1,000";
+  const credits = words != null ? words * job.targetLocales.length : null;
+  const fits = credits != null ? packFor(credits) : null;
+  const canRunNow = Boolean(user && credits != null && creditBalance >= credits);
+  const excerpt = job.excerpt;
+  const excerptPreview = excerpt?.previews?.[0];
   const Option = ({ href, to, title, note }) => {
     const body = (
       <>
@@ -381,14 +442,92 @@ function OverLimit({ bar, words }) {
     <Screen bar={bar}>
       <h1 className="text-[22px] font-medium tracking-[-0.3px]">This file has {count} words. Free covers 1,000.</h1>
       <p className="mt-1 text-[13px] text-brand-500">
-        Nothing was translated, so this one doesn't count as your free document.
+        {excerpt ? "So we translated page 1 for free, to show you the result." : "Nothing was translated, so this one doesn't count as your free document."}
       </p>
-      <div className="mt-5 space-y-2">
+      {words != null && <WordMeter words={words} />}
+
+      {excerpt && !excerptPreview && ACTIVE.includes(excerpt.status) && (
+        <div className="mt-5 rounded-md bg-[#f5f7f9] p-4">
+          <p className="text-[13px]">Translating page 1 so you can see it…</p>
+          <div className="wx-progress" role="progressbar" aria-label="Page 1 preview">
+            <span style={{ width: `${PROGRESS[excerpt.status] ?? 10}%` }} />
+          </div>
+        </div>
+      )}
+      {excerptPreview && (
+        <div className="mt-5">
+          <Preview job={{ id: excerpt.jobId }} preview={excerptPreview} language={nameOf(excerptPreview.locale)} q="" />
+          <p className="mt-2 text-[11px] text-brand-500">
+            Page 1{excerpt.totalPages > 1 ? ` of ${excerpt.totalPages}` : ""}, translated free{tone ? ` (tone: ${tone})` : ""}. The
+            downloads come with the whole file.
+          </p>
+        </div>
+      )}
+
+      <div className="mt-6">
+        <h2 className="text-[15px] font-medium">Translate the whole file</h2>
+        {job.rerunJobId ? (
+          <Link to={`/jobs/${job.rerunJobId}`} className="wx-button wx-button--primary mt-3" style={{ minHeight: 40 }}>
+            See the whole translation
+          </Link>
+        ) : canRunNow ? (
+          <>
+            <p className="mt-1 text-[13px] text-brand-500">
+              Uses {credits.toLocaleString()} of your {creditBalance.toLocaleString()} credits.
+            </p>
+            <button type="button" onClick={rerun} disabled={busy} className="wx-button wx-button--primary mt-3" style={{ minHeight: 40 }}>
+              {busy ? "Starting…" : `Translate all ${count} words`}
+            </button>
+            {error && <p className="wx-error mt-2 text-xs">{error}</p>}
+          </>
+        ) : (
+          <>
+            <p className="mt-1 mb-3 text-[13px] text-brand-500">
+              {fits ? `${packLabel(fits)} covers it.` : `Packs from ${packLabel(PACKS[0])}.`} After you pay, you translate this file
+              from here, without uploading it again.
+            </p>
+            <PackGrid jobId={job.id} fits={fits} />
+          </>
+        )}
+      </div>
+
+      <div className="mt-6 space-y-2">
         <Option to="/" title="Translate a shorter document" note="Free, up to 1,000 words a day" />
         <Option href={DEMO_URL} title="A team account in wxrks" note="Whole documents, with your glossary, review, and shared projects. Book a demo." />
-        <Option to="/login" title="Buy a word pack" note={packNote(words)} />
       </div>
       <TrustStrip />
+    </Screen>
+  );
+}
+
+function NeedsCredits({ job, bar }) {
+  const { creditBalance } = useAuth();
+  const { rerun, busy, error } = useRerun(job);
+  const needed = job.analyzedWords != null ? job.analyzedWords * job.targetLocales.length : null;
+  const short = needed != null && creditBalance != null ? needed - creditBalance : null;
+  return (
+    <Screen bar={bar}>
+      <h1 className="text-[22px] font-medium tracking-[-0.3px]">Not enough credits</h1>
+      <p className="mt-2 text-[13px] text-brand-500">
+        {needed != null
+          ? `This job needs ${needed.toLocaleString()} credits and your account has ${(creditBalance ?? 0).toLocaleString()}.`
+          : "This job needs more credits than your account has."}{" "}
+        Nothing was charged.
+      </p>
+      {job.rerunJobId ? (
+        <Link to={`/jobs/${job.rerunJobId}`} className="wx-button wx-button--primary mt-5" style={{ minHeight: 40 }}>
+          See the translation
+        </Link>
+      ) : short != null && short <= 0 ? (
+        <button type="button" onClick={rerun} disabled={busy} className="wx-button wx-button--primary mt-5" style={{ minHeight: 40 }}>
+          {busy ? "Starting…" : "Translate it now"}
+        </button>
+      ) : (
+        <div className="mt-5">
+          <PackGrid jobId={job.id} fits={short != null ? packFor(short) : null} />
+        </div>
+      )}
+      {error && <p className="wx-error mt-2 text-xs">{error}</p>}
     </Screen>
   );
 }

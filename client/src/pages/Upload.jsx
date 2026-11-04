@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
+import { PACKS, pagesFor } from "../pricing";
+import { TONES, TONE_NOTE_MAX } from "../tone";
 
 const ACCEPT = ".pdf,.docx,.doc,.txt,.csv,.json,.yml,.yaml,.xlsx,.pptx,.md,.html,.xml,.srt";
 
@@ -38,6 +40,9 @@ export default function Upload() {
   const [files, setFiles] = useState([]);
   const [sourceLocale, setSourceLocale] = useState("en");
   const [targetLocales, setTargetLocales] = useState([]);
+  const [tonePreset, setTonePreset] = useState("auto");
+  const [toneNote, setToneNote] = useState("");
+  const [allowance, setAllowance] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -46,6 +51,10 @@ export default function Upload() {
   useEffect(() => {
     api.languages().then((d) => setLanguages(d.languages)).catch(() => setError("Could not load languages."));
   }, []);
+
+  useEffect(() => {
+    api.allowance().then(setAllowance).catch(() => setAllowance(null));
+  }, [user]);
 
   // wxrks spells English "en_us" or "en"; start on whichever the catalog has.
   useEffect(() => {
@@ -75,12 +84,14 @@ export default function Upload() {
       for (const f of files) form.append("files", f);
       form.append("sourceLocale", sourceLocale);
       form.append("targetLocales", targets.join(","));
+      form.append("tonePreset", tonePreset);
+      form.append("toneNote", toneNote);
       const { jobId } = await api.createJob(form);
       navigate(`/jobs/${jobId}`);
     } catch (err) {
       setError(
         err.code === "free_limit_reached"
-          ? "You've used today's free document. Come back tomorrow, or sign in to translate with credits."
+          ? "You've used today's free document. Come back tomorrow, or buy words to translate it now."
           : err.message
       );
       setSubmitting(false);
@@ -93,6 +104,7 @@ export default function Upload() {
       <div className="rounded-[10px] border border-brand-200 bg-white p-6 sm:p-8">
         <h1 className="text-[29px] font-medium leading-tight tracking-[-0.4px]">{landing.h1}</h1>
         <p className="mt-2 text-[15px] leading-relaxed text-brand-500">{landing.sub}</p>
+        <Allowance allowance={allowance} />
 
         <div className="mt-6 space-y-5">
           {files.length === 0 || user ? (
@@ -175,6 +187,10 @@ export default function Upload() {
             />
           </div>
 
+          <TonePicker preset={tonePreset} note={toneNote} onPreset={setTonePreset} onNote={setToneNote} />
+
+          <PlatformFeatures />
+
           {error && <div className="wx-alert wx-alert--danger"><span>{error}</span></div>}
 
           <button
@@ -189,17 +205,152 @@ export default function Upload() {
 
           {!user && (
             <p className="text-[11px] leading-relaxed text-brand-500">
-              Free: one document a day, up to 1,000 words. No card, no account.{" "}
-              <Link to="/login" className="underline">
-                Sign in
+              Free: one document a day, up to 1,000 words, into one language. No card, no account. For longer documents
+              and more languages,{" "}
+              <Link to="/pricing" className="underline">
+                buy words
               </Link>{" "}
-              for longer documents and more languages. Scanned PDFs (pictures of pages) can't be translated yet.
+              from ${PACKS[0].price} or{" "}
+              <Link to="/login" className="underline">
+                sign in
+              </Link>
+              . Scanned PDFs (pictures of pages) can't be translated yet.
             </p>
           )}
         </div>
       </div>
       <TrustStrip />
     </section>
+  );
+}
+
+// What's left, as a meter: today's free document, or the credit balance once signed in.
+function Allowance({ allowance }) {
+  if (!allowance) return null;
+  if (allowance.signedIn) {
+    const { balance } = allowance;
+    return (
+      <div className="mt-5 flex items-center justify-between gap-3 rounded-md bg-[#f5f7f9] px-4 py-3 text-xs">
+        <span>
+          <span className="font-medium">{balance.toLocaleString("en-US")} credits</span>
+          <span className="text-brand-500">
+            {balance > 0 ? ` · about ${pagesFor(balance).toLocaleString("en-US")} pages into one language` : " · buy words to start"}
+          </span>
+        </span>
+        <Link to="/pricing" className="wx-button wx-button--compact shrink-0">
+          Buy words
+        </Link>
+      </div>
+    );
+  }
+  const hours = Math.max(1, Math.ceil((new Date(allowance.resetsAt) - Date.now()) / 3600000));
+  return (
+    <div className="mt-5 rounded-md bg-[#f5f7f9] px-4 py-3">
+      <div className="flex items-center justify-between gap-3 text-xs">
+        <span className="font-medium">Free today</span>
+        <span className="text-brand-500">
+          {allowance.freeAvailable
+            ? `1 document, up to ${allowance.maxWords.toLocaleString("en-US")} words`
+            : `Used. Your next free document is in ${hours} h`}
+        </span>
+      </div>
+      <div className="wx-progress" role="meter" aria-label="Free documents left today" aria-valuemin="0" aria-valuemax="1" aria-valuenow={allowance.freeAvailable ? 1 : 0}>
+        <span style={{ width: allowance.freeAvailable ? "100%" : "0%" }} />
+      </div>
+      {!allowance.freeAvailable && (
+        <p className="mt-2 text-[11px] text-brand-500">
+          Need it today?{" "}
+          <Link to="/pricing" className="underline">
+            Words from ${PACKS[0].price}
+          </Link>
+          , paid once.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// The tone, through a Sous-Chef agent: a preset, plus anything the visitor wants to add.
+function TonePicker({ preset, note, onPreset, onNote }) {
+  const hint = TONES.find((t) => t.key === preset)?.hint;
+  return (
+    <fieldset className="wx-field">
+      <legend className="wx-label mb-1.5 flex w-full items-baseline justify-between gap-3">
+        <span>How should it sound?</span>
+        <span className="text-[11px] font-normal text-brand-500">Sous-Chef, the wxrks tone agent</span>
+      </legend>
+      <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Tone">
+        {TONES.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="radio"
+            aria-checked={preset === t.key}
+            onClick={() => onPreset(t.key)}
+            className={`rounded-md border px-3 py-1.5 text-xs ${
+              preset === t.key ? "border-brand-600 bg-brand-50 font-medium" : "border-brand-200 hover:bg-[#f7f8fa]"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <p className="mt-1.5 text-[11px] text-brand-500">{hint}</p>
+      <input
+        className="wx-input mt-2 w-full"
+        value={note}
+        maxLength={TONE_NOTE_MAX}
+        onChange={(e) => onNote(e.target.value)}
+        aria-label="Anything else Sous-Chef should know"
+        placeholder="Anything else? For example: “for teenagers”"
+      />
+    </fieldset>
+  );
+}
+
+const PLATFORM_URL =
+  "https://wxrks.com/pricing?utm_source=translate.wxrks.com&utm_medium=referral&utm_campaign=free-translator&utm_content=platform-features";
+
+const PLATFORM_FEATURES = [
+  ["Translation memory", "Reuse your past translations, sentence by sentence"],
+  ["Glossary", "Keep your terms the same in every file"],
+  ["Past translations", "Every file you translated, in one place"],
+];
+
+// What the wxrks platform adds, shown switched off: the visitor sees it exists and where to get it.
+function PlatformFeatures() {
+  return (
+    <div className="rounded-md border border-dashed border-brand-200 px-4 py-2">
+      <div className="flex items-center justify-between gap-3 pt-1">
+        <p className="text-xs font-medium text-brand-500">In the wxrks platform</p>
+        <a href={PLATFORM_URL} className="text-[11px] underline">
+          Start free in wxrks
+        </a>
+      </div>
+      <ul>
+        {PLATFORM_FEATURES.map(([title, note]) => (
+          <li key={title}>
+            <label className="wx-switch w-full cursor-not-allowed" title="Available in the wxrks platform">
+              <input type="checkbox" role="switch" disabled className="cursor-not-allowed opacity-50" />
+              <span className="min-w-0 flex-1 opacity-60">
+                <span className="block text-[13px]">{title}</span>
+                <span className="block text-[11px] text-brand-500">{note}</span>
+              </span>
+              <LockIcon />
+            </label>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-brand-500" aria-hidden="true">
+      <rect x="4" y="11" width="16" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+    </svg>
   );
 }
 

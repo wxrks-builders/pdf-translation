@@ -15,7 +15,12 @@ const todayUtc = () => new Date().toISOString().slice(0, 10);
 // JSON columns come back as TEXT; parse them once, here.
 function parseJob(row) {
   if (!row) return null;
-  return { ...row, target_locales: JSON.parse(row.target_locales), timeline: JSON.parse(row.timeline) };
+  return {
+    ...row,
+    target_locales: JSON.parse(row.target_locales),
+    timeline: JSON.parse(row.timeline),
+    tone: row.tone ? JSON.parse(row.tone) : null,
+  };
 }
 
 // --- users / auth ---
@@ -29,6 +34,10 @@ async function upsertUserByEmail(email) {
        RETURNING *`
     )
     .get(newId(), normalized, nowIso());
+}
+
+async function getUserByEmail(email) {
+  return db.prepare(`SELECT * FROM users WHERE email = ?`).get(String(email).trim().toLowerCase()) || null;
 }
 
 async function getUserById(id) {
@@ -151,12 +160,13 @@ async function refundForJob(jobId) {
 
 // --- jobs ---
 
-async function createJob({ userId, anonCookieId, tier, sourceLocale, targetLocales, orgUnitUuid }) {
+async function createJob({ userId, anonCookieId, tier, sourceLocale, targetLocales, orgUnitUuid, tone, excerptOf, excerptPages, excerptTotalPages }) {
   const id = newJobId();
   const row = db
     .prepare(
-      `INSERT INTO jobs (id, user_id, anon_cookie_id, tier, status, source_locale, target_locales, org_unit_uuid, timeline)
-       VALUES (?, ?, ?, ?, 'created', ?, ?, ?, ?) RETURNING *`
+      `INSERT INTO jobs (id, user_id, anon_cookie_id, tier, status, source_locale, target_locales, org_unit_uuid, timeline,
+                         tone, excerpt_of, excerpt_pages, excerpt_total_pages)
+       VALUES (?, ?, ?, ?, 'created', ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`
     )
     .get(
       id,
@@ -166,9 +176,18 @@ async function createJob({ userId, anonCookieId, tier, sourceLocale, targetLocal
       sourceLocale,
       JSON.stringify(targetLocales),
       orgUnitUuid,
-      JSON.stringify([{ at: nowIso(), event: "created" }])
+      JSON.stringify([{ at: nowIso(), event: "created" }]),
+      tone ? JSON.stringify(tone) : null,
+      excerptOf || null,
+      excerptPages || null,
+      excerptTotalPages || null
     );
   return parseJob(row);
+}
+
+// The page-1 preview job of a free job over the word limit, if one was started.
+async function getExcerptFor(jobId) {
+  return parseJob(db.prepare(`SELECT * FROM jobs WHERE excerpt_of = ? ORDER BY created_at DESC LIMIT 1`).get(jobId));
 }
 
 async function getJob(id) {
@@ -199,6 +218,7 @@ async function updateJob(id, fields) {
     "error",
     "unlocked_at",
     "unlocked_email",
+    "tone_agent_uuid",
   ];
   const sets = [];
   const params = [];
@@ -385,6 +405,42 @@ async function setFreeTierUsageWords(jobId, words) {
 
 // --- retention ---
 
+// --- purchases (Stripe Checkout) ---
+
+// Records a paid Checkout Session and grants its words, together. → true the first time,
+// false when Stripe delivers the same session again.
+async function recordPurchase({ sessionId, userId, email, words, amountCents, currency, jobId, createdUser }) {
+  return db.transaction(() => {
+    const info = db
+      .prepare(
+        `INSERT OR IGNORE INTO purchases (id, stripe_session_id, user_id, email, words, amount_cents, currency, job_id, created_user)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(newId(), sessionId, userId, email, words, amountCents ?? null, currency || null, jobId || null, createdUser ? 1 : 0);
+    if (!info.changes) return false;
+    db.prepare(`INSERT INTO credit_ledger (id, user_id, delta, kind, note) VALUES (?, ?, ?, 'purchase', ?)`).run(
+      newId(),
+      userId,
+      words,
+      `${words.toLocaleString("en-US")}-word pack`
+    );
+    return true;
+  })();
+}
+
+async function getPurchase(sessionId) {
+  return db.prepare(`SELECT * FROM purchases WHERE stripe_session_id = ?`).get(sessionId) || null;
+}
+
+// Signs the buyer's browser in once, for an account the purchase itself created.
+async function claimPurchase(sessionId) {
+  return (
+    db
+      .prepare(`UPDATE purchases SET claimed_at = ? WHERE stripe_session_id = ? AND claimed_at IS NULL AND created_user = 1 RETURNING *`)
+      .get(nowIso(), sessionId) || null
+  );
+}
+
 async function sweepOldBlobs(retentionDays) {
   const cutoff = isoIn(-retentionDays * 24 * 60 * 60 * 1000);
   const d = db
@@ -405,6 +461,7 @@ module.exports = {
   newId,
   newJobId,
   upsertUserByEmail,
+  getUserByEmail,
   getUserById,
   createLoginToken,
   consumeLoginToken,
@@ -418,6 +475,7 @@ module.exports = {
   chargeForJob,
   refundForJob,
   createJob,
+  getExcerptFor,
   getJob,
   listJobsForUser,
   listActiveJobs,
@@ -438,6 +496,9 @@ module.exports = {
   recordFreeTierUsage,
   setFreeTierUsageWords,
   releaseFreeTierUsage,
+  recordPurchase,
+  getPurchase,
+  claimPurchase,
   recordLead,
   claimFilesEmail,
   countFilesEmailsSince,

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { TrustStrip } from "./Upload";
+import { PACKS, packFor, packLabel } from "../pricing";
 
 const ACTIVE = ["created", "uploading", "analyzing", "approving", "translating"];
 
@@ -136,7 +137,7 @@ export default function Job() {
           {job.status === "no_text"
             ? "Scanned pages are pictures of text, and we can't read those yet. Try a file where you can select the text. This one doesn't count as your free document."
             : job.status === "needs_credits"
-              ? "This job needs more credits than your account has. Plans start at $99 a year for 100,000 words."
+              ? `This job needs more credits than your account has. Word packs start at ${packLabel(PACKS[0])}, paid once.`
               : job.status === "cancelled"
                 ? "Nothing more will be translated for this job."
                 : "The translation didn't finish. Try again, or reply to any of our emails and a person will look at it."}
@@ -353,6 +354,14 @@ function EmailForm({ job, k, onDone, intro, cta, compact }) {
   );
 }
 
+// Quote the pack that covers the file in hand. A free job has one target language, so its
+// words are its credits.
+function packNote(words) {
+  const pack = words != null ? packFor(words) : null;
+  const price = pack ? `${packLabel(pack)} covers this file` : `From ${packLabel(PACKS[0])} to ${packLabel(PACKS[PACKS.length - 1])}`;
+  return `${price}. Paid once, no subscription. Sign in to start.`;
+}
+
 function OverLimit({ bar, words }) {
   const count = words != null ? words.toLocaleString() : "more than 1,000";
   const Option = ({ href, to, title, note }) => {
@@ -377,7 +386,7 @@ function OverLimit({ bar, words }) {
       <div className="mt-5 space-y-2">
         <Option to="/" title="Translate a shorter document" note="Free, up to 1,000 words a day" />
         <Option href={DEMO_URL} title="A team account in wxrks" note="Whole documents, with your glossary, review, and shared projects. Book a demo." />
-        <Option to="/login" title="Use credits" note="$99 a year for 100,000 words. Sign in to start." />
+        <Option to="/login" title="Buy a word pack" note={packNote(words)} />
       </div>
       <TrustStrip />
     </Screen>

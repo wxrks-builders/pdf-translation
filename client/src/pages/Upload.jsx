@@ -292,7 +292,7 @@ function LanguagePicker({ id, label, languages, selected, onChange, exclude = []
           aria-autocomplete="list"
           autoComplete="off"
           value={shown}
-          placeholder={!multiple && selected[0] ? nameOf(selected[0]) : placeholder}
+          placeholder={!multiple && selected[0] ? nameOf(selected[0]) : multiple && selected.length ? "Add another language" : placeholder}
           onFocus={() => {
             setFocused(true);
             setQuery("");

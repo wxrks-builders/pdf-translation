@@ -7,6 +7,7 @@
 const express = require("express");
 const store = require("../store");
 const payments = require("../services/payments");
+const crm = require("../services/crm");
 const freeTier = require("../services/freeTier");
 const { canSeeJob } = require("../services/access");
 const { createRateLimiter } = require("../middleware/rateLimit");
@@ -71,7 +72,11 @@ async function fulfil(session) {
     jobId: session.metadata?.job_id || null,
     createdUser: !existing,
   });
-  if (granted) console.log(`[checkout] ${words} words for ${user.id} (session ${session.id})`);
+  if (granted) {
+    console.log(`[checkout] ${words} words for ${user.id} (session ${session.id})`);
+    if (!existing) await crm.queue(crm.accountEvent(user, "purchase"));
+    await crm.queue(crm.purchaseEvent(await store.getPurchase(session.id)));
+  }
 }
 
 async function webhook(req, res) {

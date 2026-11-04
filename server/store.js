@@ -369,9 +369,61 @@ async function releaseFreeTierUsage(jobId) {
 // --- leads (the free tier's email step) ---
 
 async function recordLead({ email, jobId, marketingOptIn, suspectedBot, ip, userAgent }) {
+  const id = newId();
   db.prepare(
     `INSERT INTO leads (id, email, job_id, marketing_opt_in, suspected_bot, ip, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(newId(), email, jobId || null, marketingOptIn ? 1 : 0, suspectedBot ? 1 : 0, ip || null, userAgent || null);
+  ).run(id, email, jobId || null, marketingOptIn ? 1 : 0, suspectedBot ? 1 : 0, ip || null, userAgent || null);
+  return id;
+}
+
+// --- CRM outbox (services/crm.js) ---
+
+async function queueCrmEvent(event) {
+  db.prepare(`INSERT OR IGNORE INTO crm_outbox (key, payload) VALUES (?, ?)`).run(event.key, JSON.stringify(event));
+}
+
+async function listUnsentCrmEvents(limit, maxAttempts) {
+  return db
+    .prepare(`SELECT key, payload FROM crm_outbox WHERE sent_at IS NULL AND attempts < ? ORDER BY created_at LIMIT ?`)
+    .all(maxAttempts, limit)
+    .map((r) => ({ key: r.key, event: JSON.parse(r.payload) }));
+}
+
+async function markCrmEventSent(key) {
+  db.prepare(`UPDATE crm_outbox SET sent_at = ?, last_error = NULL WHERE key = ?`).run(nowIso(), key);
+}
+
+async function markCrmEventFailed(key, error) {
+  db.prepare(`UPDATE crm_outbox SET attempts = attempts + 1, last_error = ? WHERE key = ?`).run(String(error).slice(0, 300), key);
+}
+
+// What the CRM has been told about, for the backfill: everything the outbox has never seen.
+async function listCrmBackfill() {
+  const seen = `SELECT 1 FROM crm_outbox WHERE key = `;
+  return {
+    users: db.prepare(`SELECT id, email, created_at FROM users u WHERE NOT EXISTS (${seen} 'account:' || u.id)`).all(),
+    leads: db
+      .prepare(`SELECT id, email, job_id, marketing_opt_in, created_at FROM leads l WHERE suspected_bot = 0 AND NOT EXISTS (${seen} 'lead:' || l.id)`)
+      .all(),
+    purchases: db.prepare(`SELECT * FROM purchases p WHERE NOT EXISTS (${seen} 'purchase:' || p.stripe_session_id)`).all(),
+    jobs: db
+      .prepare(
+        `SELECT id FROM jobs j WHERE status = 'delivered' AND excerpt_of IS NULL
+           AND (user_id IS NOT NULL OR unlocked_email IS NOT NULL)
+           AND NOT EXISTS (${seen} 'translation:' || j.id)`
+      )
+      .all()
+      .map((r) => r.id),
+  };
+}
+
+// The newest email-step answer for a job: did they tick "product news"?
+async function getLatestLeadForJob(jobId) {
+  return db.prepare(`SELECT * FROM leads WHERE job_id = ? AND suspected_bot = 0 ORDER BY created_at DESC LIMIT 1`).get(jobId) || null;
+}
+
+async function createdUserForPurchase(userId) {
+  return Boolean(db.prepare(`SELECT 1 FROM purchases WHERE user_id = ? AND created_user = 1`).get(userId));
 }
 
 // Exactly one files email per job: whoever sets files_emailed_at first sends it.
@@ -499,6 +551,13 @@ module.exports = {
   recordPurchase,
   getPurchase,
   claimPurchase,
+  queueCrmEvent,
+  listUnsentCrmEvents,
+  markCrmEventSent,
+  markCrmEventFailed,
+  listCrmBackfill,
+  getLatestLeadForJob,
+  createdUserForPurchase,
   recordLead,
   claimFilesEmail,
   countFilesEmailsSince,

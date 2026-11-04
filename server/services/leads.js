@@ -15,6 +15,7 @@ const store = require("../store");
 const email = require("./email");
 const locales = require("./locales");
 const { accessKey } = require("./access");
+const crm = require("./crm");
 
 const DAILY_CAP = parseInt(process.env.FILES_EMAIL_DAILY_CAP || "300", 10);
 const PER_ADDRESS_DAILY = parseInt(process.env.FILES_EMAIL_PER_ADDRESS_DAILY || "3", 10);
@@ -37,7 +38,7 @@ function looksAutomated(req) {
 
 async function unlock(req, job, { address, marketingOptIn }) {
   const suspectedBot = looksAutomated(req);
-  await store.recordLead({
+  const leadId = await store.recordLead({
     email: address,
     jobId: job.id,
     marketingOptIn,
@@ -45,6 +46,7 @@ async function unlock(req, job, { address, marketingOptIn }) {
     ip: req.ip,
     userAgent: String(req.headers["user-agent"] || "").slice(0, 300),
   });
+  if (!suspectedBot) await crm.queue(crm.leadEvent({ id: leadId, email: address, jobId: job.id, marketingOptIn }));
   if (job.unlocked_email) return store.getJob(job.id); // first address wins; the email goes there
 
   const updated = await store.updateJob(job.id, {
@@ -55,6 +57,7 @@ async function unlock(req, job, { address, marketingOptIn }) {
   await store.appendJobEvent(job.id, "unlocked", { suspectedBot, marketingOptIn: Boolean(marketingOptIn) });
   if (!suspectedBot) forward({ address, marketingOptIn, job: updated });
   await sendFilesIfRequested(updated);
+  await crm.recordTranslation(updated); // when the email came after delivery
   return store.getJob(job.id);
 }
 

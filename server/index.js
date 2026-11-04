@@ -57,6 +57,10 @@ app.use((err, req, res, next) => {
 
 async function main() {
   await db.migrate();
+  // Everyone from before the CRM events existed, once (services/crm.js); sent when configured.
+  const crm = require("./services/crm");
+  await crm.backfill().catch((err) => console.error(`[crm] backfill failed: ${err.message}`));
+  crm.flush().catch((err) => console.error(`[crm] flush failed: ${err.message}`));
   poller.startPoller();
   app.listen(PORT, () => console.log(`DocTranslate listening on :${PORT}`));
 }

@@ -181,6 +181,20 @@ async function migrate() {
   addColumn("jobs", "excerpt_total_pages", "INTEGER");
   db.exec(`CREATE INDEX IF NOT EXISTS jobs_excerpt_idx ON jobs (excerpt_of) WHERE excerpt_of IS NOT NULL`);
 
+  // Events for the CRM (services/crm.js): written where they happen, sent in batches, kept
+  // until the CRM confirms them. One row per event key, so a repeat is a no-op.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS crm_outbox (
+      key TEXT PRIMARY KEY,
+      payload TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT ${NOW},
+      sent_at TEXT,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      last_error TEXT
+    );
+    CREATE INDEX IF NOT EXISTS crm_outbox_unsent_idx ON crm_outbox (created_at) WHERE sent_at IS NULL;
+  `);
+
   // Word packs bought through Stripe Checkout (routes/checkout.js). One row per paid Checkout
   // Session, so a webhook delivered twice grants the words once.
   db.exec(`

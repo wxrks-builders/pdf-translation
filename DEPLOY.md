@@ -40,6 +40,13 @@ Optional, for buying word packs online (without them, a pack opens an email to d
 
 In the Stripe dashboard, add a webhook endpoint at `<APP_BASE_URL>/api/stripe/webhook` for the events `checkout.session.completed` and `checkout.session.async_payment_succeeded`, and copy its signing secret into `STRIPE_WEBHOOK_SECRET`. Prices are sent inline with each Checkout Session (`server/services/payments.js`), so there are no products or prices to create in Stripe. Checkout offers Apple Pay, Google Pay and Link where they are switched on in the dashboard's payment-method settings.
 
+Optional, for the CRM (without them, events wait in the `crm_outbox` table and go out once these are set):
+
+| Variable | Value |
+|---|---|
+| `CRM_EVENTS_URL` | `https://crm.wxrks.app/s/translate/events` |
+| `CRM_EVENTS_SECRET` | A long random string; the same value goes in the CRM app's `TRANSLATE_EVENTS_SECRET` variable |
+
 ### 4. Restart and verify
 Restart the app after setting the vars. Then:
 

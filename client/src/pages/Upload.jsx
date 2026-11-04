@@ -187,9 +187,7 @@ export default function Upload() {
             />
           </div>
 
-          <TonePicker preset={tonePreset} note={toneNote} onPreset={setTonePreset} onNote={setToneNote} />
-
-          <PlatformFeatures />
+          <OptionPills preset={tonePreset} note={toneNote} onPreset={setTonePreset} onNote={setToneNote} />
 
           {error && <div className="wx-alert wx-alert--danger"><span>{error}</span></div>}
 
@@ -270,84 +268,165 @@ function Allowance({ allowance }) {
   );
 }
 
-// The tone, through a Sous-Chef agent: a preset, plus anything the visitor wants to add.
-function TonePicker({ preset, note, onPreset, onNote }) {
-  const hint = TONES.find((t) => t.key === preset)?.hint;
+// Each locked pill tags its own click, so we can see which feature pulls people to the platform.
+const platformUrl = (key) =>
+  `https://wxrks.com/pricing?utm_source=translate.wxrks.com&utm_medium=referral&utm_campaign=free-translator&utm_content=platform-${key}`;
+
+const PLATFORM_FEATURES = [
+  { key: "memory", label: "Memory", title: "Translation memory", note: "Reuse your past translations, sentence by sentence." },
+  { key: "glossary", label: "Glossary", title: "Glossary", note: "Keep your terms the same in every file." },
+  { key: "history", label: "Past files", title: "Past translations", note: "Every file you translated, in one place." },
+];
+
+const PILL = "inline-flex min-h-[32px] items-center gap-1.5 rounded-md border px-2.5 text-xs [@media(pointer:coarse)]:min-h-[44px]";
+const POPOVER = "absolute left-0 top-full z-20 mt-1.5 w-full rounded-md border border-brand-200 bg-white p-4 shadow-[0_6px_20px_#11141814]";
+
+// Tone and the wxrks platform features as one line of pills, so the form stays short. Each pill
+// opens a small pop-up under the row: the tone (a Sous-Chef agent: a preset, plus anything the
+// visitor wants to add), or what a locked platform feature does and where to get it.
+function OptionPills({ preset, note, onPreset, onNote }) {
+  const [open, setOpen] = useState(null);
+  const rowRef = useRef(null);
+  const tone = TONES.find((t) => t.key === preset) || TONES[0];
+  const feature = PLATFORM_FEATURES.find((f) => f.key === open);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(e) {
+      if (!rowRef.current?.contains(e.target)) setOpen(null);
+    }
+    function onKeyDown(e) {
+      if (e.key !== "Escape") return;
+      document.getElementById(`pill-${open}`)?.focus();
+      setOpen(null);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  const toggle = (key) => setOpen((current) => (current === key ? null : key));
+
   return (
-    <fieldset className="wx-field">
-      <legend className="wx-label mb-1.5 flex w-full items-baseline justify-between gap-3">
-        <span>How should it sound?</span>
-        <span className="text-[11px] font-normal text-brand-500">Sous-Chef, the wxrks tone agent</span>
-      </legend>
-      <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Tone">
-        {TONES.map((t) => (
+    <div ref={rowRef} className="relative">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          id="pill-tone"
+          type="button"
+          aria-haspopup="dialog"
+          aria-expanded={open === "tone"}
+          aria-controls="pop-tone"
+          onClick={() => toggle("tone")}
+          className={`${PILL} ${open === "tone" ? "border-brand-600 bg-brand-50" : "border-brand-200 bg-white hover:bg-[#f7f8fa]"}`}
+        >
+          <ChefHatIcon />
+          <span>
+            Tone: <span className="font-medium">{tone.label}</span>
+            {note.trim() ? " + note" : ""}
+          </span>
+          <ChevronIcon up={open === "tone"} />
+        </button>
+        {PLATFORM_FEATURES.map((f) => (
           <button
-            key={t.key}
+            key={f.key}
+            id={`pill-${f.key}`}
             type="button"
-            role="radio"
-            aria-checked={preset === t.key}
-            onClick={() => onPreset(t.key)}
-            className={`rounded-md border px-3 py-1.5 text-xs ${
-              preset === t.key ? "border-brand-600 bg-brand-50 font-medium" : "border-brand-200 hover:bg-[#f7f8fa]"
+            aria-haspopup="dialog"
+            aria-expanded={open === f.key}
+            aria-controls={`pop-${f.key}`}
+            onClick={() => toggle(f.key)}
+            className={`${PILL} ${
+              open === f.key
+                ? "border-[#757d88] bg-brand-50 text-brand-600"
+                : "border-dashed border-[#c4cad2] bg-[#f7f8fa] text-brand-500 hover:text-brand-600"
             }`}
           >
-            {t.label}
+            <LockIcon />
+            {f.label}
           </button>
         ))}
       </div>
-      <p className="mt-1.5 text-[11px] text-brand-500">{hint}</p>
-      <input
-        className="wx-input mt-2 w-full"
-        value={note}
-        maxLength={TONE_NOTE_MAX}
-        onChange={(e) => onNote(e.target.value)}
-        aria-label="Anything else Sous-Chef should know"
-        placeholder="Anything else? For example: “for teenagers”"
-      />
-    </fieldset>
+
+      {open === "tone" && (
+        <div id="pop-tone" role="dialog" aria-label="Tone" className={`${POPOVER} max-w-[420px]`}>
+          <div className="flex items-baseline justify-between gap-3">
+            <span id="tone-label" className="text-[13px] font-medium">
+              How should it sound?
+            </span>
+            <span className="text-[11px] text-brand-500">Sous-Chef, the wxrks tone agent</span>
+          </div>
+          <div className="mt-2.5 flex flex-wrap gap-1.5" role="radiogroup" aria-labelledby="tone-label">
+            {TONES.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                role="radio"
+                aria-checked={preset === t.key}
+                onClick={() => onPreset(t.key)}
+                className={`rounded-md border px-3 py-1.5 text-xs ${
+                  preset === t.key ? "border-brand-600 bg-brand-50 font-medium" : "border-brand-200 hover:bg-[#f7f8fa]"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] text-brand-500">{tone.hint}</p>
+          <input
+            className="wx-input mt-2.5 w-full"
+            value={note}
+            maxLength={TONE_NOTE_MAX}
+            onChange={(e) => onNote(e.target.value)}
+            aria-label="Anything else Sous-Chef should know"
+            placeholder="Anything else? For example: “for teenagers”"
+          />
+          <div className="mt-3 flex justify-end">
+            <button type="button" onClick={() => setOpen(null)} className="wx-button wx-button--primary wx-button--compact">
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+
+      {feature && (
+        <div id={`pop-${feature.key}`} role="dialog" aria-label={feature.title} className={`${POPOVER} max-w-[320px]`}>
+          <p className="flex items-center gap-1.5 text-[13px] font-medium">
+            <LockIcon />
+            {feature.title}
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-brand-500">{feature.note} It comes with the wxrks platform.</p>
+          <a href={platformUrl(feature.key)} className="mt-2 inline-block text-xs font-medium underline">
+            Start free in wxrks
+          </a>
+        </div>
+      )}
+    </div>
   );
 }
 
-const PLATFORM_URL =
-  "https://wxrks.com/pricing?utm_source=translate.wxrks.com&utm_medium=referral&utm_campaign=free-translator&utm_content=platform-features";
-
-const PLATFORM_FEATURES = [
-  ["Translation memory", "Reuse your past translations, sentence by sentence"],
-  ["Glossary", "Keep your terms the same in every file"],
-  ["Past translations", "Every file you translated, in one place"],
-];
-
-// What the wxrks platform adds, shown switched off: the visitor sees it exists and where to get it.
-function PlatformFeatures() {
+function ChefHatIcon() {
   return (
-    <div className="rounded-md border border-dashed border-brand-200 px-4 py-2">
-      <div className="flex items-center justify-between gap-3 pt-1">
-        <p className="text-xs font-medium text-brand-500">In the wxrks platform</p>
-        <a href={PLATFORM_URL} className="text-[11px] underline">
-          Start free in wxrks
-        </a>
-      </div>
-      <ul>
-        {PLATFORM_FEATURES.map(([title, note]) => (
-          <li key={title}>
-            <label className="wx-switch w-full cursor-not-allowed" title="Available in the wxrks platform">
-              <input type="checkbox" role="switch" disabled className="cursor-not-allowed opacity-50" />
-              <span className="min-w-0 flex-1 opacity-60">
-                <span className="block text-[13px]">{title}</span>
-                <span className="block text-[11px] text-brand-500">{note}</span>
-              </span>
-              <LockIcon />
-            </label>
-          </li>
-        ))}
-      </ul>
-    </div>
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden="true">
+      <path d="M17 21a1 1 0 0 0 1-1v-5.35c0-.457.316-.844.727-1.041a4 4 0 0 0-2.134-7.589 5 5 0 0 0-9.186 0 4 4 0 0 0-2.134 7.588c.411.198.727.585.727 1.041V20a1 1 0 0 0 1 1Z" />
+      <path d="M6 17h12" />
+    </svg>
+  );
+}
+
+function ChevronIcon({ up }) {
+  return (
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 text-brand-500 transition-transform ${up ? "rotate-180" : ""}`} aria-hidden="true">
+      <path d="m6 9 6 6 6-6" />
+    </svg>
   );
 }
 
 function LockIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-brand-500" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden="true">
       <rect x="4" y="11" width="16" height="10" rx="2" />
       <path d="M8 11V7a4 4 0 0 1 8 0v4" />
     </svg>

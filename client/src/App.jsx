@@ -5,6 +5,8 @@ import Job from "./pages/Job";
 import Jobs from "./pages/Jobs";
 import Login from "./pages/Login";
 import Account from "./pages/Account";
+import Pricing from "./pages/Pricing";
+import Thanks from "./pages/Thanks";
 
 function Header() {
   const { user, creditBalance, logout } = useAuth();
@@ -17,6 +19,9 @@ function Header() {
           <span className="text-[15px] font-medium text-brand-500">Translate</span>
         </Link>
         <nav className="flex items-center gap-4 text-sm">
+          <Link to="/pricing" className="wx-button wx-button--primary wx-button--compact order-last">
+            Buy words
+          </Link>
           {user ? (
             <>
               <Link to="/jobs" className="text-slate-600 hover:text-slate-900">
@@ -59,6 +64,8 @@ export default function App() {
           <Route path="/jobs/:id" element={<Job />} />
           <Route path="/login" element={<Login />} />
           <Route path="/account" element={<Account />} />
+          <Route path="/pricing" element={<Pricing />} />
+          <Route path="/thanks" element={<Thanks />} />
         </Routes>
       </main>
       {/* AGPL-3.0 §13: users of the network service get a way to the source. */}

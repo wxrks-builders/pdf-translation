@@ -31,5 +31,10 @@ export const api = {
   cancelJob: (id) => request(`/api/jobs/${id}/cancel`, { method: "POST" }),
   unlockJob: (id, body, k) =>
     request(`/api/jobs/${id}/unlock${k ? `?k=${encodeURIComponent(k)}` : ""}`, { method: "POST", body: JSON.stringify(body) }),
+  rerunJob: (id) => request(`/api/jobs/${id}/rerun`, { method: "POST" }),
   credits: () => request("/api/credits"),
+  allowance: () => request("/api/allowance"),
+  checkoutConfig: () => request("/api/checkout/config"),
+  checkout: (body) => request("/api/checkout", { method: "POST", body: JSON.stringify(body) }),
+  checkoutSession: (id) => request(`/api/checkout/session/${encodeURIComponent(id)}`),
 };

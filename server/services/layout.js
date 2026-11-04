@@ -88,4 +88,17 @@ async function preview(pdfBuffer) {
   });
 }
 
-module.exports = { isAvailable, extract, rebuild, preview, LayoutError };
+// → { pdf (Buffer, page 1 alone) or null when page 1 has more than maxWords, words, totalPages }
+async function excerpt(pdfBuffer, maxWords) {
+  return withTempDir(async (dir) => {
+    await fs.writeFile(path.join(dir, "in.pdf"), pdfBuffer);
+    const summary = JSON.parse(await run(["excerpt", path.join(dir, "in.pdf"), path.join(dir, "page1.pdf"), String(maxWords)]));
+    return {
+      pdf: summary.pages ? await fs.readFile(path.join(dir, "page1.pdf")) : null,
+      words: summary.words,
+      totalPages: summary.total_pages,
+    };
+  });
+}
+
+module.exports = { isAvailable, extract, rebuild, preview, excerpt, LayoutError };

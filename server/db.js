@@ -170,6 +170,35 @@ async function migrate() {
     CREATE INDEX IF NOT EXISTS leads_email_idx ON leads (email, created_at);
   `);
 
+  // The tone a visitor picked (JSON {preset, note}) and the Sous-Chef agent that carries it
+  // out in wxrks, deleted when the job ends (services/tone.js).
+  addColumn("jobs", "tone", "TEXT");
+  addColumn("jobs", "tone_agent_uuid", "TEXT");
+  // A free PDF over the word limit gets its first page(s) translated as a preview: a child job
+  // with excerpt_of = the job over the limit (services/excerpt.js). Preview only, no downloads.
+  addColumn("jobs", "excerpt_of", "TEXT");
+  addColumn("jobs", "excerpt_pages", "INTEGER");
+  addColumn("jobs", "excerpt_total_pages", "INTEGER");
+  db.exec(`CREATE INDEX IF NOT EXISTS jobs_excerpt_idx ON jobs (excerpt_of) WHERE excerpt_of IS NOT NULL`);
+
+  // Word packs bought through Stripe Checkout (routes/checkout.js). One row per paid Checkout
+  // Session, so a webhook delivered twice grants the words once.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS purchases (
+      id TEXT PRIMARY KEY,
+      stripe_session_id TEXT UNIQUE NOT NULL,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      email TEXT NOT NULL,
+      words INTEGER NOT NULL,
+      amount_cents INTEGER,
+      currency TEXT,
+      job_id TEXT,
+      created_user INTEGER NOT NULL DEFAULT 0,
+      claimed_at TEXT,
+      created_at TEXT NOT NULL DEFAULT ${NOW}
+    );
+  `);
+
   // deliverables gained `variant` and a wider UNIQUE; SQLite can't alter a table constraint,
   // so an old table is rebuilt once, keeping every row as the 'translation' variant.
   if (!columns("deliverables").includes("variant")) {

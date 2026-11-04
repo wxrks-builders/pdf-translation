@@ -94,6 +94,42 @@ async function createProject({ reference, sourceLocale, orgUnitUUID, tags }) {
   return res.data;
 }
 
+// --- Sous-Chef agents: the tone and instructions wxrks's AI pre-translation follows ---
+//
+// The API calls them agents (type SOUS_CHEF_TRANSLATION); the wxrks UI shows them as Sous-Chef
+// profiles. These are the calls the Sous-Chef page in app.wxrks.com makes.
+
+async function createAgent({ name, description, accountUuid, aiInstructions, projectUuid }) {
+  const res = await request({
+    method: "POST",
+    url: "/agent",
+    data: {
+      name,
+      description,
+      type: "SOUS_CHEF_TRANSLATION",
+      accountUuid,
+      aiInstructions,
+      assignment: { scopeType: "PROJECT", scopeUuid: projectUuid, isDefault: true },
+    },
+  });
+  return res.data;
+}
+
+// Only a project's default agent applies, and the assignment createAgent makes isn't the
+// default (verified 2026-11-04), so this runs for every project, the first one included.
+async function setProjectAgent({ projectUuid, accountUuid, agentUuid }) {
+  await request({
+    method: "PUT",
+    url: "/agent/assignments/default",
+    data: { scopeType: "PROJECT", scopeUuid: projectUuid, accountUuid, agentUuid, isDefault: true },
+  });
+}
+
+// Also removes the agent's project assignments.
+async function deleteAgent(uuid) {
+  await request({ method: "DELETE", url: `/agent/${uuid}` });
+}
+
 async function getProject(uuid) {
   return (await request({ method: "GET", url: `/project/${uuid}` })).data;
 }
@@ -317,6 +353,9 @@ async function listLanguages() {
 
 module.exports = {
   BASE,
+  createAgent,
+  setProjectAgent,
+  deleteAgent,
   RetryLaterError,
   authenticate,
   request,

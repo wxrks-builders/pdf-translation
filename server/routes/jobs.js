@@ -7,6 +7,7 @@ const locales = require("../services/locales");
 const layout = require("../services/layout");
 const leads = require("../services/leads");
 const email = require("../services/email");
+const tone = require("../services/tone");
 const { canSeeJob, isUnlocked } = require("../services/access");
 const { createRateLimiter } = require("../middleware/rateLimit");
 const { buildWxrksFilename, extensionAllowed, findTruncationCollision, ALLOWED_EXTENSIONS } = require("../services/filenames");
@@ -28,16 +29,42 @@ function orgUnitFor(tier) {
 
 const unlockLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 10 });
 
-async function serializeJob(job, req) {
-  const files = await store.listJobFiles(job.id);
-  const deliverables = await store.listDeliverables(job.id);
-  // One page-1 preview per language: the first design-kept PDF.
+// One page-1 preview per language: the first design-kept PDF.
+function previewsOf(deliverables) {
   const previews = [];
   for (const d of deliverables) {
     if (d.variant === "pdf-design" && !previews.some((p) => p.locale === d.locale)) {
       previews.push({ locale: d.locale, deliverableId: d.id });
     }
   }
+  return previews;
+}
+
+// The page-1 preview of a free file over the limit (services/excerpt.js), if one was started.
+async function excerptOf(job) {
+  if (job.status !== "over_free_limit") return null;
+  const child = await store.getExcerptFor(job.id);
+  if (!child) return null;
+  return {
+    jobId: child.id,
+    status: child.status,
+    totalPages: child.excerpt_total_pages,
+    previews: previewsOf(await store.listDeliverables(child.id)),
+  };
+}
+
+// The paid job a stopped job was translated as (POST /:id/rerun), unless that one stopped too.
+async function rerunOf(job) {
+  const last = [...job.timeline].reverse().find((e) => e.event === "rerun_paid");
+  if (!last?.detail?.job) return null;
+  const paid = await store.getJob(last.detail.job);
+  return paid && !["failed", "cancelled"].includes(paid.status) ? paid : null;
+}
+
+async function serializeJob(job, req) {
+  const files = await store.listJobFiles(job.id);
+  const deliverables = await store.listDeliverables(job.id);
+  const previews = previewsOf(deliverables);
   return {
     id: job.id,
     tier: job.tier,
@@ -52,6 +79,9 @@ async function serializeJob(job, req) {
     unlockedEmail: job.unlocked_email,
     emailDelivery: email.isConfigured(),
     previews,
+    tone: job.tone,
+    excerpt: await excerptOf(job),
+    rerunJobId: (await rerunOf(job))?.id || null,
     createdAt: job.created_at,
     updatedAt: job.updated_at,
     files: files.map((f) => ({ id: f.id, name: f.original_filename, sizeBytes: f.size_bytes, status: f.status })),
@@ -108,6 +138,7 @@ router.post("/", optionalSession, freeTier.anonCookie, upload.array("files"), as
     sourceLocale,
     targetLocales,
     orgUnitUuid: orgUnitFor(tier),
+    tone: tone.parse(req.body),
   });
 
   const wxrksNames = files.map((f) => buildWxrksFilename(job.id, f.originalname));
@@ -171,10 +202,52 @@ router.post("/:id/cancel", optionalSession, freeTier.anonCookie, async (req, res
 router.post("/:id/unlock", unlockLimiter, optionalSession, freeTier.anonCookie, async (req, res) => {
   const job = await store.getJob(req.params.id);
   if (!job || !canSeeJob(req, job)) return res.status(404).json({ error: "not_found" });
+  if (job.excerpt_of) return res.status(400).json({ error: "preview_only" });
   const address = leads.normalizeEmail(req.body?.email);
   if (!address) return res.status(400).json({ error: "invalid_email", message: "Check the email address." });
   const updated = job.tier === "free" ? await leads.unlock(req, job, { address, marketingOptIn: req.body?.marketingOptIn === true }) : job;
   res.json(await serializeJob(updated, req));
+});
+
+// After buying words: translate a file that stopped for lack of words (over the free limit, or
+// not enough credits) as a new paid job, without uploading it again. The pipeline charges the
+// credits, as for any paid job.
+router.post("/:id/rerun", optionalSession, freeTier.anonCookie, async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "not_authenticated" });
+  const job = await store.getJob(req.params.id);
+  if (!job || !canSeeJob(req, job) || !["over_free_limit", "needs_credits"].includes(job.status)) {
+    return res.status(404).json({ error: "not_found" });
+  }
+  const earlier = await rerunOf(job); // a second click goes to the same paid job
+  if (earlier) return res.status(200).json({ jobId: earlier.id });
+  const files = await store.listJobFiles(job.id);
+  const contents = [];
+  for (const f of files) {
+    const content = await store.getJobFileContent(f.id);
+    if (!content?.length) return res.status(410).json({ error: "expired", message: "This file was deleted after 30 days. Upload it again." });
+    contents.push(content);
+  }
+  const paid = await store.createJob({
+    userId: req.user.id,
+    tier: "paid",
+    sourceLocale: job.source_locale,
+    targetLocales: job.target_locales,
+    orgUnitUuid: orgUnitFor("paid"),
+    tone: job.tone,
+  });
+  for (const [i, f] of files.entries()) {
+    await store.createJobFile({
+      jobId: paid.id,
+      originalFilename: f.original_filename,
+      wxrksFilename: buildWxrksFilename(paid.id, f.original_filename),
+      sizeBytes: f.size_bytes,
+      contentType: f.content_type,
+      content: contents[i],
+    });
+  }
+  await store.appendJobEvent(job.id, "rerun_paid", { job: paid.id });
+  pipeline.startPipeline(paid.id);
+  res.status(202).json({ jobId: paid.id });
 });
 
 // Page 1 of the original or of the design-kept translation, as a JPEG. Rendered on demand

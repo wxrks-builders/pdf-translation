@@ -4,7 +4,7 @@
  * a per-job key (?k=) instead, so its links work on another device.
  *
  * Free-tier downloads also need the email step (routes/jobs.js unlock); the page-1 preview
- * doesn't.
+ * doesn't. An excerpt job (the page-1 preview of a file over the free limit) never downloads.
  */
 const crypto = require("crypto");
 
@@ -26,7 +26,9 @@ function canSeeJob(req, job) {
   return Boolean(job.anon_cookie_id && job.anon_cookie_id === req.anonId);
 }
 
+// A page-1 preview of a file over the free limit (jobs.excerpt_of) never opens: it's a sample.
 function isUnlocked(req, job) {
+  if (job.excerpt_of) return false;
   return job.tier !== "free" || Boolean(job.unlocked_at) || hasAccessKey(req, job);
 }
 

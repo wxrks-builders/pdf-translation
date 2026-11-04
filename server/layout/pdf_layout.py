@@ -11,6 +11,9 @@ font, shrunk to fit. Proven on spike 7 (spikes/07-inplace-pdf.py has the verdict
       → out_dir/design.pdf (live text) + out_dir/images.pdf (one picture per page)
   pdf_layout.py preview <in.pdf> <out.jpg>
       → page 1 as a JPEG, PREVIEW_WIDTH px wide (the free tier shows it before the email step)
+  pdf_layout.py excerpt <in.pdf> <out.pdf> <max_words>
+      → page 1 alone as a PDF, when it has at most max_words words (a free document over the
+        limit gets it translated as a preview); prints {"pages", "words", "total_pages"}
 
 Exit codes: 0 ok · 3 a translation needs characters the bundled fonts lack (non-Latin script)
 · 4 too many pages (LAYOUT_MAX_PAGES) · anything else is a crash.
@@ -530,6 +533,17 @@ def preview(pdf, out_path):
     Path(out_path).write_bytes(pix.tobytes("jpeg", jpg_quality=82))
 
 
+def excerpt(pdf, out_path, max_words):
+    doc = pymupdf.open(pdf)
+    words = len(doc[0].get_text("words")) if len(doc) else 0
+    pages = 1 if 0 < words <= max_words else 0
+    if pages:
+        out = pymupdf.open()
+        out.insert_pdf(doc, from_page=0, to_page=0)
+        out.save(out_path, garbage=3, deflate=True)
+    print(json.dumps({"pages": pages, "words": words, "total_pages": len(doc)}))
+
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     try:
@@ -539,6 +553,8 @@ if __name__ == "__main__":
             rebuild(args[1], args[2], args[3], args[4])
         elif args[:1] == ["preview"] and len(args) == 3:
             preview(args[1], args[2])
+        elif args[:1] == ["excerpt"] and len(args) == 4:
+            excerpt(args[1], args[2], int(args[3]))
         else:
             sys.exit(__doc__)
     except Unsupported as e:

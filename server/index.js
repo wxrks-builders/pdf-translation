@@ -14,6 +14,9 @@ const PORT = process.env.PORT || 3000;
 app.set("trust proxy", 1);
 app.use(seo.legacyRedirect);
 app.use(cors());
+// Stripe signs the raw body, so its webhook is read before the JSON parser.
+const checkout = require("./routes/checkout");
+app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), checkout.webhook);
 app.use(express.json());
 
 app.get("/api/health", (req, res) => res.json({ ok: true }));
@@ -23,6 +26,8 @@ app.use("/api/languages", require("./routes/languages"));
 app.use("/api/jobs", require("./routes/jobs"));
 app.use("/api/jobs", require("./routes/downloads"));
 app.use("/api/credits", require("./routes/credits"));
+app.use("/api/allowance", require("./routes/allowance"));
+app.use("/api/checkout", checkout.router);
 app.use("/api/webhooks", require("./routes/webhooks"));
 
 app.get("/robots.txt", seo.robots);

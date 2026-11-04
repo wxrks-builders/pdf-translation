@@ -13,6 +13,7 @@
 const store = require("../store");
 const wxrks = require("./wxrks");
 const layout = require("./layout");
+const tone = require("./tone");
 const { buildWxrksFilename } = require("./filenames");
 
 const FREE_TIER_MAX_WORDS = parseInt(process.env.FREE_TIER_MAX_WORDS || "1000", 10);
@@ -110,6 +111,8 @@ async function runPipeline(jobId) {
       await store.releaseFreeTierUsage(jobId);
       await wxrks.cancelProject(project.uuid, "free tier word limit exceeded");
       await setStatus(jobId, "over_free_limit", "over_free_limit", { words: analyzedWords, limit: FREE_TIER_MAX_WORDS });
+      // Page 1 as a preview of what the whole file would get (a PDF's excerpt never gets one).
+      if (!job.excerpt_of) await require("./excerpt").start(jobId, FREE_TIER_MAX_WORDS);
       return;
     }
   } else if (charge > 0) {
@@ -122,7 +125,9 @@ async function runPipeline(jobId) {
     await store.appendJobEvent(jobId, "credits_charged", { amount: charge });
   }
 
-  // 6. Approve — anything failing from here on refunds (markJobFailed)
+  // 6. Approve — anything failing from here on refunds (markJobFailed). The tone's agent goes
+  // on first: AI pre-translation starts with approval.
+  await tone.apply(jobId, project);
   await setStatus(jobId, "approving");
   await wxrks.approveProject(project.uuid);
   await setStatus(jobId, "translating", "approved");
@@ -166,6 +171,7 @@ async function startLayout(jobId) {
       tags: [job.user_id || "free", "layout"],
     });
     await store.updateJob(jobId, { layout_project_uuid: project.uuid });
+    await tone.apply(jobId, project);
     for (const file of files) {
       const { units } = await store.getJobFileLayoutUnits(file.id);
       const segments = Object.fromEntries(units.filter((u) => u.translate).map((u) => [u.id, u.text]));
@@ -209,6 +215,7 @@ async function markJobFailed(jobId, err) {
     if (refunded) await store.appendJobEvent(jobId, "credits_refunded");
     if (job?.wxrks_project_uuid) await wxrks.cancelProject(job.wxrks_project_uuid, "job failed");
     if (job?.layout_project_uuid) await wxrks.cancelProject(job.layout_project_uuid, "job failed");
+    await tone.release(jobId);
   } catch (inner) {
     console.error(`[pipeline] cleanup for ${jobId} also failed:`, inner.message);
   }
@@ -224,6 +231,7 @@ async function cancelJob(jobId) {
   if (refunded) await store.appendJobEvent(jobId, "credits_refunded");
   if (job.wxrks_project_uuid) await wxrks.cancelProject(job.wxrks_project_uuid, "cancelled by user");
   if (job.layout_project_uuid) await wxrks.cancelProject(job.layout_project_uuid, "cancelled by user");
+  await tone.release(jobId);
   return store.getJob(jobId);
 }
 

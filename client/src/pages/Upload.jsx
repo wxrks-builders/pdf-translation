@@ -7,6 +7,10 @@ import { TONES, TONE_NOTE_MAX } from "../tone";
 
 const ACCEPT = ".pdf,.docx,.doc,.txt,.csv,.json,.yml,.yaml,.xlsx,.pptx,.md,.html,.xml,.srt";
 
+// Languages per document, free or paid; past this the picker points to the wxrks platform.
+// The server checks the same number (MAX_TARGETS in server/routes/jobs.js).
+const MAX_TARGETS = 3;
+
 // Landing pages share this upload screen; keep the headings in step with PAGES in server/seo.js.
 const LANDING = {
   "/": { h1: "Translate a document", sub: "See the first page in your language before you download." },
@@ -46,6 +50,7 @@ export default function Upload() {
   const [dragOver, setDragOver] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [onlyFirstFile, setOnlyFirstFile] = useState(false);
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -70,6 +75,8 @@ export default function Upload() {
       for (const f of incoming) if (!next.some((p) => p.name === f.name && p.size === f.size)) next.push(f);
       return user ? next : next.slice(0, 1);
     });
+    // Free visitors send one file per document: say so instead of dropping the rest quietly.
+    setOnlyFirstFile(!user && incoming.length > 1);
     setError(null);
   }
 
@@ -156,13 +163,28 @@ export default function Upload() {
                   <button
                     type="button"
                     className="wx-button wx-button--ghost wx-button--compact"
-                    onClick={() => setFiles(files.filter((x) => x !== f))}
+                    onClick={() => {
+                      setFiles(files.filter((x) => x !== f));
+                      setOnlyFirstFile(false);
+                    }}
                   >
                     {user ? "Remove" : "Change"}
                   </button>
                 </li>
               ))}
             </ul>
+          )}
+
+          {onlyFirstFile && files[0] && (
+            <div className="wx-alert" role="status">
+              <span>
+                The free translator takes one file at a time, so we kept {files[0].name}.{" "}
+                <Link to="/login" className="underline">
+                  Sign in
+                </Link>{" "}
+                to send up to 10 files together.
+              </span>
+            </div>
           )}
 
           {/* items-start: chips under "Translate into" must not stretch the "From" field */}
@@ -182,7 +204,9 @@ export default function Upload() {
               selected={targetLocales}
               onChange={setTargetLocales}
               exclude={[sourceLocale]}
-              multiple={Boolean(user)}
+              multiple
+              max={MAX_TARGETS}
+              whenFull={<MoreLanguages />}
               placeholder="Type a language, e.g. Portuguese"
             />
           </div>
@@ -203,8 +227,8 @@ export default function Upload() {
 
           {!user && (
             <p className="text-[11px] leading-relaxed text-brand-500">
-              Free: one document a day, up to 1,000 words, into one language. No card, no account. For longer documents
-              and more languages,{" "}
+              Free: one document a day, up to 1,000 words, into up to three languages. No card, no account. For longer
+              documents,{" "}
               <Link to="/pricing" className="underline">
                 buy words
               </Link>{" "}
@@ -407,6 +431,18 @@ function OptionPills({ preset, note, onPreset, onNote }) {
   );
 }
 
+// Under the language picker once it holds MAX_TARGETS: the platform takes any number at once.
+function MoreLanguages() {
+  return (
+    <p className="mt-2 text-[11px] leading-relaxed text-brand-500" role="status">
+      Need more than {MAX_TARGETS} languages? The wxrks platform translates into all of them in one project.{" "}
+      <a href={platformUrl("languages")} className="underline">
+        Start free in wxrks
+      </a>
+    </p>
+  );
+}
+
 function ChefHatIcon() {
   return (
     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden="true">
@@ -466,21 +502,23 @@ export function TrustStrip() {
 
 // Type a few letters, then click a match or press Enter. There are 100+ languages, so typing
 // beats scrolling a list. Single mode shows the chosen name in the box; multiple mode adds chips.
-function LanguagePicker({ id, label, languages, selected, onChange, exclude = [], multiple = false, placeholder }) {
+function LanguagePicker({ id, label, languages, selected, onChange, exclude = [], multiple = false, max = Infinity, whenFull = null, placeholder }) {
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const [active, setActive] = useState(0);
   const nameOf = (code) => languages.find((l) => l.code === code)?.name || code;
+  const full = multiple && selected.length >= max;
+  const counter = multiple && max !== Infinity ? (selected.length ? `${selected.length} of ${max}` : `Up to ${max}`) : null;
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return [];
+    if (!q || full) return [];
     return languages
       .filter((l) => !exclude.includes(l.code) && !(multiple && selected.includes(l.code)))
       .filter((l) => l.name.toLowerCase().includes(q) || l.code.toLowerCase().includes(q))
       .sort((a, b) => Number(b.name.toLowerCase().startsWith(q)) - Number(a.name.toLowerCase().startsWith(q)) || a.name.localeCompare(b.name))
       .slice(0, 8);
-  }, [query, languages, exclude, multiple, selected]);
+  }, [query, languages, exclude, multiple, selected, full]);
 
   function pick(l) {
     onChange(multiple ? [...selected, l.code] : [l.code]);
@@ -509,9 +547,12 @@ function LanguagePicker({ id, label, languages, selected, onChange, exclude = []
 
   return (
     <div className="wx-field">
-      <label className="wx-label" htmlFor={id}>
-        {label}
-      </label>
+      <div className="flex items-baseline justify-between gap-3">
+        <label className="wx-label" htmlFor={id}>
+          {label}
+        </label>
+        {counter && <span className="text-[11px] text-brand-500">{counter}</span>}
+      </div>
       <div className="relative">
         <input
           id={id}
@@ -522,7 +563,16 @@ function LanguagePicker({ id, label, languages, selected, onChange, exclude = []
           aria-autocomplete="list"
           autoComplete="off"
           value={shown}
-          placeholder={!multiple && selected[0] ? nameOf(selected[0]) : multiple && selected.length ? "Add another language" : placeholder}
+          disabled={full}
+          placeholder={
+            full
+              ? `${max} languages, the most for one file`
+              : !multiple && selected[0]
+                ? nameOf(selected[0])
+                : multiple && selected.length
+                  ? "Add another language"
+                  : placeholder
+          }
           onFocus={() => {
             setFocused(true);
             setQuery("");
@@ -567,6 +617,7 @@ function LanguagePicker({ id, label, languages, selected, onChange, exclude = []
           ))}
         </div>
       )}
+      {full && whenFull}
     </div>
   );
 }

@@ -21,6 +21,10 @@ const upload = multer({
   limits: { fileSize: MAX_UPLOAD_MB * 1024 * 1024, files: 10 },
 });
 
+// Up to three languages per document, free or paid; more is a job for the wxrks platform,
+// which the picker points to. Keep in step with MAX_TARGETS in client/src/pages/Upload.jsx.
+const MAX_TARGETS = 3;
+
 function orgUnitFor(tier) {
   const paid = process.env.WXRKS_PAID_ORG_UNIT_UUID;
   const free = process.env.WXRKS_FREE_ORG_UNIT_UUID || paid;
@@ -111,6 +115,13 @@ router.post("/", optionalSession, freeTier.anonCookie, upload.array("files"), as
   }
   if (!sourceLocale) return res.status(400).json({ error: "invalid_source_locale" });
   if (!targetLocales.length) return res.status(400).json({ error: "no_target_locales" });
+  if (targetLocales.length > MAX_TARGETS) {
+    return res.status(400).json({
+      error: "too_many_languages",
+      max: MAX_TARGETS,
+      message: `Up to ${MAX_TARGETS} languages per document. For more, use the wxrks platform.`,
+    });
+  }
   if (targetLocales.some((t) => locales.sameLocale(t, sourceLocale))) {
     return res.status(400).json({ error: "target_equals_source" });
   }
@@ -124,9 +135,6 @@ router.post("/", optionalSession, freeTier.anonCookie, upload.array("files"), as
   const tier = req.user ? "paid" : "free";
   if (tier === "free") {
     if (files.length > 1) return res.status(400).json({ error: "free_tier_one_file" });
-    if (targetLocales.length > 1) {
-      return res.status(400).json({ error: "free_tier_one_language", message: "The free translator does one language a day. Sign in for more." });
-    }
     const used = await freeTier.findUsageToday(req);
     if (used) return res.status(429).json({ error: "free_limit_reached", message: "Free tier allows 1 document per day." });
   }

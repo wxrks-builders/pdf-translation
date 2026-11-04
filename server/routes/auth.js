@@ -1,6 +1,7 @@
 const express = require("express");
 const store = require("../store");
 const email = require("../services/email");
+const crm = require("../services/crm");
 const { createRateLimiter } = require("../middleware/rateLimit");
 const { setSessionCookie, clearSessionCookie, deleteSessionFromRequestCookie, optionalSession } = require("../middleware/auth");
 
@@ -38,6 +39,7 @@ router.get("/verify", async (req, res) => {
     return res.redirect("/login?error=expired");
   }
   const user = await store.upsertUserByEmail(address);
+  await crm.queue(crm.accountEvent(user, "sign-in")); // once per account: the key is the user id
   await deleteSessionFromRequestCookie(req);
   const sessionId = await store.createSession(user.id);
   setSessionCookie(res, sessionId);

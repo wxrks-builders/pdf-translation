@@ -216,7 +216,6 @@ export function TrustStrip() {
           <a href={`https://wxrks.com/?${UTM}`} className="underline">
             wxrks
           </a>
-          , formerly Bureau Works
         </p>
         <p className="mt-0.5 text-xs leading-relaxed text-brand-500">
           20 years in translation. Our translation platform is a G2 Leader and is audited for SOC 2 Type 2.

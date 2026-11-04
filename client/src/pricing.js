@@ -13,7 +13,8 @@ const n = (x) => x.toLocaleString("en-US");
 
 export const packLabel = (pack) => `$${pack.price} for ${n(pack.words)} words`;
 
-export const perThousand = (pack) => `$${((pack.price * 1000) / pack.words).toFixed(2)} per 1,000 words`;
+// In whole cents, so $99 for 200,000 reads $0.50 and not a float's $0.49.
+export const perThousand = (pack) => `$${(Math.round((pack.price * 100000) / pack.words) / 100).toFixed(2)} per 1,000 words`;
 
 // The smallest pack that covers this many credits, or null when none does.
 export const packFor = (credits) => PACKS.find((p) => p.words >= credits) || null;

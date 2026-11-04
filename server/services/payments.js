@@ -48,6 +48,9 @@ function createCheckout({ pack, email, userId, jobId, baseUrl }) {
   const words = pack.words.toLocaleString("en-US");
   return stripe("post", "/checkout/sessions", {
     mode: "payment",
+    // Cards only (Apple Pay and Google Pay ride on them). A US bank payment clears days later,
+    // so the buyer would land on /thanks with no words and a "taking longer" note.
+    payment_method_types: ["card"],
     line_items: [
       {
         quantity: 1,

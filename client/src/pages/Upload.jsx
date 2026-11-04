@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
-import { PACKS, pagesFor } from "../pricing";
+import { PACKS, buy, pagesFor } from "../pricing";
 import { TONES, TONE_NOTE_MAX } from "../tone";
 
 const ACCEPT = ".pdf,.docx,.doc,.txt,.csv,.json,.yml,.yaml,.xlsx,.pptx,.md,.html,.xml,.srt";
@@ -51,6 +51,7 @@ export default function Upload() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [onlyFirstFile, setOnlyFirstFile] = useState(false);
+  const [freeUsed, setFreeUsed] = useState(false);
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -86,6 +87,7 @@ export default function Upload() {
     if (!targets.length) return setError("Pick the language to translate into.");
     setSubmitting(true);
     setError(null);
+    setFreeUsed(false);
     try {
       const form = new FormData();
       for (const f of files) form.append("files", f);
@@ -96,11 +98,8 @@ export default function Upload() {
       const { jobId } = await api.createJob(form);
       navigate(`/jobs/${jobId}`);
     } catch (err) {
-      setError(
-        err.code === "free_limit_reached"
-          ? "You've used today's free document. Come back tomorrow, or buy words to translate it now."
-          : err.message
-      );
+      if (err.code === "free_limit_reached") setFreeUsed(true);
+      else setError(err.message);
       setSubmitting(false);
     }
   }
@@ -213,6 +212,8 @@ export default function Upload() {
 
           <OptionPills preset={tonePreset} note={toneNote} onPreset={setTonePreset} onNote={setToneNote} />
 
+          {freeUsed && <FreeUsed allowance={allowance} />}
+
           {error && <div className="wx-alert wx-alert--danger"><span>{error}</span></div>}
 
           <button
@@ -288,6 +289,46 @@ function Allowance({ allowance }) {
           , paid once.
         </p>
       )}
+    </div>
+  );
+}
+
+// Shown when Translate meets a used free document: when the next one comes, and the smallest
+// pack straight to checkout. After paying, /thanks signs the buyer in to translate the file.
+function FreeUsed({ allowance }) {
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const pack = PACKS[0];
+  const hours = allowance?.resetsAt ? Math.max(1, Math.ceil((new Date(allowance.resetsAt) - Date.now()) / 3600000)) : null;
+
+  async function buyNow() {
+    setBusy(true);
+    setFailed(false);
+    try {
+      await buy(pack);
+    } catch {
+      setFailed(true);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-md border border-brand-200 bg-[#f5f7f9] px-4 py-3.5" role="status">
+      <p className="text-[13px] font-medium">Your free document for today is already used</p>
+      <p className="mt-1 text-xs leading-relaxed text-brand-500">
+        {hours ? `A new one is ready in ${hours} ${hours === 1 ? "hour" : "hours"}.` : "A new one is ready tomorrow."} Want
+        this file now? {pack.words.toLocaleString("en-US")} words cost ${pack.price}, paid once. That covers about{" "}
+        {pagesFor(pack.words)} pages.
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <button type="button" onClick={buyNow} disabled={busy} className="wx-button wx-button--primary wx-button--compact">
+          {busy ? "Opening checkout…" : `Buy ${pack.words.toLocaleString("en-US")} words for $${pack.price}`}
+        </button>
+        <Link to="/pricing" className="text-xs underline">
+          See all word packs
+        </Link>
+      </div>
+      {failed && <p className="wx-error mt-2 text-xs">Checkout didn't open. Try again in a moment.</p>}
     </div>
   );
 }

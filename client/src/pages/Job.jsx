@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useSearchParams } from "react-router-dom";
 import { api } from "../api";
+import { TrustStrip } from "./Upload";
 
 const ACTIVE = ["created", "uploading", "analyzing", "approving", "translating"];
 
@@ -171,7 +172,10 @@ export default function Job() {
         <div className="mt-5">
           <EmailForm job={job} k={k} onDone={setJob} cta="Send me the files" />
         </div>
-        <p className="mt-4 text-[11px] text-brand-500">Free: one document a day. No card, no subscription.</p>
+        <p className="mt-4 flex items-center gap-2 text-[11px] text-brand-500">
+          <img src="/badges/soc2.svg" alt="" className="h-3.5 w-auto" />
+          <span>Free: one document a day. No card, no subscription. wxrks is SOC 2 Type 2 audited, and your file is deleted after 30 days.</span>
+        </p>
       </Screen>
     );
   }
@@ -375,6 +379,7 @@ function OverLimit({ bar, words }) {
         <Option href={DEMO_URL} title="A team account in wxrks" note="Whole documents, with your glossary, review, and shared projects. Book a demo." />
         <Option to="/login" title="Use credits" note="$99 a year for 100,000 words. Sign in to start." />
       </div>
+      <TrustStrip />
     </Screen>
   );
 }

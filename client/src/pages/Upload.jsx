@@ -198,7 +198,40 @@ export default function Upload() {
           )}
         </div>
       </div>
+      <TrustStrip />
     </section>
+  );
+}
+
+const UTM = "utm_source=translate.wxrks.com&utm_medium=referral&utm_campaign=free-translator&utm_content=trust";
+
+// Who is behind the translator. The badges are wxrks's own, the same ones wxrks.com shows.
+export function TrustStrip() {
+  return (
+    <div className="mt-4 flex items-center gap-5 rounded-[10px] border border-brand-200 bg-white px-5 py-4">
+      <img src="/badges/g2-leader-fall-2026.svg" alt="G2 Leader, Fall 2026" className="h-[72px] w-auto shrink-0" />
+      <div className="min-w-0">
+        <p className="text-[13px] font-medium">
+          Made by{" "}
+          <a href={`https://wxrks.com/?${UTM}`} className="underline">
+            wxrks
+          </a>
+          , formerly Bureau Works
+        </p>
+        <p className="mt-0.5 text-xs leading-relaxed text-brand-500">
+          20 years in translation. Our translation platform is a G2 Leader and is audited for SOC 2 Type 2.
+        </p>
+        <p className="mt-2 flex items-center gap-2 text-[11px] text-brand-500">
+          <img src="/badges/soc2.svg" alt="" className="h-3.5 w-auto" />
+          <span>
+            SOC 2 Type 2 ·{" "}
+            <a href={`https://wxrks.com/security?${UTM}`} className="underline">
+              How we protect your files
+            </a>
+          </span>
+        </p>
+      </div>
+    </div>
   );
 }
 

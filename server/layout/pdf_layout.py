@@ -14,9 +14,15 @@ font, shrunk to fit. Proven on spike 7 (spikes/07-inplace-pdf.py has the verdict
   pdf_layout.py excerpt <in.pdf> <out.pdf> <max_words>
       → page 1 alone as a PDF, when it has at most max_words words (a free document over the
         limit gets it translated as a preview); prints {"pages", "words", "total_pages"}
+  pdf_layout.py ocr <in.pdf> <out.pdf> <languages>
+      → reads the text off scanned pages (pictures of pages) with Tesseract, built into PyMuPDF,
+        and lays it invisibly over each page's own picture, so a converter can read it. Writes
+        out.pdf only when it read something; prints {"scanned", "pages", "words", "reason"}.
+        languages: Tesseract codes joined by "+" ("por+eng"); the first one must be installed.
 
 Exit codes: 0 ok · 3 a translation needs characters the bundled fonts lack (non-Latin script)
-· 4 too many pages (LAYOUT_MAX_PAGES) · anything else is a crash.
+· 4 too many pages (LAYOUT_MAX_PAGES) · 5 a scan: its text is an OCR layer over pictures, so a
+design-kept PDF would draw over words still in the picture · anything else is a crash.
 
 PyMuPDF is AGPL-3.0, which is why this repository is AGPL-3.0 too.
 """
@@ -65,6 +71,17 @@ SYMBOL_STAND_INS = {
 
 class Unsupported(Exception):
     pass
+
+
+class Scanned(Exception):
+    pass
+
+
+# Tesseract language models (tessdata_fast). The Docker image puts them in TESSDATA_PREFIX.
+TESSDATA_DIRS = [os.environ.get("TESSDATA_PREFIX"), "/opt/tessdata", "/usr/share/tesseract-ocr/5/tessdata", "/opt/homebrew/share/tessdata"]
+OCR_DPI = 300
+# Invisible text that OCR tools lay over a scan (Tesseract, OCRmyPDF): it marks a scanned page.
+OCR_FONTS = ("GlyphLessFont",)
 
 
 def base_font(name):
@@ -202,6 +219,8 @@ def extract(pdf, out_dir):
     if len(doc) > MAX_PAGES:
         print(f"{len(doc)} pages > LAYOUT_MAX_PAGES={MAX_PAGES}", file=sys.stderr)
         sys.exit(4)
+    if any(base_font(f[3]).startswith(OCR_FONTS) for page in doc for f in page.get_fonts(full=True)):
+        raise Scanned("the text is an OCR layer over scanned pages")
     units = []
     for pno, page in enumerate(doc):
         lines = page_lines(page)
@@ -544,6 +563,50 @@ def excerpt(pdf, out_path, max_words):
     print(json.dumps({"pages": pages, "words": words, "total_pages": len(doc)}))
 
 
+def needs_ocr(page):
+    """A scanned page: nothing to select, and a picture covering most of it."""
+    if len(page.get_text("words")) >= 3:
+        return False
+    covered = sum(abs(pymupdf.Rect(i["bbox"]) & page.rect) for i in page.get_image_info())
+    return covered >= abs(page.rect) * 0.5
+
+
+def ocr(pdf, out_path, languages):
+    doc = pymupdf.open(pdf)
+    scanned = [i for i, page in enumerate(doc) if needs_ocr(page)]
+    result = {"scanned": len(scanned), "pages": 0, "words": 0, "reason": None}
+    data = next((d for d in TESSDATA_DIRS if d and Path(d, "eng.traineddata").exists()), None)
+    wanted = [l for l in languages.split("+") if l]
+    have = [l for l in wanted if data and Path(data, f"{l}.traineddata").exists()]
+    if not scanned:
+        print(json.dumps(result))
+        return
+    if len(doc) > MAX_PAGES:
+        print(f"{len(doc)} pages > LAYOUT_MAX_PAGES={MAX_PAGES}", file=sys.stderr)
+        sys.exit(4)
+    if not data or not wanted or wanted[0] not in have:
+        result["reason"] = "language" if data else "no_models"
+        print(json.dumps(result))
+        return
+    # Tesseract reads a 300 dpi rendering; only its invisible text is kept (the rendering is
+    # dropped), drawn over the page's own picture, so the file stays the size it was.
+    for i in scanned:
+        page = doc[i]
+        pix = page.get_pixmap(dpi=OCR_DPI)
+        pix.set_dpi(OCR_DPI, OCR_DPI)
+        layer = pymupdf.open("pdf", pix.pdfocr_tobytes(compress=True, language="+".join(have), tessdata=data))
+        for img in layer[0].get_images():
+            layer[0].delete_image(img[0])
+        page.show_pdf_page(page.rect, layer, 0, overlay=True)
+        result["words"] += len(page.get_text("words"))
+    result["pages"] = len(scanned)
+    if result["words"]:
+        doc.save(out_path, garbage=3, deflate=True)
+    else:
+        result["reason"] = "no_text"
+    print(json.dumps(result))
+
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     try:
@@ -555,8 +618,13 @@ if __name__ == "__main__":
             preview(args[1], args[2])
         elif args[:1] == ["excerpt"] and len(args) == 4:
             excerpt(args[1], args[2], int(args[3]))
+        elif args[:1] == ["ocr"] and len(args) == 4:
+            ocr(args[1], args[2], args[3])
         else:
             sys.exit(__doc__)
     except Unsupported as e:
         print(str(e), file=sys.stderr)
         sys.exit(3)
+    except Scanned as e:
+        print(str(e), file=sys.stderr)
+        sys.exit(5)

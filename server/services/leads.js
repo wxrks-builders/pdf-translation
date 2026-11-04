@@ -16,6 +16,7 @@ const email = require("./email");
 const locales = require("./locales");
 const { accessKey } = require("./access");
 const crm = require("./crm");
+const marketplace = require("./marketplace");
 
 const DAILY_CAP = parseInt(process.env.FILES_EMAIL_DAILY_CAP || "300", 10);
 const PER_ADDRESS_DAILY = parseInt(process.env.FILES_EMAIL_PER_ADDRESS_DAILY || "3", 10);
@@ -88,6 +89,7 @@ function startOfTodayUtc() {
 
 async function sendFilesIfRequested(job) {
   if (!job || job.status !== "delivered" || !job.unlocked_email || job.files_emailed_at) return;
+  if (job.confidence_status === "pending") return; // services/confidence.js sends it when the score is in
   if (!email.isConfigured()) return;
   const since = startOfTodayUtc();
   if ((await store.countFilesEmailsSince(since)) >= DAILY_CAP) {
@@ -112,10 +114,20 @@ async function sendFilesIfRequested(job) {
         .filter((d) => d.locale === locales.normalize(loc))
         .map((d) => ({ filename: d.filename, url: `${base}/api/jobs/${job.id}/files/${d.id}?k=${k}` })),
     }));
+    // The first language's Confidence Score, and partners who could check it (the email's
+    // second half); either can be missing, and the email goes without it.
+    const first = locales.normalize(job.target_locales[0]);
+    const language = names[first] || job.target_locales[0];
+    const scored = job.confidence?.byLocale?.[first];
+    const reviewers = await marketplace
+      .reviewersFor(language, { utm: "?utm_source=translate.wxrks.com&utm_medium=email&utm_campaign=free-translator&utm_content=reviewer" })
+      .catch(() => null);
     await email.sendFilesEmail(job.unlocked_email, {
       documentName: files[0]?.original_filename || "your document",
       groups,
       jobUrl: `${base}/jobs/${job.id}?k=${k}`,
+      confidence: scored ? { ...scored, language: job.target_locales.length > 1 ? language : null } : null,
+      reviewers,
     });
     await store.appendJobEvent(job.id, "files_emailed");
   } catch (err) {

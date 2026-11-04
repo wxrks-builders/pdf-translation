@@ -14,6 +14,7 @@ const pipeline = require("./pipeline");
 const leads = require("./leads");
 const tone = require("./tone");
 const crm = require("./crm");
+const confidence = require("./confidence");
 const { matchJobFile } = require("./filenames");
 const { normalize } = require("./locales");
 
@@ -107,7 +108,8 @@ async function processTranslatingJob(job) {
     const delivered = await store.updateJob(job.id, { status: "delivered" });
     await store.appendJobEvent(job.id, "delivered");
     console.log(`[poller] job ${job.id} delivered (${deliverables.length} files)`);
-    await leads.sendFilesIfRequested(delivered); // an email left while it was translating
+    // The Confidence Score runs now; an email left while it was translating waits for it.
+    if (!(await confidence.start(delivered, leads.sendFilesIfRequested))) await leads.sendFilesIfRequested(delivered);
     await tone.release(job.id); // both projects are done with the agent
     await crm.recordTranslation(delivered);
   } else if (Date.now() - new Date(job.created_at).getTime() > TRANSLATING_TIMEOUT_MS) {
@@ -199,6 +201,7 @@ async function tick() {
       }
     }
 
+    await confidence.sweep(leads.sendFilesIfRequested); // scores lost to a restart
     await crm.flush(); // whatever didn't reach the CRM when it happened
     const today = new Date().toISOString().slice(0, 10);
     if (lastSweepDay !== today) {

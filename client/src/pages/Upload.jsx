@@ -237,7 +237,7 @@ export default function Upload() {
               <Link to="/login" className="underline">
                 sign in
               </Link>
-              . Scanned PDFs (pictures of pages) can't be translated yet.
+              . A scanned PDF (pictures of pages) comes back as a Word file.
             </p>
           )}
         </div>

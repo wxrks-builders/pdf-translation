@@ -20,6 +20,7 @@ function parseJob(row) {
     target_locales: JSON.parse(row.target_locales),
     timeline: JSON.parse(row.timeline),
     tone: row.tone ? JSON.parse(row.tone) : null,
+    confidence: row.confidence ? JSON.parse(row.confidence) : null,
   };
 }
 
@@ -208,6 +209,10 @@ async function listActiveJobs() {
   return db.prepare(`SELECT * FROM jobs WHERE status IN ('approving', 'translating')`).all().map(parseJob);
 }
 
+async function listJobsWithConfidence(status) {
+  return db.prepare(`SELECT * FROM jobs WHERE confidence_status = ?`).all(status).map(parseJob);
+}
+
 async function updateJob(id, fields) {
   const allowed = [
     "status",
@@ -219,6 +224,8 @@ async function updateJob(id, fields) {
     "unlocked_at",
     "unlocked_email",
     "tone_agent_uuid",
+    "confidence_status",
+    "confidence",
   ];
   const sets = [];
   const params = [];
@@ -257,8 +264,13 @@ async function createJobFile({ jobId, originalFilename, wxrksFilename, sizeBytes
 async function listJobFiles(jobId, { withContent = false } = {}) {
   const cols = withContent
     ? "*"
-    : "id, job_id, original_filename, wxrks_filename, resource_uuid, size_bytes, content_type, status, layout_status, layout_filename, layout_resource_uuid";
+    : "id, job_id, original_filename, wxrks_filename, resource_uuid, size_bytes, content_type, status, layout_status, layout_filename, layout_resource_uuid, ocr_pages";
   return db.prepare(`SELECT ${cols} FROM job_files WHERE job_id = ? ORDER BY original_filename`).all(jobId);
+}
+
+// A scanned PDF after OCR: the same pages with their text readable (services/layout.js ocr).
+async function replaceScannedFileContent(id, content, ocrPages) {
+  db.prepare(`UPDATE job_files SET source_content = ?, size_bytes = ?, ocr_pages = ? WHERE id = ?`).run(content, content.length, ocrPages, id);
 }
 
 async function getJobFileContent(id) {
@@ -531,10 +543,12 @@ module.exports = {
   getJob,
   listJobsForUser,
   listActiveJobs,
+  listJobsWithConfidence,
   updateJob,
   appendJobEvent,
   createJobFile,
   listJobFiles,
+  replaceScannedFileContent,
   getJobFileContent,
   getJobFileLayoutUnits,
   updateJobFile,

@@ -13,7 +13,8 @@ async function start(parentId, maxWords) {
   const parent = await store.getJob(parentId);
   if (!parent || parent.tier !== "free" || parent.excerpt_of) return;
   const files = await store.listJobFiles(parentId);
-  if (files.length !== 1 || !/\.pdf$/i.test(files[0].original_filename)) return;
+  // A scan gets no design-kept PDF, so its page 1 would have nothing to show.
+  if (files.length !== 1 || !/\.pdf$/i.test(files[0].original_filename) || files[0].ocr_pages) return;
   if (!(await layout.isAvailable())) return;
   try {
     const cut = await layout.excerpt(await store.getJobFileContent(files[0].id), maxWords);

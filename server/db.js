@@ -148,6 +148,7 @@ async function migrate() {
   addColumn("job_files", "layout_filename", "TEXT");
   addColumn("job_files", "layout_resource_uuid", "TEXT");
   addColumn("job_files", "layout_units", "TEXT"); // JSON from pdf_layout.py extract
+  addColumn("job_files", "ocr_pages", "INTEGER"); // scanned pages whose text was read by OCR
 
   // Free tier: downloads open once the visitor leaves an email (routes/jobs.js unlock). Jobs
   // from before the email step stay open.
@@ -180,6 +181,10 @@ async function migrate() {
   addColumn("jobs", "excerpt_pages", "INTEGER");
   addColumn("jobs", "excerpt_total_pages", "INTEGER");
   db.exec(`CREATE INDEX IF NOT EXISTS jobs_excerpt_idx ON jobs (excerpt_of) WHERE excerpt_of IS NOT NULL`);
+  // The Confidence Score of a delivered job (services/confidence.js): pending | done | failed | off,
+  // and the JSON of scores per language once done.
+  addColumn("jobs", "confidence_status", "TEXT");
+  addColumn("jobs", "confidence", "TEXT");
 
   // Events for the CRM (services/crm.js): written where they happen, sent in batches, kept
   // until the CRM confirms them. One row per event key, so a repeat is a no-op.

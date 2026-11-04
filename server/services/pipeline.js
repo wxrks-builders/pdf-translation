@@ -45,7 +45,8 @@ async function runPipeline(jobId) {
   const files = await store.listJobFiles(jobId);
   for (const file of files) {
     const resource = await wxrks.createResource(project.uuid, file.wxrks_filename);
-    const content = await store.getJobFileContent(file.id);
+    let content = await store.getJobFileContent(file.id);
+    if (/\.pdf$/i.test(file.original_filename)) content = await readScannedPages(job, file, content);
     await wxrks.uploadResourceContent(project.uuid, resource.uuid, file.wxrks_filename, content);
     await store.updateJobFile(file.id, { resourceUuid: resource.uuid, status: "uploaded" });
     if (/\.pdf$/i.test(file.wxrks_filename)) {
@@ -93,9 +94,9 @@ async function runPipeline(jobId) {
   await store.updateJob(jobId, { analyzed_words: analyzedWords });
   await store.appendJobEvent(jobId, "analyzed", { words: analyzedWords, wxrksWords, layoutWords, charge, targets: targets.length });
 
-  // Still zero: a scanned PDF (no OCR), or a conversion that never finished.
-  // Approving would translate whatever wxrks reads later without charging for
-  // it, so the job stops here.
+  // Still zero: a scan OCR couldn't read (or in a language it has no model for), or a
+  // conversion that never finished. Approving would translate whatever wxrks reads later
+  // without charging for it, so the job stops here.
   if (analyzedWords === 0) {
     if (job.tier === "free") await store.releaseFreeTierUsage(jobId);
     await wxrks.cancelProject(project.uuid, "no text found");
@@ -135,6 +136,29 @@ async function runPipeline(jobId) {
   // 7. The design-kept PDFs' text goes through its own wxrks project, created only once the
   // job is paid for and not metered again (the charge above already covers its words).
   await startLayout(jobId);
+}
+
+// A scanned PDF is pictures of pages: read the text off them first (OCR), so wxrks has words to
+// translate. Each page keeps its picture, with the text laid invisibly on top. The file then gets
+// the Word file only: pdf_layout.py refuses a design-kept PDF for a scan. Soft: when OCR can't
+// read it, the file goes as it is and the job ends as no_text, as it did before OCR.
+async function readScannedPages(job, file, content) {
+  if (!(await layout.isAvailable())) return content;
+  try {
+    const read = await layout.ocr(content, job.source_locale);
+    if (!read.scanned) return content;
+    if (!read.pdf) {
+      await store.appendJobEvent(job.id, "ocr_skipped", { file: file.original_filename, pages: read.scanned, reason: read.reason });
+      return content;
+    }
+    await store.replaceScannedFileContent(file.id, read.pdf, read.pages);
+    await store.appendJobEvent(job.id, "ocr_done", { file: file.original_filename, pages: read.pages, words: read.words });
+    return read.pdf;
+  } catch (err) {
+    console.warn(`[pipeline] job ${job.id}: OCR failed for ${file.original_filename}: ${err.message}`);
+    await store.appendJobEvent(job.id, "ocr_skipped", { file: file.original_filename, reason: "failed" });
+    return content;
+  }
 }
 
 async function prepareLayout(jobId, files) {

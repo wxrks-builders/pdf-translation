@@ -17,11 +17,17 @@ ENV NODE_ENV=production
 # pulls onnxruntime/numpy (~130MB) for features this app doesn't use. PyMuPDF is AGPL-3.0,
 # hence this repository's LICENSE.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends python3 python3-venv \
+  && apt-get install -y --no-install-recommends python3 python3-venv ca-certificates \
   && rm -rf /var/lib/apt/lists/* \
   && python3 -m venv /opt/layout \
   && /opt/layout/bin/pip install --no-cache-dir --no-deps pymupdf==2.1
 ENV LAYOUT_PYTHON=/opt/layout/bin/python
+# Scanned PDFs: PyMuPDF has Tesseract built in and needs only the language models. These are
+# tessdata_fast 4.1.0 (1–4 MB each, about 75 MB together); keep the list in step with
+# TESSERACT in server/services/layout.js.
+ARG TESSDATA_LANGS="eng spa por fra deu ita nld pol rus ukr tur swe dan nor fin ces ron hun ell jpn chi_sim chi_tra kor ara heb hin vie ind tha"
+RUN mkdir -p /opt/tessdata && /opt/layout/bin/python -c "import sys, urllib.request; [urllib.request.urlretrieve(f'https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/{l}.traineddata', f'/opt/tessdata/{l}.traineddata') for l in sys.argv[1:]]" $TESSDATA_LANGS
+ENV TESSDATA_PREFIX=/opt/tessdata
 COPY package*.json ./
 RUN npm ci --omit=dev
 COPY server ./server

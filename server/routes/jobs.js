@@ -8,6 +8,7 @@ const layout = require("../services/layout");
 const leads = require("../services/leads");
 const email = require("../services/email");
 const tone = require("../services/tone");
+const marketplace = require("../services/marketplace");
 const { canSeeJob, isUnlocked } = require("../services/access");
 const { createRateLimiter } = require("../middleware/rateLimit");
 const { buildWxrksFilename, extensionAllowed, findTruncationCollision, ALLOWED_EXTENSIONS } = require("../services/filenames");
@@ -84,11 +85,12 @@ async function serializeJob(job, req) {
     emailDelivery: email.isConfigured(),
     previews,
     tone: job.tone,
+    confidence: job.confidence_status ? { status: job.confidence_status, byLocale: job.confidence?.byLocale || {} } : null,
     excerpt: await excerptOf(job),
     rerunJobId: (await rerunOf(job))?.id || null,
     createdAt: job.created_at,
     updatedAt: job.updated_at,
-    files: files.map((f) => ({ id: f.id, name: f.original_filename, sizeBytes: f.size_bytes, status: f.status })),
+    files: files.map((f) => ({ id: f.id, name: f.original_filename, sizeBytes: f.size_bytes, status: f.status, scannedPages: f.ocr_pages || 0 })),
     deliverables: deliverables.map((d) => ({
       id: d.id,
       fileId: d.job_file_id,
@@ -190,6 +192,22 @@ router.get("/", optionalSession, async (req, res) => {
       createdAt: j.created_at,
     })),
   });
+});
+
+const REVIEWER_UTM = "?utm_source=translate.wxrks.com&utm_medium=referral&utm_campaign=free-translator&utm_content=reviewer";
+
+// Who could check this translation: marketplace partners for each target language, paid ones
+// first (services/marketplace.js).
+router.get("/:id/reviewers", optionalSession, freeTier.anonCookie, async (req, res) => {
+  const job = await store.getJob(req.params.id);
+  if (!job || !canSeeJob(req, job)) return res.status(404).json({ error: "not_found" });
+  const names = Object.fromEntries((await locales.listLanguages().catch(() => [])).map((l) => [locales.normalize(l.code), l.name]));
+  const byLocale = {};
+  for (const loc of job.target_locales) {
+    const key = locales.normalize(loc);
+    byLocale[key] = await marketplace.reviewersFor(names[key] || loc, { utm: REVIEWER_UTM });
+  }
+  res.json({ byLocale });
 });
 
 router.get("/:id", optionalSession, freeTier.anonCookie, async (req, res) => {

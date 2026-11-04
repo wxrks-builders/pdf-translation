@@ -19,9 +19,25 @@ let available = null;
 class LayoutError extends Error {
   constructor(message, code) {
     super(message);
-    this.code = code; // 3 = script not covered by the bundled fonts, 4 = too many pages
-    this.soft = code === 3 || code === 4;
+    this.code = code; // 3 = script not covered by the bundled fonts, 4 = too many pages, 5 = a scan
+    this.soft = code === 3 || code === 4 || code === 5;
   }
+}
+
+// Tesseract's model for a wxrks locale ("pt_br" → "por"). The Docker image installs these
+// (TESSDATA_LANGS in the Dockerfile); a language left out here is read as not supported.
+const TESSERACT = {
+  en: "eng", es: "spa", pt: "por", fr: "fra", de: "deu", it: "ita", nl: "nld", pl: "pol", ru: "rus", uk: "ukr",
+  tr: "tur", sv: "swe", da: "dan", nb: "nor", nn: "nor", no: "nor", fi: "fin", cs: "ces", ro: "ron", hu: "hun",
+  el: "ell", ja: "jpn", ko: "kor", ar: "ara", he: "heb", iw: "heb", hi: "hin", vi: "vie", id: "ind", th: "tha",
+};
+
+// "por+eng": the source language first, English second for the English words most documents carry.
+function ocrLanguages(locale) {
+  const [base, region = ""] = String(locale || "").toLowerCase().split(/[-_]/);
+  const lang = base === "zh" ? (/^(tw|hk|mo|hant)/.test(region) ? "chi_tra" : "chi_sim") : TESSERACT[base];
+  if (!lang) return "";
+  return lang === "eng" ? "eng" : `${lang}+eng`;
 }
 
 function run(args) {
@@ -101,4 +117,20 @@ async function excerpt(pdfBuffer, maxWords) {
   });
 }
 
-module.exports = { isAvailable, extract, rebuild, preview, excerpt, LayoutError };
+// A scanned PDF with its text read off the pictures and laid invisibly on top.
+// → { pdf (Buffer) or null when nothing was read, scanned (pages that were pictures), pages, words, reason }
+async function ocr(pdfBuffer, locale) {
+  return withTempDir(async (dir) => {
+    await fs.writeFile(path.join(dir, "in.pdf"), pdfBuffer);
+    const summary = JSON.parse(await run(["ocr", path.join(dir, "in.pdf"), path.join(dir, "out.pdf"), ocrLanguages(locale)]));
+    return {
+      pdf: summary.pages && summary.words ? await fs.readFile(path.join(dir, "out.pdf")) : null,
+      scanned: summary.scanned,
+      pages: summary.pages,
+      words: summary.words,
+      reason: summary.reason,
+    };
+  });
+}
+
+module.exports = { isAvailable, extract, rebuild, preview, excerpt, ocr, ocrLanguages, LayoutError };

@@ -35,10 +35,21 @@ const norm = (code) => String(code || "").toLowerCase().replace(/[-_]/g, "");
 
 const FREE_WORDS = 1000;
 
+// Why a job found nothing to translate, from the pipeline's OCR step (server/services/pipeline.js).
+function noTextReason(job) {
+  const ocr = [...job.timeline].reverse().find((e) => e.event === "ocr_skipped" || e.event === "ocr_done");
+  if (ocr?.event === "ocr_skipped" && ocr.detail?.reason === "language") {
+    return "This PDF is scanned, and we can't read scanned pages in its language yet. Try a file where you can select the text.";
+  }
+  if (ocr) return "This PDF is scanned, and we couldn't read any text on its pages. Try a sharper scan, or a file where you can select the text.";
+  return "We couldn't find text in this file. Try a file where you can select the text.";
+}
+
 // Over the free limit, a PDF's page 1 is translated as a preview (server/services/excerpt.js);
 // keep asking while it runs, and for a moment before it has started.
 function stillWorking(j) {
   if (ACTIVE.includes(j.status)) return true;
+  if (j.status === "delivered") return j.confidence?.status === "pending"; // Smells is still reading it
   if (j.status !== "over_free_limit") return false;
   return j.excerpt ? ACTIVE.includes(j.excerpt.status) : Date.now() - new Date(j.updatedAt).getTime() < 30000;
 }
@@ -158,7 +169,7 @@ export default function Job() {
         </h1>
         <p className="mt-2 text-[13px] text-brand-500">
           {job.status === "no_text"
-            ? "Scanned pages are pictures of text, and we can't read those yet. Try a file where you can select the text. This one doesn't count as your free document."
+            ? `${noTextReason(job)} This one doesn't count as your free document.`
             : job.status === "cancelled"
               ? "Nothing more will be translated for this job."
               : "The translation didn't finish. Try again, or reply to any of our emails and a person will look at it."}
@@ -178,6 +189,7 @@ export default function Job() {
         <h1 className={`${preview ? "mt-5" : ""} text-[22px] font-medium tracking-[-0.3px]`}>
           {preview ? "Page 1 is done. Where should we send the files?" : "Your translation is ready. Where should we send it?"}
         </h1>
+        <ScoreLine confidence={job.confidence} locale={norm(job.targetLocales[0])} />
         <p className="mt-1 text-[13px] text-brand-500">
           {job.emailDelivery
             ? "Your downloads open right away, and we email you the links so you can find them later."
@@ -202,55 +214,102 @@ export default function Job() {
     );
   }
 
-  // Delivered and open.
+  // Delivered and open: use it now, or have a person check it.
+  return <Delivered job={job} bar={bar} byLocale={byLocale} preview={preview} nameOf={nameOf} tone={tone} q={q} k={k} />;
+}
+
+function Delivered({ job, bar, byLocale, preview, nameOf, tone, q, k }) {
+  const [picked, setPicked] = useState(norm(job.targetLocales[0]));
+  const [reviewers, setReviewers] = useState(null);
+  const [showFlags, setShowFlags] = useState(false);
+  useEffect(() => {
+    api.reviewers(job.id, k).then((r) => setReviewers(r.byLocale)).catch(() => setReviewers({}));
+  }, [job.id, k]);
+  const locales = job.targetLocales.map(norm);
+  const loc = locales.includes(picked) ? picked : locales[0];
+  const language = nameOf(loc);
+  const items = byLocale[loc] || [];
+  const conf = job.confidence?.byLocale?.[loc];
+  const scanned = job.files.reduce((n, f) => n + (f.scannedPages || 0), 0);
+  const shown = job.previews?.find((p) => p.locale === loc) || preview;
   return (
-    <Screen bar={bar}>
+    <Screen bar={bar} wide>
       <h1 className="text-[22px] font-medium tracking-[-0.3px]">Your translation is ready</h1>
+      <p className="mt-1 text-[13px] text-brand-500">
+        {job.files.length > 1 ? `${job.files.length} files` : job.files[0]?.name} · {job.targetLocales.map(nameOf).join(", ")}
+        {job.analyzedWords != null ? ` · ${job.analyzedWords.toLocaleString("en-US")} words` : ""}
+        {tone ? ` · Tone: ${tone}` : ""}
+      </p>
       {job.tier === "free" && job.unlockedEmail && job.emailDelivery && (
         <p className="mt-1 text-[13px] text-brand-500">We also sent the links to {job.unlockedEmail}.</p>
       )}
-      {tone && <p className="mt-1 text-[11px] text-brand-500">Tone: {tone}, by Sous-Chef</p>}
-      {preview && (
-        <div className="mt-5">
-          <Preview job={job} preview={preview} language={nameOf(preview.locale)} q={q} />
+      {scanned > 0 && (
+        <div className="wx-alert mt-4">
+          <span>
+            This PDF was scanned, so we read the text off its {scanned === 1 ? "page" : `${scanned} pages`} first. You get a
+            Word file; a PDF with the design kept isn't made from scans yet.
+          </span>
         </div>
       )}
-      <div className="mt-5 space-y-5">
-        {job.targetLocales.map((loc) => {
-          const items = byLocale[norm(loc)] || [];
-          return (
-            <div key={loc}>
-              {job.targetLocales.length > 1 && <h2 className="mb-2 text-[15px] font-medium">{nameOf(loc)}</h2>}
-              {items.length ? (
-                <div className="space-y-2">
-                  {items.map((d) => (
-                    <a
-                      key={d.id}
-                      href={`/api/jobs/${job.id}/files/${d.id}${q}`}
-                      className="flex items-center gap-3 rounded-md border border-brand-200 px-3 py-2.5 no-underline hover:bg-[#f7f8fa]"
-                    >
-                      <DownloadIcon />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[13px] font-medium">{d.filename}</span>
-                        <span className="block text-[11px] text-brand-500">
-                          {VARIANT_NOTE[d.variant] || (/\.docx$/i.test(d.filename) ? "Edit it in Word" : "Same format you uploaded")}
-                        </span>
-                      </span>
-                    </a>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-[13px] text-brand-500">Nothing came back for this language.</p>
-              )}
-              {items.length > 1 && (
-                <a href={`/api/jobs/${job.id}/download/${norm(loc)}${q}`} className="wx-button mt-2">
-                  Download all ({nameOf(loc)}, ZIP)
+      {shown && (
+        <div className="mt-5">
+          <Preview job={job} preview={shown} language={nameOf(shown.locale)} q={q} />
+        </div>
+      )}
+
+      {locales.length > 1 && (
+        <div className="wx-tabs mt-6" role="tablist" aria-label="Languages">
+          {locales.map((l) => (
+            <button key={l} type="button" role="tab" aria-selected={l === loc} className="wx-tab" onClick={() => setPicked(l)}>
+              {nameOf(l)}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className={`${locales.length > 1 ? "mt-4" : "mt-6"} grid grid-cols-1 items-stretch gap-4 md:grid-cols-2`}>
+        <section className="flex min-w-0 flex-col gap-4 rounded-[10px] border border-brand-200 p-5">
+          <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-brand-500">Use it now</p>
+          <Score confidence={job.confidence} entry={conf} />
+          <div className="space-y-2">
+            {items.length ? (
+              items.map((d) => (
+                <a
+                  key={d.id}
+                  href={`/api/jobs/${job.id}/files/${d.id}${q}`}
+                  className="flex items-center gap-3 rounded-md border border-brand-200 px-3 py-2.5 no-underline hover:bg-[#f7f8fa]"
+                >
+                  <DownloadIcon />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13px] font-medium">{d.filename}</span>
+                    <span className="block text-[11px] text-brand-500">
+                      {VARIANT_NOTE[d.variant] || (/\.docx$/i.test(d.filename) ? "Edit it in Word" : "Same format you uploaded")}
+                    </span>
+                  </span>
                 </a>
-              )}
+              ))
+            ) : (
+              <p className="text-[13px] text-brand-500">Nothing came back for this language.</p>
+            )}
+            {items.length > 1 && (
+              <a href={`/api/jobs/${job.id}/download/${loc}${q}`} className="wx-button">
+                Download all ({language}, ZIP)
+              </a>
+            )}
+          </div>
+          {conf?.top?.length > 0 && (
+            <div>
+              <button type="button" className="text-xs underline" aria-expanded={showFlags} onClick={() => setShowFlags(!showFlags)}>
+                {showFlags ? "Hide them" : `See the ${conf.flagged === 1 ? "sentence" : `${conf.flagged.toLocaleString("en-US")} sentences`} to check`}
+              </button>
+              {showFlags && <Flagged entry={conf} />}
             </div>
-          );
-        })}
+          )}
+        </section>
+
+        <Reviewers language={language} entry={reviewers?.[loc]} loading={!reviewers} flagged={conf?.flagged} />
       </div>
+
       {job.deliverables.some((d) => d.variant?.startsWith("pdf-")) && (
         <p className="mt-4 text-[11px] leading-relaxed text-brand-500">
           Beta: the design-kept PDF redraws the translation into your original pages in a similar font. Check it before
@@ -277,9 +336,9 @@ export default function Job() {
   );
 }
 
-function Screen({ bar, children }) {
+function Screen({ bar, children, wide }) {
   return (
-    <section className="mx-auto max-w-xl">
+    <section className={`mx-auto ${wide ? "max-w-4xl" : "max-w-xl"}`}>
       <div className="overflow-hidden rounded-[10px] border border-brand-200 bg-white">
         {bar && <div className="flex h-11 items-center justify-between gap-3 border-b border-brand-200 px-5 text-xs text-brand-500">{bar}</div>}
         <div className="p-6 sm:p-8">{children}</div>
@@ -293,6 +352,175 @@ function StatusBadge({ status }) {
   if (ACTIVE.includes(status)) return <span className="wx-badge wx-badge--pending">In progress</span>;
   if (status === "over_free_limit") return <span className="wx-badge wx-badge--info">Over the free limit</span>;
   return <span className="wx-badge">{status === "cancelled" ? "Cancelled" : "Stopped"}</span>;
+}
+
+// The Confidence Score: Smells, the wxrks check for meaning problems, scores every sentence by
+// the most serious problem it finds (server/services/confidence.js). Severities as wxrks names them.
+const SEVERITY = {
+  BLOCKER: { label: "Critical", badge: "wx-badge--danger", bar: "#a52b36" },
+  CRITICAL: { label: "Critical", badge: "wx-badge--danger", bar: "#a52b36" },
+  MAJOR: { label: "Major", badge: "wx-badge--pending", bar: "#d9a23a" },
+  MINOR: { label: "Minor", badge: "wx-badge--info", bar: "#6b9cc4" },
+};
+const pct = (score) => Math.round(score * 100);
+const scoreInk = (score) => (score >= 0.95 ? "#176b45" : score >= 0.85 ? "#785000" : "#a52b36");
+
+function Score({ confidence, entry }) {
+  if (confidence?.status === "pending") {
+    return (
+      <div className="rounded-md bg-[#f5f7f9] px-4 py-3">
+        <p className="text-[13px] font-medium">Checking the translation…</p>
+        <p className="mt-0.5 text-xs text-brand-500">Smells, the wxrks check for meaning problems, is reading every sentence.</p>
+      </div>
+    );
+  }
+  if (!entry) return null;
+  const counts = entry.counts || {};
+  const critical = (counts.BLOCKER || 0) + (counts.CRITICAL || 0);
+  const parts = [
+    ["clean", entry.sentences - entry.flagged, "#2f8f5b", "no problems"],
+    ["MINOR", counts.MINOR || 0, SEVERITY.MINOR.bar, "minor"],
+    ["MAJOR", counts.MAJOR || 0, SEVERITY.MAJOR.bar, "major"],
+    ["CRITICAL", critical, SEVERITY.CRITICAL.bar, "critical"],
+  ].filter(([, n]) => n > 0);
+  return (
+    <div>
+      <div className="flex items-baseline gap-2.5">
+        <span className="text-[44px] font-medium leading-none tracking-[-1px]" style={{ color: scoreInk(entry.score) }}>
+          {pct(entry.score)}%
+        </span>
+        <span className="text-[15px] font-medium">Confidence Score</span>
+      </div>
+      <p className="mt-2 text-xs text-brand-500">
+        Smells, the wxrks check for meaning problems, read all {entry.sentences.toLocaleString("en-US")} sentences.{" "}
+        {entry.flagged
+          ? `${entry.flagged.toLocaleString("en-US")} ${entry.flagged === 1 ? "is" : "are"} worth a second look.`
+          : "It found nothing to check."}
+      </p>
+      {entry.sentences > 0 && (
+        <>
+          <div
+            className="mt-3 flex h-2.5 gap-0.5 overflow-hidden rounded-full"
+            role="img"
+            aria-label={parts.map(([, n, , label]) => `${n} ${label}`).join(", ")}
+          >
+            {parts.map(([key, n, color]) => (
+              <span key={key} style={{ width: `${(n / entry.sentences) * 100}%`, background: color }} />
+            ))}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-brand-500">
+            {parts.map(([key, n, color, label]) => (
+              <span key={key} className="inline-flex items-center gap-1.5">
+                <span className="size-2 rounded-sm" style={{ background: color }} />
+                {n.toLocaleString("en-US")} {label}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// One line under the heading before the email step.
+function ScoreLine({ confidence, locale }) {
+  const entry = confidence?.byLocale?.[locale];
+  if (!entry) return null;
+  return (
+    <p className="mt-1 text-[13px]">
+      <span className="font-medium" style={{ color: scoreInk(entry.score) }}>
+        Confidence Score {pct(entry.score)}%
+      </span>
+      <span className="text-brand-500">
+        {entry.flagged ? ` · ${entry.flagged.toLocaleString("en-US")} sentences worth a second look` : " · nothing to check"}
+      </span>
+    </p>
+  );
+}
+
+function Flagged({ entry }) {
+  return (
+    <div className="mt-3 space-y-2">
+      {entry.top.map((f, i) => {
+        const sev = SEVERITY[f.severity] || SEVERITY.MINOR;
+        return (
+          <div key={i} className="space-y-1 rounded-md border border-brand-200 px-3 py-2.5">
+            <span className={`wx-badge ${sev.badge}`}>
+              {sev.label}
+              {f.type ? ` · ${f.type}` : ""}
+            </span>
+            {f.target && <p className="text-[13px]">{f.target}</p>}
+            {f.source && <p className="text-xs text-brand-500">Original: {f.source}</p>}
+            {f.note && <p className="text-xs">{f.note}</p>}
+          </div>
+        );
+      })}
+      {entry.flagged > entry.top.length && (
+        <p className="text-[11px] text-brand-500">
+          Showing {entry.top.length} of {entry.flagged.toLocaleString("en-US")}, the most serious first.
+        </p>
+      )}
+      <p className="text-[11px] text-brand-500">A high score is not a guarantee: for contracts, medical or published text, have a person check it.</p>
+    </div>
+  );
+}
+
+// Marketplace partners for the language (server/services/marketplace.js), paid listings only.
+function Reviewers({ language, entry, loading, flagged }) {
+  const partners = entry?.partners || [];
+  return (
+    <section className="flex min-w-0 flex-col gap-4 rounded-[10px] border border-brand-600 p-5">
+      <div>
+        <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-brand-500">Have a person check it</p>
+        <h2 className="mt-2 text-[17px] font-medium leading-snug">
+          {flagged === 1
+            ? "A translator reviews that sentence, or the whole file"
+            : flagged
+              ? `A translator reviews the ${flagged.toLocaleString("en-US")} sentences, or the whole file`
+              : "A translator reviews the whole file"}
+        </h2>
+        <p className="mt-1.5 text-xs text-brand-500">
+          Best for contracts, medical text, and anything you publish.
+          {partners.length ? ` These partners work into ${language} on wxrks.` : ""}
+        </p>
+      </div>
+      {loading ? (
+        <p className="text-xs text-brand-500">Finding translators for {language}…</p>
+      ) : partners.length ? (
+        <div className="space-y-2">
+          {partners.map((p) => (
+            <div key={p.url} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border border-brand-200 px-3 py-2.5">
+              {p.logo ? (
+                <img src={p.logo} alt="" className="size-10 shrink-0 rounded-lg border border-brand-200 object-cover" />
+              ) : (
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-brand-100 text-sm font-medium">{p.name[0]}</span>
+              )}
+              <span className="min-w-[10rem] flex-1">
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="text-[13px] font-medium">{p.name}</span>
+                  <span className={`wx-badge ${p.badge === "Premium Partner" ? "wx-badge--success" : ""}`}>{p.badge}</span>
+                </span>
+                {p.place && <span className="mt-0.5 block truncate text-[11px] text-brand-500">{p.place}</span>}
+              </span>
+              <a href={p.url} className="wx-button wx-button--compact shrink-0">
+                Ask for a review
+              </a>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <a href={entry?.url || "https://marketplace.wxrks.com/"} className="wx-button self-start">
+          Find a translator for {language}
+        </a>
+      )}
+      <p className="mt-auto text-[11px] text-brand-500">
+        Partners set their own price and reply by email. Premium Partners first, then a new mix each time.{" "}
+        <a href={entry?.url || "https://marketplace.wxrks.com/"} className="underline">
+          See all partners
+        </a>
+      </p>
+    </section>
+  );
 }
 
 function DownloadIcon() {

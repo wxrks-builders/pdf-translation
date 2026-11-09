@@ -23,14 +23,14 @@ const PAGES = {
   "/pdf": {
     title: "Free PDF Translator That Keeps Your Design | wxrks",
     description:
-      "Translate a PDF into 100+ languages. Get an editable Word file and a PDF that keeps the original layout, fonts and images. Free to try, one PDF a day.",
+      "Translate a PDF into 100+ languages. Get an editable Word file and a PDF that keeps the original layout, fonts and images. Your first PDF is free, up to 20,000 words.",
     h1: "Translate a PDF and keep its design",
     intro: "Get an editable Word file and a PDF that looks like your original.",
   },
   "/documents": {
     title: "Document Translator for Word, PowerPoint & Excel | wxrks",
     description:
-      "Translate Word, PowerPoint, Excel, PDF, CSV and text files into 100+ languages. Download the translated file in the same format. Free to try, one a day.",
+      "Translate Word, PowerPoint, Excel, PDF, CSV and text files into 100+ languages, in the same format. Your first document is free, up to 20,000 words.",
     h1: "Translate Word, PowerPoint, Excel and more",
     intro: "Download your file translated, in the same format you uploaded.",
   },

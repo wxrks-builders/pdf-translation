@@ -7,6 +7,7 @@ import Login from "./pages/Login";
 import Account from "./pages/Account";
 import Pricing from "./pages/Pricing";
 import Thanks from "./pages/Thanks";
+import Admin from "./pages/Admin";
 
 function Header() {
   const { user, creditBalance, logout } = useAuth();
@@ -66,6 +67,7 @@ export default function App() {
           <Route path="/account" element={<Account />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/thanks" element={<Thanks />} />
+          <Route path="/admin" element={<Admin />} />
         </Routes>
       </main>
       {/* AGPL-3.0 §13: users of the network service get a way to the source. */}

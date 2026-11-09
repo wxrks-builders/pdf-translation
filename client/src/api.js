@@ -33,6 +33,8 @@ export const api = {
     request(`/api/jobs/${id}/unlock${k ? `?k=${encodeURIComponent(k)}` : ""}`, { method: "POST", body: JSON.stringify(body) }),
   rerunJob: (id) => request(`/api/jobs/${id}/rerun`, { method: "POST" }),
   reviewers: (id, k) => request(`/api/jobs/${id}/reviewers${k ? `?k=${encodeURIComponent(k)}` : ""}`),
+  adminActivity: (days) => request(`/api/admin/activity?days=${days}`),
+  adminSendDigest: () => request("/api/admin/digest", { method: "POST" }),
   credits: () => request("/api/credits"),
   allowance: () => request("/api/allowance"),
   checkoutConfig: () => request("/api/checkout/config"),

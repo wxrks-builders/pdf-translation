@@ -213,6 +213,30 @@ async function listJobsWithConfidence(status) {
   return db.prepare(`SELECT * FROM jobs WHERE confidence_status = ?`).all(status).map(parseJob);
 }
 
+// Everything visitors started since a moment (excerpts are part of their parent job), newest
+// first, with the email the job is known by: the account's, or the one left at the email step.
+async function listJobsSince(sinceIso) {
+  return db
+    .prepare(
+      `SELECT jobs.*, users.email AS user_email FROM jobs LEFT JOIN users ON users.id = jobs.user_id
+       WHERE jobs.created_at >= ? AND jobs.excerpt_of IS NULL ORDER BY jobs.created_at DESC`
+    )
+    .all(sinceIso)
+    .map(parseJob);
+}
+
+async function listPurchasesSince(sinceIso) {
+  return db.prepare(`SELECT * FROM purchases WHERE created_at >= ? ORDER BY created_at DESC`).all(sinceIso);
+}
+
+async function getSetting(key) {
+  return db.prepare(`SELECT value FROM settings WHERE key = ?`).get(key)?.value ?? null;
+}
+
+async function setSetting(key, value) {
+  db.prepare(`INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(key, value);
+}
+
 async function updateJob(id, fields) {
   const allowed = [
     "status",
@@ -544,6 +568,10 @@ module.exports = {
   listJobsForUser,
   listActiveJobs,
   listJobsWithConfidence,
+  listJobsSince,
+  listPurchasesSince,
+  getSetting,
+  setSetting,
   updateJob,
   appendJobEvent,
   createJobFile,

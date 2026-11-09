@@ -47,7 +47,7 @@ Optional, for the CRM (without them, events wait in the `crm_outbox` table and g
 | `CRM_EVENTS_URL` | `https://crm.wxrks.app/s/translate/events` |
 | `CRM_EVENTS_SECRET` | A long random string; the same value goes in the CRM app's `TRANSLATE_EVENTS_SECRET` variable |
 
-Optional, with their defaults: `CONFIDENCE_SCORE` (on; `off` skips the Smells run after delivery), `MARKETPLACE_URL` (`https://marketplace.wxrks.com`, where reviewer suggestions come from), `TESSDATA_PREFIX` (`/opt/tessdata` in the image, the OCR models for scanned PDFs).
+Optional: `ADMIN_EMAILS` (who sees /admin and gets the daily digest), `SLACK_DIGEST_TOKEN` and `SLACK_DIGEST_USER` (the digest as a Slack DM; without them it goes by email), `DIGEST_HOUR` (8) and `DIGEST_TZ` (America/Toronto). Also optional, with their defaults: `CONFIDENCE_SCORE` (on; `off` skips the Smells run after delivery), `MARKETPLACE_URL` (`https://marketplace.wxrks.com`, where reviewer suggestions come from), `TESSDATA_PREFIX` (`/opt/tessdata` in the image, the OCR models for scanned PDFs).
 
 ### 4. Restart and verify
 Restart the app after setting the vars. Then:

@@ -578,10 +578,13 @@ def ocr(pdf, out_path, languages):
     data = next((d for d in TESSDATA_DIRS if d and Path(d, "eng.traineddata").exists()), None)
     wanted = [l for l in languages.split("+") if l]
     have = [l for l in wanted if data and Path(data, f"{l}.traineddata").exists()]
-    if not scanned:
+    # A text PDF with a few picture-only pages (a cover, a full-page figure) is not a scan: an
+    # OCR layer there would cost it its design-kept PDF (extract refuses one) for little text.
+    if not scanned or len(scanned) * 2 < len(doc):
+        result["scanned"] = 0
         print(json.dumps(result))
         return
-    if len(doc) > MAX_PAGES:
+    if len(scanned) > MAX_PAGES:
         print(f"{len(doc)} pages > LAYOUT_MAX_PAGES={MAX_PAGES}", file=sys.stderr)
         sys.exit(4)
     if not data or not wanted or wanted[0] not in have:

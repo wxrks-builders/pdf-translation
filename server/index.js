@@ -29,6 +29,7 @@ app.use("/api/credits", require("./routes/credits"));
 app.use("/api/allowance", require("./routes/allowance"));
 app.use("/api/checkout", checkout.router);
 app.use("/api/webhooks", require("./routes/webhooks"));
+app.use("/api/admin", require("./routes/admin"));
 
 app.get("/robots.txt", seo.robots);
 app.get("/sitemap.xml", seo.sitemap);
@@ -62,6 +63,7 @@ async function main() {
   await crm.backfill().catch((err) => console.error(`[crm] backfill failed: ${err.message}`));
   crm.flush().catch((err) => console.error(`[crm] flush failed: ${err.message}`));
   poller.startPoller();
+  require("./services/digest").start(); // the daily digest of who used it (ADMIN_EMAILS)
   app.listen(PORT, () => console.log(`DocTranslate listening on :${PORT}`));
 }
 

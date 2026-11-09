@@ -50,7 +50,10 @@ async function runPipeline(jobId) {
     await wxrks.uploadResourceContent(project.uuid, resource.uuid, file.wxrks_filename, content);
     await store.updateJobFile(file.id, { resourceUuid: resource.uuid, status: "uploaded" });
     if (/\.pdf$/i.test(file.wxrks_filename)) {
-      const convertedName = await wxrks.waitForPdfConversion(project.uuid, resource.uuid);
+      // A book takes wxrks minutes to convert: 3 minutes, plus one per MB, up to 20. Live
+      // 2026-11-05: a 521-page and a 219-page PDF ran out of the old flat 3 and then failed.
+      const timeoutMs = Math.min(20, 3 + Math.ceil(content.length / (1024 * 1024))) * 60 * 1000;
+      const convertedName = await wxrks.waitForPdfConversion(project.uuid, resource.uuid, { timeoutMs });
       if (convertedName) {
         await store.updateJobFile(file.id, { wxrksFilename: convertedName });
         await store.appendJobEvent(jobId, "pdf_converted", { file: file.original_filename });
@@ -70,9 +73,11 @@ async function runPipeline(jobId) {
 
   // 3. Work units (must exist before pre-analysis returns real numbers)
   const uploaded = await store.listJobFiles(jobId);
-  await wxrks.createWorkUnitsBulk(
-    project.uuid,
-    uploaded.map((f) => ({ projectResourceUuid: f.resource_uuid, workflows: ["TRANSLATION"], targetLocales: targets }))
+  await whileConverting(() =>
+    wxrks.createWorkUnitsBulk(
+      project.uuid,
+      uploaded.map((f) => ({ projectResourceUuid: f.resource_uuid, workflows: ["TRANSLATION"], targetLocales: targets }))
+    )
   );
 
   // 4. Analyze. A zero-word summary can come back while a PDF is still being
@@ -80,7 +85,7 @@ async function runPipeline(jobId) {
   await setStatus(jobId, "analyzing");
   let summary;
   for (let attempt = 1; ; attempt++) {
-    summary = await wxrks.runPreAnalysis(project.uuid);
+    summary = await whileConverting(() => wxrks.runPreAnalysis(project.uuid));
     if (summary.some((r) => r.totalWords > 0) || attempt >= 5) break;
     await store.appendJobEvent(jobId, "analysis_empty_retry", { attempt });
     await new Promise((r) => setTimeout(r, attempt * 15000));
@@ -136,6 +141,21 @@ async function runPipeline(jobId) {
   // 7. The design-kept PDFs' text goes through its own wxrks project, created only once the
   // job is paid for and not metered again (the charge above already covers its words).
   await startLayout(jobId);
+}
+
+// wxrks answers 422 BWX-002 ("still being converted from PDF to DOCX") while a big PDF converts:
+// wait and ask again, for up to 20 minutes, instead of failing the job.
+async function whileConverting(fn) {
+  const deadline = Date.now() + 20 * 60 * 1000;
+  for (;;) {
+    try {
+      return await fn();
+    } catch (err) {
+      const converting = err.response?.status === 422 && err.response?.data?.code === "BWX-002";
+      if (!converting || Date.now() > deadline) throw err;
+      await new Promise((r) => setTimeout(r, 15000));
+    }
+  }
 }
 
 // A scanned PDF is pictures of pages: read the text off them first (OCR), so wxrks has words to

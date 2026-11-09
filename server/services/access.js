@@ -20,8 +20,18 @@ function hasAccessKey(req, job) {
   return given.length === expected.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected));
 }
 
+// The people who run the translator (ADMIN_EMAILS, comma-separated) see every job, to follow
+// up on what visitors upload (/admin, the daily digest). Signed in like anyone else.
+function isAdmin(req) {
+  const admins = String(process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  return Boolean(req.user && admins.includes(String(req.user.email).toLowerCase()));
+}
+
 function canSeeJob(req, job) {
-  if (hasAccessKey(req, job)) return true;
+  if (hasAccessKey(req, job) || isAdmin(req)) return true;
   if (job.user_id) return Boolean(req.user && req.user.id === job.user_id);
   return Boolean(job.anon_cookie_id && job.anon_cookie_id === req.anonId);
 }
@@ -29,7 +39,7 @@ function canSeeJob(req, job) {
 // A page-1 preview of a file over the free limit (jobs.excerpt_of) never opens: it's a sample.
 function isUnlocked(req, job) {
   if (job.excerpt_of) return false;
-  return job.tier !== "free" || Boolean(job.unlocked_at) || hasAccessKey(req, job);
+  return job.tier !== "free" || Boolean(job.unlocked_at) || hasAccessKey(req, job) || isAdmin(req);
 }
 
-module.exports = { accessKey, canSeeJob, isUnlocked };
+module.exports = { accessKey, canSeeJob, isUnlocked, isAdmin };

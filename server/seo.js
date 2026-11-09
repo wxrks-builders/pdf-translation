@@ -76,7 +76,7 @@ function legacyRedirect(req, res, next) {
 }
 
 function robots(req, res) {
-  res.type("text/plain").send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /jobs\nDisallow: /account\nDisallow: /login\n\nSitemap: ${ORIGIN}/sitemap.xml\n`);
+  res.type("text/plain").send(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /jobs\nDisallow: /account\nDisallow: /login\nDisallow: /admin\n\nSitemap: ${ORIGIN}/sitemap.xml\n`);
 }
 
 function sitemap(req, res) {

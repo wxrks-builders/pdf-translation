@@ -218,6 +218,9 @@ async function migrate() {
     );
   `);
 
+  // Small app state that must survive a restart (services/digest.js: when the last digest went).
+  db.exec(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`);
+
   // deliverables gained `variant` and a wider UNIQUE; SQLite can't alter a table constraint,
   // so an old table is rebuilt once, keeping every row as the 'translation' variant.
   if (!columns("deliverables").includes("variant")) {

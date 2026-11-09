@@ -540,6 +540,31 @@ async function emailStatsSince(sinceIso) {
   return { leads: leads.n, leadPeople: leads.people, newsOptIns: leads.news || 0, accounts: accounts.n };
 }
 
+// The people who first gave the translator their email since a moment, one row per address:
+// accounts made (by a sign-in link or a purchase), then emails left at the email step by someone
+// who has no account and never left one before. Each row carries the upload it came with (the
+// account's first job, or the job of the email step) and what they bought since.
+async function newPeopleSince(sinceIso) {
+  const firstJob = db.prepare(`SELECT id FROM jobs WHERE user_id = ? AND excerpt_of IS NULL ORDER BY created_at LIMIT 1`);
+  const leadJob = db.prepare(`SELECT job_id FROM leads WHERE lower(email) = ? AND job_id IS NOT NULL ORDER BY created_at LIMIT 1`);
+  const bought = db.prepare(`SELECT COALESCE(SUM(words), 0) AS words FROM purchases WHERE lower(email) = ? AND created_at >= ?`);
+  const accounts = db.prepare(`SELECT id, email, created_at FROM users WHERE created_at >= ? ORDER BY created_at`).all(sinceIso);
+  const leads = db
+    .prepare(
+      `SELECT lower(email) AS email, MIN(created_at) AS created_at, MAX(marketing_opt_in) AS news FROM leads l
+       WHERE created_at >= ? AND suspected_bot = 0
+         AND lower(email) NOT IN (SELECT email FROM users)
+         AND NOT EXISTS (SELECT 1 FROM leads o WHERE lower(o.email) = lower(l.email) AND o.created_at < ?)
+       GROUP BY lower(email) ORDER BY MIN(created_at)`
+    )
+    .all(sinceIso, sinceIso);
+  const row = (how, email, at, news, jobId) => ({ how, email, at, news: Boolean(news), jobId: jobId || null, boughtWords: bought.get(email, sinceIso).words });
+  return [
+    ...accounts.map((u) => row("account", u.email, u.created_at, false, firstJob.get(u.id)?.id || leadJob.get(u.email)?.job_id)),
+    ...leads.map((l) => row("email", l.email, l.created_at, l.news, leadJob.get(l.email)?.job_id)),
+  ];
+}
+
 // Exactly one files email per job: whoever sets files_emailed_at first sends it.
 async function claimFilesEmail(jobId) {
   const row = db
@@ -658,6 +683,7 @@ module.exports = {
   listFeedbackEmailCandidates,
   claimFeedbackEmail,
   emailStatsSince,
+  newPeopleSince,
   getSetting,
   setSetting,
   updateJob,

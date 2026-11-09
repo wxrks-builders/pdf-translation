@@ -3,7 +3,9 @@
  * who run it (ADMIN_EMAILS). The admin page (/admin) shows it; once a day the digest sends the
  * last day's to Slack, as a DM to SLACK_DIGEST_USER with SLACK_DIGEST_TOKEN (a token with
  * chat:write, the same kind the ideas app uses for its alerts), or by email to ADMIN_EMAILS
- * when Slack isn't set. Each line links to the job, which an admin can open when signed in.
+ * when Slack isn't set. It opens with the new people: each email that reached us for the first
+ * time, flagged work, school or personal, with the file it came with, so a business stands out.
+ * Each line links to the job, which an admin can open when signed in.
  *
  * The digest goes at DIGEST_HOUR (8) in DIGEST_TZ (America/Toronto), once a day, covering
  * everything since the last one (the first covers a week). The settings table remembers when
@@ -33,32 +35,64 @@ const ACTIVE = ["created", "uploading", "analyzing", "approving", "translating"]
 
 const n = (x) => Number(x || 0).toLocaleString("en-US");
 
+// Mailboxes anyone can open. An address outside them is a work email, unless it is a school's.
+const PERSONAL_MAIL = new Set(
+  `gmail.com googlemail.com yahoo.com ymail.com rocketmail.com hotmail.com outlook.com live.com msn.com icloud.com me.com mac.com
+  aol.com proton.me protonmail.com pm.me tutanota.com fastmail.com hey.com zoho.com mail.com gmx.com gmx.net gmx.de web.de
+  t-online.de yandex.com yandex.ru mail.ru bk.ru inbox.ru list.ru rambler.ru qq.com 163.com 126.com sina.com foxmail.com
+  naver.com daum.net hanmail.net libero.it virgilio.it orange.fr free.fr laposte.net wanadoo.fr sfr.fr seznam.cz wp.pl
+  o2.pl interia.pl onet.pl uol.com.br bol.com.br terra.com.br ig.com.br rediffmail.com`.split(/\s+/)
+);
+function emailKind(address) {
+  const domain = String(address || "").split("@")[1]?.toLowerCase() || "";
+  if (!domain) return { domain, mail: "unknown" };
+  if (PERSONAL_MAIL.has(domain) || /^(yahoo|hotmail|outlook|live|windowslive|gmx|yandex)\.[a-z.]+$/.test(domain)) return { domain, mail: "personal" };
+  if (/(^|\.)(edu|ac|edu\.[a-z]{2}|ac\.[a-z]{2})$|(^|\.)(uni|univ)[-.]|universi/.test(domain)) return { domain, mail: "school" };
+  return { domain, mail: "work" };
+}
+const MAIL_ORDER = { work: 0, school: 1, unknown: 2, personal: 3 };
+
 // One row per job: what a person needs to follow it up.
+async function jobRow(job, name) {
+  const files = await store.listJobFiles(job.id);
+  const scores = Object.entries(job.confidence?.byLocale || {}).map(([loc, e]) => ({ language: name(loc), score: e.score, flagged: e.flagged }));
+  const ocr = job.timeline.find((e) => e.event === "ocr_skipped");
+  return {
+    id: job.id,
+    url: `${base()}/jobs/${job.id}`,
+    at: job.created_at,
+    tier: job.tier,
+    email: job.user_email || job.unlocked_email || null,
+    file: files.length === 1 ? files[0].original_filename : `${files.length} files`,
+    scannedPages: files.reduce((s, f) => s + (f.ocr_pages || 0), 0),
+    from: name(job.source_locale),
+    to: job.target_locales.map(name),
+    words: job.analyzed_words,
+    status: ACTIVE.includes(job.status) ? "In progress" : STATUS[job.status] || job.status,
+    problem: job.status === "failed" ? String(job.error || "").slice(0, 160) : job.status === "no_text" && ocr ? `scan not read (${ocr.detail?.reason || "?"})` : null,
+    scores,
+    tone: job.tone?.preset && job.tone.preset !== "auto" ? job.tone.preset : null,
+  };
+}
+
 async function activity(sinceIso) {
   const names = Object.fromEntries((await locales.listLanguages().catch(() => [])).map((l) => [locales.normalize(l.code), l.name]));
   const name = (code) => names[locales.normalize(code)] || code;
   const jobs = [];
-  for (const job of await store.listJobsSince(sinceIso)) {
-    const files = await store.listJobFiles(job.id);
-    const scores = Object.entries(job.confidence?.byLocale || {}).map(([loc, e]) => ({ language: name(loc), score: e.score, flagged: e.flagged }));
-    const ocr = job.timeline.find((e) => e.event === "ocr_skipped");
-    jobs.push({
-      id: job.id,
-      url: `${base()}/jobs/${job.id}`,
-      at: job.created_at,
-      tier: job.tier,
-      email: job.user_email || job.unlocked_email || null,
-      file: files.length === 1 ? files[0].original_filename : `${files.length} files`,
-      scannedPages: files.reduce((s, f) => s + (f.ocr_pages || 0), 0),
-      from: name(job.source_locale),
-      to: job.target_locales.map(name),
-      words: job.analyzed_words,
-      status: ACTIVE.includes(job.status) ? "In progress" : STATUS[job.status] || job.status,
-      problem: job.status === "failed" ? String(job.error || "").slice(0, 160) : job.status === "no_text" && ocr ? `scan not read (${ocr.detail?.reason || "?"})` : null,
-      scores,
-      tone: job.tone?.preset && job.tone.preset !== "auto" ? job.tone.preset : null,
-    });
+  for (const job of await store.listJobsSince(sinceIso)) jobs.push(await jobRow(job, name));
+  // Who gave us an email for the first time, work emails first: the people worth a look.
+  const byId = Object.fromEntries(jobs.map((j) => [j.id, j]));
+  const people = [];
+  for (const p of await store.newPeopleSince(sinceIso)) {
+    let job = p.jobId ? byId[p.jobId] : null;
+    if (!job && p.jobId) {
+      const raw = await store.getJob(p.jobId);
+      if (raw) job = await jobRow(raw, name);
+    }
+    const { domain, mail } = emailKind(p.email);
+    people.push({ ...p, domain, mail, job: job && { id: job.id, url: job.url, file: job.file, from: job.from, to: job.to, words: job.words, status: job.status } });
   }
+  people.sort((x, y) => MAIL_ORDER[x.mail] - MAIL_ORDER[y.mail] || x.at.localeCompare(y.at));
   const purchases = (await store.listPurchasesSince(sinceIso)).map((p) => ({
     at: p.created_at,
     email: p.email,
@@ -77,6 +111,7 @@ async function activity(sinceIso) {
   return {
     since: sinceIso,
     jobs,
+    people,
     purchases,
     funnel,
     emails: await store.emailStatsSince(sinceIso),
@@ -88,6 +123,8 @@ async function activity(sinceIso) {
       overLimit: count("Over the free limit") + count("Needed more credits"),
       failed: count("Failed"),
       emails: new Set(jobs.map((j) => j.email).filter(Boolean)).size,
+      newPeople: people.length,
+      workEmails: people.filter((p) => p.mail === "work").length,
       purchases: purchases.length,
       signupCredits: funnel.signupCredits,
       thumbsUp: feedbackRows.filter((f) => f.rating === "up").length,
@@ -144,16 +181,40 @@ function line(j) {
     .join(" · ");
 }
 
+const MAIL_LABEL = { work: "work email", school: "school email", personal: "personal email", unknown: null };
+
+// "ana@acme.com · work email, acme.com · made an account · bought 10,000 words"; the upload
+// they came with is a separate part, so Slack and email can each link it their own way.
+function personLine(p) {
+  const mail = MAIL_LABEL[p.mail] && (p.mail === "personal" ? MAIL_LABEL[p.mail] : `${MAIL_LABEL[p.mail]}, ${p.domain}`);
+  const how = p.how === "account" ? "made an account" : `left an email${p.news ? " (wants product news)" : ""}`;
+  return [p.email, mail, how, p.boughtWords ? `bought ${n(p.boughtWords)} words` : null].filter(Boolean).join(" · ");
+}
+function personJob(p) {
+  const j = p.job;
+  if (!j) return null;
+  return [j.file, `${j.from} → ${j.to.join(", ")}`, j.words != null ? `${n(j.words)} words` : null, j.status].filter(Boolean).join(", ");
+}
+function peopleHead(a) {
+  const t = a.totals;
+  return t.newPeople ? `New people: ${t.newPeople} (${t.workEmails} with a work email)` : "New people: none";
+}
+
 function slackText(a, label) {
   const t = a.totals;
+  const clean = (s) => String(s).replace(/[<>|]/g, "");
+  const people = a.people.slice(0, 40).map((p) => `• ${clean(personLine(p))}${p.job ? ` · <${p.job.url}|${clean(personJob(p))}>` : ""}`);
   const head = [
     `*Translator, ${label}*`,
+    `*${peopleHead(a)}*`,
+    ...people,
+    "",
     `${t.uploads} uploads · ${t.delivered} delivered · ${t.overLimit} stopped at a price · ${t.failed} failed · ${t.signupCredits} sign-up credits given`,
     funnelLine(a),
     emailLine(a),
     feedbackLine(a),
   ].join("\n");
-  const jobs = a.jobs.slice(0, 40).map((j) => `• <${j.url}|${line(j).replace(/[<>|]/g, "")}>`);
+  const jobs = a.jobs.slice(0, 40).map((j) => `• <${j.url}|${clean(line(j))}>`);
   const more = a.jobs.length > 40 ? [`…and ${a.jobs.length - 40} more`] : [];
   const buys = a.purchases.map((p) => `• Bought ${n(p.words)} words${p.amount ? ` for ${p.amount}` : ""} · ${p.email}`);
   return [head, ...jobs, ...more, ...buys, `<${base()}/admin|Everything on /admin>`].join("\n");
@@ -164,8 +225,13 @@ function emailHtml(a, label) {
   const t = a.totals;
   const rows = a.jobs.map((j) => `<li style="margin:0 0 8px;"><a href="${j.url}" style="color:#252a31;">${esc(j.file)}</a><br><span style="color:#57616d;">${esc(line(j))}</span></li>`);
   const buys = a.purchases.map((p) => `<li>Bought ${n(p.words)} words${p.amount ? ` for ${esc(p.amount)}` : ""} · ${esc(p.email)}</li>`);
+  const people = a.people.map(
+    (p) => `<li style="margin:0 0 8px;">${esc(personLine(p))}${p.job ? `<br><a href="${p.job.url}" style="color:#57616d;">${esc(personJob(p))}</a>` : ""}</li>`
+  );
   return `<div style="font-family:helvetica,arial,sans-serif;font-size:14px;line-height:20px;color:#252a31;">
 <p style="font-size:17px;font-weight:600;">Translator, ${esc(label)}</p>
+<p style="font-weight:600;">${esc(peopleHead(a))}</p>
+${people.length ? `<ul style="padding-left:18px;">${people.join("")}</ul>` : ""}
 <p>${t.uploads} uploads · ${t.delivered} delivered · ${t.overLimit} stopped at a price · ${t.failed} failed</p>
 <p>${esc(funnelLine(a))}<br>${esc(emailLine(a))}<br>${esc(feedbackLine(a)).replace(/\n/g, "<br>")}</p>
 <ul style="padding-left:18px;">${rows.join("")}${buys.join("")}</ul>
@@ -191,12 +257,13 @@ async function send(sinceIso, label) {
   console.log(`[digest] ${label}: ${JSON.stringify(a.totals)}`);
   console.log(`[digest] ${funnelLine(a)}`);
   console.log(`[digest] ${emailLine(a)}`);
+  console.log(`[digest] ${peopleHead(a)}`);
   for (const c of a.checkouts || []) console.log(`[digest]   checkout ${c.created} ${c.status}${c.paid ? " paid" : ""} ${c.words} words place=${c.place || "-"} job=${c.jobId || "-"}`);
   for (const j of a.jobs) console.log(`[digest]   ${j.id} ${line({ ...j, email: j.email ? "(email)" : null })}`);
   if (await slackDm(slackText(a, label))) return "slack";
   const to = String(process.env.ADMIN_EMAILS || "").split(",").map((e) => e.trim()).filter(Boolean);
   if (to.length && email.isConfigured()) {
-    for (const address of to) await email.sendEmail({ to: address, subject: `Translator, ${label}: ${a.totals.uploads} uploads`, html: emailHtml(a, label) });
+    for (const address of to) await email.sendEmail({ to: address, subject: `Translator, ${label}: ${a.totals.newPeople} new people, ${a.totals.uploads} uploads`, html: emailHtml(a, label) });
     return "email";
   }
   return "log";
@@ -243,4 +310,4 @@ function start() {
   setTimeout(() => tick(), 30 * 1000);
 }
 
-module.exports = { activity, send, start, tick };
+module.exports = { activity, send, start, tick, slackText, emailKind };

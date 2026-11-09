@@ -1,11 +1,12 @@
 /**
  * Who used the translator: every upload since a moment, with what became of it, for the people
- * who run it (ADMIN_EMAILS). The admin page (/admin) shows it; once a day the digest sends the
- * last day's to Slack, as a DM to SLACK_DIGEST_USER with SLACK_DIGEST_TOKEN (a token with
- * chat:write, the same kind the ideas app uses for its alerts), or by email to ADMIN_EMAILS
- * when Slack isn't set. It opens with the new people: each email that reached us for the first
- * time, flagged work, school or personal, with the file it came with, so a business stands out.
- * Each line links to the job, which an admin can open when signed in.
+ * who run it (ADMIN_EMAILS). The admin page (/admin) shows it. Once a day the digest goes out.
+ * By default the new people go to Rodrigo's Slack through an n8n workflow (RELAY_URL below), so
+ * this app holds no Slack token. With SLACK_DIGEST_TOKEN and SLACK_DIGEST_USER set, the whole day
+ * goes as a DM with that token instead. When neither works, it goes by email to ADMIN_EMAILS.
+ * Every version opens with the new people: each email that reached us for the first time,
+ * flagged work, school or personal, with the file it came with, so a business stands out. Each
+ * line links to the job, which an admin can open when signed in.
  *
  * The digest goes at DIGEST_HOUR (8) in DIGEST_TZ (America/Toronto), once a day, covering
  * everything since the last one (the first covers a week). The settings table remembers when
@@ -238,6 +239,36 @@ ${people.length ? `<ul style="padding-left:18px;">${people.join("")}</ul>` : ""}
 <p><a href="${base()}/admin" style="color:#252a31;">Everything on /admin</a> (sign in with an admin email).</p></div>`;
 }
 
+// The n8n workflow that DMs Rodrigo through n8n's own Slack connection, the way the CRM's
+// morning DMs reach him (marketing-writing-style/ops/n8n/translator-people.workflow.json), so
+// this app holds no Slack token. The webhook only runs for a title and a link back to this app.
+// It gets the new people only, and nothing on a day without any. DIGEST_RELAY_URL=off stops it.
+const RELAY_URL = process.env.DIGEST_RELAY_URL ?? "https://bureauworks.app.n8n.cloud/webhook/translator-people";
+const RELAY_MAX = 25;
+
+function relayMessage(a, label) {
+  const t = a.totals;
+  const clean = (s) => String(s).replace(/[<>|]/g, "");
+  const people = a.people.slice(0, RELAY_MAX).map((p) => `• ${clean(personLine(p))}${p.job ? ` · <${p.job.url}|${clean(personJob(p))}>` : ""}`);
+  const more = a.people.length > RELAY_MAX ? [`…and ${a.people.length - RELAY_MAX} more`] : [];
+  return {
+    source: "translator-digest",
+    title: `Translator · ${t.newPeople} new ${t.newPeople === 1 ? "person" : "people"} in ${label}${t.workEmails ? ` (${t.workEmails} with a work email)` : ""}`,
+    lines: [...people, ...more, `${t.uploads} uploads · ${t.delivered} delivered · ${t.overLimit} stopped at a price · ${t.purchases} ${t.purchases === 1 ? "purchase" : "purchases"}`],
+    url: `${base()}/admin`,
+  };
+}
+
+async function relay(a, label) {
+  if (!RELAY_URL || RELAY_URL === "off") return false;
+  const res = await axios.post(RELAY_URL, relayMessage(a, label), { timeout: 15000, validateStatus: () => true });
+  if (res.status >= 300) {
+    console.log(`[digest] relay answered ${res.status}`); // 404 until the n8n workflow is active
+    return false;
+  }
+  return true;
+}
+
 async function slackDm(text) {
   const token = process.env.SLACK_DIGEST_TOKEN;
   const user = process.env.SLACK_DIGEST_USER;
@@ -250,17 +281,22 @@ async function slackDm(text) {
   return true;
 }
 
-// Sends the activity since `sinceIso`. → where it went: "slack", "email", or "log".
-async function send(sinceIso, label) {
+// Sends the activity since `sinceIso`. → where it went: "slack", "relay", "nobody new",
+// "email", or "log".
+async function send(sinceIso, label, { logDetails = true } = {}) {
   const a = await activity(sinceIso);
   // The log keeps no emails: counts and files only.
   console.log(`[digest] ${label}: ${JSON.stringify(a.totals)}`);
-  console.log(`[digest] ${funnelLine(a)}`);
-  console.log(`[digest] ${emailLine(a)}`);
-  console.log(`[digest] ${peopleHead(a)}`);
-  for (const c of a.checkouts || []) console.log(`[digest]   checkout ${c.created} ${c.status}${c.paid ? " paid" : ""} ${c.words} words place=${c.place || "-"} job=${c.jobId || "-"}`);
-  for (const j of a.jobs) console.log(`[digest]   ${j.id} ${line({ ...j, email: j.email ? "(email)" : null })}`);
+  if (logDetails) {
+    console.log(`[digest] ${funnelLine(a)}`);
+    console.log(`[digest] ${emailLine(a)}`);
+    console.log(`[digest] ${peopleHead(a)}`);
+    for (const c of a.checkouts || []) console.log(`[digest]   checkout ${c.created} ${c.status}${c.paid ? " paid" : ""} ${c.words} words place=${c.place || "-"} job=${c.jobId || "-"}`);
+    for (const j of a.jobs) console.log(`[digest]   ${j.id} ${line({ ...j, email: j.email ? "(email)" : null })}`);
+  }
   if (await slackDm(slackText(a, label))) return "slack";
+  if (!a.people.length && RELAY_URL && RELAY_URL !== "off") return "nobody new";
+  if (await relay(a, label)) return "relay";
   const to = String(process.env.ADMIN_EMAILS || "").split(",").map((e) => e.trim()).filter(Boolean);
   if (to.length && email.isConfigured()) {
     for (const address of to) await email.sendEmail({ to: address, subject: `Translator, ${label}: ${a.totals.newPeople} new people, ${a.totals.uploads} uploads`, html: emailHtml(a, label) });
@@ -279,20 +315,25 @@ function localNow() {
 }
 
 let sending = false;
-let loggedOn = null; // with nowhere to send it, the digest is logged once a day and not marked sent
+// With nowhere to send it (the n8n workflow not active yet), the digest is not marked sent and
+// tries again in an hour; its details go to the log once a day.
+const RETRY_MS = 60 * 60 * 1000;
+let retryAt = 0;
+let detailsOn = null;
 async function tick() {
   if (sending) return;
   const { date, hour } = localNow();
-  if (hour < HOUR || loggedOn === date || (await store.getSetting("digest_last_date")) === date) return;
+  if (hour < HOUR || Date.now() < retryAt || (await store.getSetting("digest_last_date")) === date) return;
   sending = true;
   try {
     const since = (await store.getSetting("digest_last_at")) || new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
     const now = new Date().toISOString();
     const label = (await store.getSetting("digest_last_at")) ? "the last day" : "the last 7 days";
-    const via = await send(since, label);
+    const via = await send(since, label, { logDetails: detailsOn !== date });
+    detailsOn = date;
     if (via === "log") {
-      loggedOn = date; // Slack or email set later still gets this one
-      console.log("[digest] nowhere to send it: set SLACK_DIGEST_TOKEN and SLACK_DIGEST_USER, or ADMIN_EMAILS");
+      retryAt = Date.now() + RETRY_MS;
+      console.log("[digest] nowhere to send it yet: activate the translator-people workflow in n8n, or set SLACK_DIGEST_TOKEN and SLACK_DIGEST_USER, or ADMIN_EMAILS. Trying again in an hour.");
       return;
     }
     await store.setSetting("digest_last_date", date);
@@ -310,4 +351,4 @@ function start() {
   setTimeout(() => tick(), 30 * 1000);
 }
 
-module.exports = { activity, send, start, tick, slackText, emailKind };
+module.exports = { activity, send, start, tick, slackText, relayMessage, emailKind };

@@ -1,6 +1,6 @@
 /**
- * For the people who run the translator (ADMIN_EMAILS, signed in): every upload, and the
- * digest on demand. Anyone else gets a 404, as if the route didn't exist.
+ * For the people who run the translator (access.isAdmin: @wxrks.com or ADMIN_EMAILS): every
+ * upload, and the digest on demand. Anyone else gets a 404, as if the route didn't exist.
  */
 const express = require("express");
 const digest = require("../services/digest");

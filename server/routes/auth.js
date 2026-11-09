@@ -66,7 +66,7 @@ router.get("/verify", async (req, res) => {
   const credited = existed ? 0 : await signupCredit.grant(user, "sign-in link");
   await crm.queue(crm.accountEvent(user, "sign-in")); // once per account: the key is the user id
   await deleteSessionFromRequestCookie(req);
-  const sessionId = await store.createSession(user.id);
+  const sessionId = await store.createSession(user.id, "link");
   setSessionCookie(res, sessionId);
   const next = safeNext(req.query.next) || "/";
   res.redirect(credited ? `${next}${next.includes("?") ? "&" : "?"}credit=${credited}` : next);

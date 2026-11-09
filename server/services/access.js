@@ -20,14 +20,22 @@ function hasAccessKey(req, job) {
   return given.length === expected.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected));
 }
 
-// The people who run the translator (ADMIN_EMAILS, comma-separated) see every job, to follow
-// up on what visitors upload (/admin, the daily digest). Signed in like anyone else.
-function isAdmin(req) {
-  const admins = String(process.env.ADMIN_EMAILS || "")
+// The people who run the translator see every job, to follow up on what visitors upload
+// (/admin, the daily digest): anyone signed in with an address at ADMIN_DOMAINS (wxrks.com by
+// default; "off" for none), plus the addresses in ADMIN_EMAILS, comma-separated. Only in a
+// session a sign-in link opened: an account a purchase made is signed in on an email Stripe
+// never checked, and a stranger could type any @wxrks.com address at Checkout.
+const list = (value) =>
+  String(value || "")
     .split(",")
     .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-  return Boolean(req.user && admins.includes(String(req.user.email).toLowerCase()));
+    .filter((e) => e && e !== "off");
+
+function isAdmin(req) {
+  if (!req.user?.emailProven) return false;
+  const email = String(req.user.email || "").toLowerCase();
+  const domain = email.split("@")[1] || "";
+  return list(process.env.ADMIN_EMAILS).includes(email) || list(process.env.ADMIN_DOMAINS ?? "wxrks.com").includes(domain);
 }
 
 function canSeeJob(req, job) {

@@ -68,12 +68,14 @@ async function consumeLoginToken(token) {
   return row?.email || null;
 }
 
-async function createSession(userId) {
+// via: "link" when a sign-in link proved the email, "purchase" when a Checkout made the account.
+async function createSession(userId, via) {
   const id = crypto.randomBytes(32).toString("hex");
-  db.prepare(`INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)`).run(
+  db.prepare(`INSERT INTO sessions (id, user_id, expires_at, via) VALUES (?, ?, ?, ?)`).run(
     id,
     userId,
-    isoIn(SESSION_MAX_AGE_MS)
+    isoIn(SESSION_MAX_AGE_MS),
+    via || null
   );
   return id;
 }
@@ -81,13 +83,13 @@ async function createSession(userId) {
 async function getSessionWithUser(sessionId) {
   const row = db
     .prepare(
-      `SELECT s.id AS session_id, u.id AS user_id, u.email
+      `SELECT s.id AS session_id, s.via, u.id AS user_id, u.email
        FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.id = ? AND s.expires_at > ?`
     )
     .get(sessionId, nowIso());
   if (!row) return null;
-  return { sessionId: row.session_id, user: { id: row.user_id, email: row.email } };
+  return { sessionId: row.session_id, user: { id: row.user_id, email: row.email, emailProven: row.via === "link" } };
 }
 
 async function touchSession(sessionId) {

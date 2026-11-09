@@ -50,7 +50,7 @@ router.get("/session/:id", optionalSession, async (req, res) => {
   let signedIn = Boolean(req.user && req.user.id === purchase.user_id);
   if (!signedIn && (await store.claimPurchase(purchase.stripe_session_id))) {
     await deleteSessionFromRequestCookie(req);
-    setSessionCookie(res, await store.createSession(purchase.user_id));
+    setSessionCookie(res, await store.createSession(purchase.user_id, "purchase"));
     signedIn = true;
   }
   res.json({ status: "paid", words: purchase.words, email: purchase.email, signedIn, jobId: purchase.job_id });

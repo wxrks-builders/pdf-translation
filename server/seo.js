@@ -16,21 +16,21 @@ const PAGES = {
   "/": {
     title: "Free Online Document Translator | wxrks",
     description:
-      "Upload a PDF, Word, PowerPoint or Excel file and download it translated into 100+ languages. Your first document is free, up to 20,000 words.",
+      "Upload a PDF, Word, PowerPoint or Excel file and download it translated into 100+ languages. Free up to 2,000 words (about 8 pages) a day.",
     h1: "Translate a document",
     intro: "PDF, Word, PowerPoint, Excel and more, into 100+ languages.",
   },
   "/pdf": {
     title: "Free PDF Translator That Keeps Your Design | wxrks",
     description:
-      "Translate a PDF into 100+ languages. Get an editable Word file and a PDF that keeps the original layout, fonts and images. Your first PDF is free, up to 20,000 words.",
+      "Translate a PDF into 100+ languages and keep its layout, fonts and images, in Word and PDF. Free up to 2,000 words (about 8 pages) a day.",
     h1: "Translate a PDF and keep its design",
     intro: "Get an editable Word file and a PDF that looks like your original.",
   },
   "/documents": {
     title: "Document Translator for Word, PowerPoint & Excel | wxrks",
     description:
-      "Translate Word, PowerPoint, Excel, PDF, CSV and text files into 100+ languages, in the same format. Your first document is free, up to 20,000 words.",
+      "Translate Word, PowerPoint, Excel, PDF, CSV and text files into 100+ languages, in the same format. Free up to 2,000 words (about 8 pages) a day.",
     h1: "Translate Word, PowerPoint, Excel and more",
     intro: "Download your file translated, in the same format you uploaded.",
   },

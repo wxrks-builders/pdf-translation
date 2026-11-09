@@ -124,6 +124,23 @@ async function grantCredits(userId, amount, kind, note) {
   );
 }
 
+// The sign-up credit (services/signupCredit.js): once per account and at most dailyCap a day,
+// checked and written in one transaction so two sign-ins at the same moment can't both get it.
+// → true when it was granted.
+async function grantSignupCredit(userId, words, note, dailyCap, sinceIso) {
+  return db.transaction(() => {
+    if (db.prepare(`SELECT 1 FROM credit_ledger WHERE user_id = ? AND kind = 'signup'`).get(userId)) return false;
+    const given = db.prepare(`SELECT COUNT(*) AS n FROM credit_ledger WHERE kind = 'signup' AND created_at >= ?`).get(sinceIso).n;
+    if (given >= dailyCap) return false;
+    db.prepare(`INSERT INTO credit_ledger (id, user_id, delta, kind, note) VALUES (?, ?, ?, 'signup', ?)`).run(newId(), userId, words, note);
+    return true;
+  })();
+}
+
+async function countSignupCreditsSince(sinceIso) {
+  return db.prepare(`SELECT COUNT(*) AS n FROM credit_ledger WHERE kind = 'signup' AND created_at >= ?`).get(sinceIso).n;
+}
+
 // Transactional: check balance and insert the charge atomically. SQLite
 // serializes writers, so the transaction alone prevents double-spends.
 // Returns { ok: true } or { ok: false, balance }. Idempotent per job via the
@@ -423,32 +440,6 @@ async function releaseFreeTierUsage(jobId) {
   db.prepare(`UPDATE free_tier_usage SET released = 1 WHERE job_id = ?`).run(jobId);
 }
 
-// Has anything of this visitor's been translated: a free document that went through (by IP or
-// device), or any job of theirs past the gate (by IP, device or account)? A file stopped at a
-// price doesn't count. → false means their next document is their first.
-async function hasTranslatedBefore({ ip, cookieId, userId }) {
-  const free = db
-    .prepare(
-      `SELECT 1 FROM free_tier_usage WHERE COALESCE(released, 0) = 0 AND COALESCE(words, 0) > 0
-         AND (ip = ? OR (cookie_id IS NOT NULL AND cookie_id = ?)) LIMIT 1`
-    )
-    .get(ip || "", cookieId || null);
-  if (free) return true;
-  const job = db
-    .prepare(
-      `SELECT 1 FROM jobs WHERE excerpt_of IS NULL AND status IN ('approving', 'translating', 'delivered')
-         AND ((client_ip IS NOT NULL AND client_ip = ?) OR (anon_cookie_id IS NOT NULL AND anon_cookie_id = ?)
-              OR (user_id IS NOT NULL AND user_id = ?)) LIMIT 1`
-    )
-    .get(ip || "", cookieId || null, userId || null);
-  return Boolean(job);
-}
-
-// First documents that went past the daily 1,000 on the bigger allowance since a moment (the cap).
-async function countWelcomesSince(sinceIso) {
-  return db.prepare(`SELECT COUNT(*) AS n FROM jobs WHERE welcome_used = 1 AND updated_at >= ?`).get(sinceIso).n;
-}
-
 // --- leads (the free tier's email step) ---
 
 async function recordLead({ email, jobId, marketingOptIn, suspectedBot, ip, userAgent }) {
@@ -647,6 +638,8 @@ module.exports = {
   getCreditBalance,
   getCreditLedger,
   grantCredits,
+  grantSignupCredit,
+  countSignupCreditsSince,
   chargeForJob,
   refundForJob,
   createJob,
@@ -655,8 +648,6 @@ module.exports = {
   listJobsForUser,
   listActiveJobs,
   listJobsWithConfidence,
-  hasTranslatedBefore,
-  countWelcomesSince,
   listJobsSince,
   listPurchasesSince,
   recordEvent,

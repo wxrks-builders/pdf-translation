@@ -110,10 +110,8 @@ async function serializeJob(job, req) {
     tone: job.tone,
     confidence: job.confidence_status ? { status: job.confidence_status, byLocale: job.confidence?.byLocale || {} } : null,
     feedback: (await store.getFeedback(job.id)).find((f) => f.source === "page")?.rating || null,
-    // The free words this job was measured against, and whether it's their free first document.
+    // The free words this job was measured against.
     freeLimit: [...job.timeline].reverse().find((e) => e.event === "over_free_limit")?.detail?.limit || pipeline.FREE_TIER_MAX_WORDS,
-    firstDocument: Boolean(job.welcome_eligible) && !job.excerpt_of,
-    firstDocumentWords: pipeline.FIRST_FREE_MAX_WORDS,
     excerpt: await excerptOf(job),
     rerunJobId: (await rerunOf(job))?.id || null,
     createdAt: job.created_at,
@@ -181,8 +179,6 @@ router.post("/", optionalSession, freeTier.anonCookie, upload.array("files"), as
     orgUnitUuid: orgUnitFor(tier),
     tone: tone.parse(req.body),
     clientIp: req.ip,
-    // Their first document gets the bigger free allowance (services/pipeline.js gate).
-    welcomeEligible: !(await store.hasTranslatedBefore({ ip: req.ip, cookieId: req.anonId, userId: req.user?.id })),
   });
 
   const wxrksNames = files.map((f) => buildWxrksFilename(job.id, f.originalname));

@@ -22,7 +22,8 @@ async function request(path, options = {}) {
 
 export const api = {
   me: () => request("/api/auth/me"),
-  requestLoginLink: (email) => request("/api/auth/request-link", { method: "POST", body: JSON.stringify({ email }) }),
+  // next: the path the link brings them back to (their file, from the sign-up credit offer).
+  requestLoginLink: (email, next) => request("/api/auth/request-link", { method: "POST", body: JSON.stringify({ email, next }) }),
   logout: () => request("/api/auth/logout", { method: "POST" }),
   languages: () => request("/api/languages"),
   createJob: (formData) => request("/api/jobs", { method: "POST", body: formData }),
@@ -31,7 +32,7 @@ export const api = {
   cancelJob: (id) => request(`/api/jobs/${id}/cancel`, { method: "POST" }),
   unlockJob: (id, body, k) =>
     request(`/api/jobs/${id}/unlock${k ? `?k=${encodeURIComponent(k)}` : ""}`, { method: "POST", body: JSON.stringify(body) }),
-  rerunJob: (id) => request(`/api/jobs/${id}/rerun`, { method: "POST" }),
+  rerunJob: (id, k) => request(`/api/jobs/${id}/rerun${k ? `?k=${encodeURIComponent(k)}` : ""}`, { method: "POST" }),
   reviewers: (id, k) => request(`/api/jobs/${id}/reviewers${k ? `?k=${encodeURIComponent(k)}` : ""}`),
   adminActivity: (days) => request(`/api/admin/activity?days=${days}`),
   adminSendDigest: () => request("/api/admin/digest", { method: "POST" }),

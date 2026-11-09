@@ -10,6 +10,7 @@ const payments = require("../services/payments");
 const crm = require("../services/crm");
 const events = require("../services/events");
 const freeTier = require("../services/freeTier");
+const signupCredit = require("../services/signupCredit");
 const { canSeeJob } = require("../services/access");
 const { createRateLimiter } = require("../middleware/rateLimit");
 const { optionalSession, setSessionCookie, deleteSessionFromRequestCookie } = require("../middleware/auth");
@@ -58,7 +59,7 @@ router.get("/session/:id", optionalSession, async (req, res) => {
 async function fulfil(session) {
   const words = parseInt(session.metadata?.words, 10);
   const email = String(session.customer_details?.email || session.customer_email || "").trim().toLowerCase();
-  if (!payments.packFor(words) || !email) {
+  if (!payments.isGrantable(words) || !email) {
     console.error(`[checkout] session ${session.id}: no pack or no email, nothing granted`);
     return;
   }
@@ -78,7 +79,10 @@ async function fulfil(session) {
   if (granted) {
     console.log(`[checkout] ${words} words for ${user.id} (session ${session.id})`);
     await events.record({ user }, "checkout_paid", { place: session.metadata?.place, jobId: session.metadata?.job_id || null, detail: { words } });
-    if (!existing) await crm.queue(crm.accountEvent(user, "purchase"));
+    if (!existing) {
+      await signupCredit.grant(user, "purchase"); // a new account, made by paying: it gets the sign-up credit too
+      await crm.queue(crm.accountEvent(user, "purchase"));
+    }
     await crm.queue(crm.purchaseEvent(await store.getPurchase(session.id)));
   }
 }

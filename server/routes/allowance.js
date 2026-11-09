@@ -1,12 +1,14 @@
 /**
- * What the visitor has left, for the meters on the upload screen: today's free document for
- * anonymous visitors, the credit balance once signed in, and, for anyone with nothing translated
- * yet, their first document free up to FIRST_FREE_MAX_WORDS.
+ * What the visitor has left: today's free document for a guest, the credit balance once signed
+ * in. The upload screen shows no meter (Rodrigo, 2026-11-09: limits show after the upload); it
+ * reads this to tell a guest whose free document is used before they upload another, and whether
+ * the sign-up credit can still be given today.
  */
 const express = require("express");
 const store = require("../store");
 const freeTier = require("../services/freeTier");
-const { FREE_TIER_MAX_WORDS, FIRST_FREE_MAX_WORDS, welcomeAvailable } = require("../services/pipeline");
+const signupCredit = require("../services/signupCredit");
+const { FREE_TIER_MAX_WORDS } = require("../services/pipeline");
 const { optionalSession } = require("../middleware/auth");
 
 const router = express.Router();
@@ -17,12 +19,15 @@ function nextUtcMidnight() {
 }
 
 router.get("/", optionalSession, freeTier.anonCookie, async (req, res) => {
-  const first =
-    (await welcomeAvailable()) && !(await store.hasTranslatedBefore({ ip: req.ip, cookieId: req.anonId, userId: req.user?.id }));
-  const firstDocument = first ? { maxWords: FIRST_FREE_MAX_WORDS } : null;
-  if (req.user) return res.json({ signedIn: true, balance: await store.getCreditBalance(req.user.id), firstDocument });
+  if (req.user) return res.json({ signedIn: true, balance: await store.getCreditBalance(req.user.id) });
   const used = await freeTier.findUsageToday(req);
-  res.json({ signedIn: false, freeAvailable: !used, maxWords: FREE_TIER_MAX_WORDS, resetsAt: nextUtcMidnight(), firstDocument });
+  res.json({
+    signedIn: false,
+    freeAvailable: !used,
+    maxWords: FREE_TIER_MAX_WORDS,
+    resetsAt: nextUtcMidnight(),
+    signupCredit: (await signupCredit.available()) ? signupCredit.WORDS : 0,
+  });
 });
 
 module.exports = router;

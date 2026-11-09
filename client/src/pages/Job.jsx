@@ -4,7 +4,8 @@ import { api, trackCancelledCheckout } from "../api";
 import { useAuth } from "../context/AuthContext";
 import { TrustStrip } from "./Upload";
 import { PackGrid } from "./Pricing";
-import { PACKS, packFor, packLabel } from "../pricing";
+import SignupOffer from "./SignupOffer";
+import { FREE_WORDS, SIGNUP_CREDIT, packFor, packLabel, wordsAndPages, aboutPages } from "../pricing";
 import { toneLine } from "../tone";
 
 const ACTIVE = ["created", "uploading", "analyzing", "approving", "translating"];
@@ -32,8 +33,6 @@ const TEAM_URL =
   "https://wxrks.com/?utm_source=translate.wxrks.com&utm_medium=referral&utm_campaign=free-translator&utm_content=delivered";
 
 const norm = (code) => String(code || "").toLowerCase().replace(/[-_]/g, "");
-
-const FREE_WORDS = 1000;
 
 // Why a job found nothing to translate, from the pipeline's OCR step (server/services/pipeline.js).
 function noTextReason(job) {
@@ -119,7 +118,7 @@ export default function Job() {
         <div className="mt-5">
           <div className="mb-1.5 flex justify-between text-xs">
             <span className="font-medium">
-              {job.analyzedWords != null ? `${job.analyzedWords.toLocaleString()} words` : STAGE_COPY[job.status]}
+              {job.analyzedWords != null ? wordsAndPages(job.analyzedWords) : STAGE_COPY[job.status]}
             </span>
             <span className="text-brand-500">{pct}%</span>
           </div>
@@ -128,11 +127,11 @@ export default function Job() {
           </div>
         </div>
         {job.analyzedWords != null && (
-          <p className="mt-3 text-[11px] text-brand-500">
+          <p className={`mt-3 text-xs ${job.tier === "free" ? "text-[#176b45]" : "text-brand-500"}`}>
             {job.timeline.some((e) => e.event === "first_document_free")
-              ? `Free: your first document, up to ${job.firstDocumentWords.toLocaleString()} words.`
+              ? "Free: your first document." // jobs from the first-document-free days (2026-11-09)
               : job.tier === "free"
-                ? `Uses ${job.analyzedWords.toLocaleString()} of your ${FREE_WORDS.toLocaleString()} free words today.`
+                ? `Free: your document for today, up to ${wordsAndPages(job.freeLimit || FREE_WORDS)}.`
                 : `Uses ${(job.creditsCharged ?? job.analyzedWords * job.targetLocales.length).toLocaleString()} credits.`}
           </p>
         )}
@@ -322,23 +321,38 @@ function Delivered({ job, bar, byLocale, preview, nameOf, tone, q, k }) {
           you share; the Word file is the version to edit.
         </p>
       )}
-      {job.tier === "free" && (
-        <div className="mt-6 rounded-md bg-[#f5f7f9] p-4">
-          <p className="text-[13px] font-medium">Next file?</p>
-          <p className="mt-1 text-[13px] text-brand-500">
-            Your next free document is tomorrow. To keep going today,{" "}
-            <Link to="/pricing" className="underline">
-              buy words
-            </Link>{" "}
-            from ${PACKS[0].price}, paid once. Translating for a team?{" "}
-            <a href={TEAM_URL} className="underline">
-              See what wxrks does
-            </a>{" "}
-            with your glossary and reviewers.
-          </p>
-        </div>
-      )}
+      {job.tier === "free" && <NextFile freeLimit={job.freeLimit || FREE_WORDS} />}
     </Screen>
+  );
+}
+
+// After a guest's free document: tomorrow's, or the sign-up credit to keep going today.
+function NextFile({ freeLimit }) {
+  const { user } = useAuth();
+  return (
+    <div className="mt-6 rounded-md bg-[#f5f7f9] p-4">
+      <p className="text-[13px] font-medium">Next file?</p>
+      <p className="mt-1 text-[13px] leading-relaxed text-brand-500">
+        Your next free document, up to {wordsAndPages(freeLimit)}, is ready tomorrow.
+        {user
+          ? " To keep going today, buy words, paid once."
+          : ` To keep going today, sign up and get $${SIGNUP_CREDIT.dollars} in credits: ${wordsAndPages(SIGNUP_CREDIT.words)}.`}
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+        {user ? (
+          <Link to="/pricing" className="wx-button wx-button--primary wx-button--compact">
+            Buy words
+          </Link>
+        ) : (
+          <Link to="/login" className="wx-button wx-button--primary wx-button--compact">
+            Get ${SIGNUP_CREDIT.dollars} in credits
+          </Link>
+        )}
+        <a href={TEAM_URL} className="text-xs underline">
+          See what wxrks does for teams
+        </a>
+      </div>
+    </div>
   );
 }
 
@@ -703,8 +717,10 @@ function WordMeter({ words, free = FREE_WORDS }) {
         <span style={{ width: `${covered}%` }} />
       </div>
       <div className="mt-1.5 flex justify-between text-[11px] text-brand-500">
-        <span>{free.toLocaleString()} free</span>
-        <span>{(words - free).toLocaleString()} more</span>
+        <span>
+          {free.toLocaleString()} free ({aboutPages(free)})
+        </span>
+        <span>{words.toLocaleString()}</span>
       </div>
     </div>
   );
@@ -778,7 +794,8 @@ function useRerun(job) {
     setBusy(true);
     setError(null);
     try {
-      const { jobId } = await api.rerunJob(job.id);
+      // ?k= when the page was opened from an email (the sign-in link back to this file, on any device).
+      const { jobId } = await api.rerunJob(job.id, new URLSearchParams(window.location.search).get("k"));
       navigate(`/jobs/${jobId}`);
     } catch (err) {
       setError(err.message);
@@ -788,16 +805,22 @@ function useRerun(job) {
   return { rerun, busy, error };
 }
 
+// A guest's file over the free limit (Rodrigo, 2026-11-09): the sign-up credit first, packs for
+// what it doesn't cover. Once signed in (the link brings them back here), credits translate it.
 function OverLimit({ job, bar, nameOf, tone }) {
   const { user, creditBalance } = useAuth();
   const { rerun, busy, error } = useRerun(job);
+  const [showPacks, setShowPacks] = useState(false);
   const words = job.analyzedWords;
-  const count = words != null ? words.toLocaleString() : "more than 1,000";
+  const n = (x) => x.toLocaleString("en-US");
+  const freeLimit = job.freeLimit || FREE_WORDS;
   const credits = words != null ? words * job.targetLocales.length : null;
-  const fits = credits != null ? packFor(credits) : null;
-  const canRunNow = Boolean(user && credits != null && creditBalance >= credits);
+  const balance = creditBalance ?? 0;
+  const canRunNow = Boolean(user && credits != null && balance >= credits);
+  // The words still to buy: all of them for a guest, what the balance doesn't cover once signed in.
+  const toBuy = credits != null ? (user ? credits - balance : credits) : null;
+  const fits = toBuy != null ? packFor(toBuy) : null;
   const excerpt = job.excerpt;
-  const firstDoc = job.firstDocument && job.freeLimit > FREE_WORDS;
   const Option = ({ href, to, title, note }) => {
     const body = (
       <>
@@ -814,46 +837,64 @@ function OverLimit({ job, bar, nameOf, tone }) {
   return (
     <Screen bar={bar}>
       <h1 className="text-[22px] font-medium tracking-[-0.3px]">
-        This file has {count} words.{" "}
-        {firstDoc
-          ? `Your first document is free up to ${job.freeLimit.toLocaleString("en-US")}.`
-          : `Free covers ${job.freeLimit.toLocaleString("en-US")} a day.`}
+        {words != null ? `This file has ${wordsAndPages(words)}` : `This file has more than ${wordsAndPages(freeLimit)}`}
       </h1>
-      <p className="mt-1 text-[13px] text-brand-500">
-        {excerpt ? "So we translated page 1 for free, to show you the result." : "Nothing was translated, so this one doesn't count as your free document."}
+      <p className="mt-1 text-[13px] leading-relaxed text-brand-500">
+        Free covers one document a day, up to {wordsAndPages(freeLimit)}.{" "}
+        {excerpt ? "We translated page 1 for free, so you can see the result." : "Nothing was translated, so this one doesn't count as your free document."}
       </p>
-      {words != null && <WordMeter words={words} free={job.freeLimit} />}
+      {words != null && <WordMeter words={words} free={freeLimit} />}
       <ExcerptPreview excerpt={excerpt} nameOf={nameOf} tone={tone} />
 
-      <div className="mt-6">
-        <h2 className="text-[15px] font-medium">Translate the whole file</h2>
-        {job.rerunJobId ? (
-          <Link to={`/jobs/${job.rerunJobId}`} className="wx-button wx-button--primary mt-3" style={{ minHeight: 40 }}>
-            See the whole translation
-          </Link>
-        ) : canRunNow ? (
-          <>
-            <p className="mt-1 text-[13px] text-brand-500">
-              Uses {credits.toLocaleString()} of your {creditBalance.toLocaleString()} credits.
+      {job.rerunJobId ? (
+        <Link to={`/jobs/${job.rerunJobId}`} className="wx-button wx-button--primary mt-6" style={{ minHeight: 40 }}>
+          See the whole translation
+        </Link>
+      ) : canRunNow ? (
+        <div className="mt-6">
+          <h2 className="text-[15px] font-medium">Translate the whole file</h2>
+          <p className="mt-1 text-[13px] text-brand-500">
+            Uses {n(credits)} of your {n(balance)} credits. {wordsAndPages(balance - credits)} stay in your account.
+          </p>
+          <button type="button" onClick={rerun} disabled={busy} className="wx-button wx-button--primary mt-3" style={{ minHeight: 40 }}>
+            {busy ? "Starting…" : `Translate all ${n(words)} words`}
+          </button>
+          {error && <p className="wx-error mt-2 text-xs">{error}</p>}
+        </div>
+      ) : user ? (
+        <div className="mt-6">
+          <h2 className="text-[15px] font-medium">Translate the whole file</h2>
+          <p className="mt-1 mb-3 text-[13px] text-brand-500">
+            It needs {n(credits ?? 0)} credits and your account has {wordsAndPages(balance)}.{" "}
+            {fits ? `${packLabel(fits)} covers it.` : ""} After you pay, you translate this file from here, without uploading it again.
+          </p>
+          <PackGrid jobId={job.id} fits={fits} place="over_limit" words={credits} />
+        </div>
+      ) : (
+        <>
+          <SignupOffer jobId={job.id} words={credits} next={`/jobs/${job.id}`} />
+          {credits != null && credits > SIGNUP_CREDIT.words ? (
+            <div className="mt-6">
+              <h2 className="mb-3 text-[15px] font-medium">Or buy words</h2>
+              <PackGrid jobId={job.id} fits={fits} place="over_limit" words={credits} />
+            </div>
+          ) : showPacks ? (
+            <div className="mt-5">
+              <PackGrid jobId={job.id} fits={fits} place="over_limit" words={credits} />
+            </div>
+          ) : (
+            <p className="mt-3 text-xs text-brand-500">
+              Or buy words: {packLabel(packFor(1))}, paid once.{" "}
+              <button type="button" onClick={() => setShowPacks(true)} className="underline">
+                See all packs
+              </button>
             </p>
-            <button type="button" onClick={rerun} disabled={busy} className="wx-button wx-button--primary mt-3" style={{ minHeight: 40 }}>
-              {busy ? "Starting…" : `Translate all ${count} words`}
-            </button>
-            {error && <p className="wx-error mt-2 text-xs">{error}</p>}
-          </>
-        ) : (
-          <>
-            <p className="mt-1 mb-3 text-[13px] text-brand-500">
-              {fits ? `${packLabel(fits)} covers it.` : `Packs from ${packLabel(PACKS[0])}.`} After you pay, you translate this file
-              from here, without uploading it again.
-            </p>
-            <PackGrid jobId={job.id} fits={fits} place="over_limit" words={credits} />
-          </>
-        )}
-      </div>
+          )}
+        </>
+      )}
 
       <div className="mt-6 space-y-2">
-        <Option to="/" title="Translate a shorter document" note={`Free, up to ${FREE_WORDS.toLocaleString("en-US")} words a day`} />
+        <Option to="/" title="Translate a shorter document" note={`Free, up to ${wordsAndPages(freeLimit)} a day`} />
         <Option href={DEMO_URL} title="A team account in wxrks" note="Whole documents, with your glossary, review, and shared projects. Book a demo." />
       </div>
       <TrustStrip />
@@ -871,7 +912,7 @@ function NeedsCredits({ job, bar, nameOf, tone }) {
       <h1 className="text-[22px] font-medium tracking-[-0.3px]">Not enough credits</h1>
       <p className="mt-2 text-[13px] text-brand-500">
         {needed != null
-          ? `This job needs ${needed.toLocaleString()} credits and your account has ${(creditBalance ?? 0).toLocaleString()}.`
+          ? `This job needs ${needed.toLocaleString("en-US")} credits (${aboutPages(needed)}) and your account has ${wordsAndPages(creditBalance ?? 0)}.`
           : "This job needs more credits than your account has."}{" "}
         Nothing was charged.
       </p>

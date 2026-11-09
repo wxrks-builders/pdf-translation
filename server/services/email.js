@@ -137,7 +137,11 @@ async function sendFilesEmail(to, details) {
   await sendEmail({ to, subject: `Your translation of ${details.documentName} is ready${score}`, html: renderFilesEmail(details) });
 }
 
-function renderLoginEmail(loginUrl) {
+// signupWords: the sign-up credit this link brings when the address has no account yet (0: none).
+function renderLoginEmail(loginUrl, { signupWords = 0 } = {}) {
+  const credit = signupWords
+    ? `<p style="Margin:0 0 28px;font-size:15px;line-height:23px;color:#176b45;">New account? We add $9 in credits when you click: ${signupWords.toLocaleString("en-US")} words (about ${Math.round(signupWords / 250).toLocaleString("en-US")} pages).</p>`
+    : "";
   return `<!doctype html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
@@ -152,7 +156,8 @@ function renderLoginEmail(loginUrl) {
               <tr>
                 <td align="center" style="font-family:helvetica,'helvetica neue',arial,sans-serif;">
                   <h1 style="Margin:0 0 12px;font-size:22px;line-height:30px;color:#252a31;font-weight:600;">Sign in to wxrks Translate</h1>
-                  <p style="Margin:0 0 28px;font-size:15px;line-height:23px;color:#57616d;">Click the button below to sign in. No password needed.</p>
+                  <p style="Margin:0 0 ${signupWords ? 12 : 28}px;font-size:15px;line-height:23px;color:#57616d;">Click the button below to sign in. No password needed.</p>
+                  ${credit}
                   <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="border-collapse:collapse;margin:0 auto 28px;">
                     <tr>
                       <td align="center" bgcolor="#252a31" style="background-color:#252a31;border-radius:6px;">
@@ -174,8 +179,9 @@ function renderLoginEmail(loginUrl) {
 </html>`;
 }
 
-async function sendLoginEmail(to, loginUrl) {
-  await sendEmail({ to, subject: "Sign in to wxrks Translate", html: renderLoginEmail(loginUrl) });
+async function sendLoginEmail(to, loginUrl, { signupWords = 0 } = {}) {
+  const subject = signupWords ? "Your sign-in link, and $9 in credits" : "Sign in to wxrks Translate";
+  await sendEmail({ to, subject, html: renderLoginEmail(loginUrl, { signupWords }) });
 }
 
-module.exports = { isConfigured, sendEmail, sendLoginEmail, sendFilesEmail, renderFilesEmail };
+module.exports = { isConfigured, sendEmail, sendLoginEmail, sendFilesEmail, renderFilesEmail, renderLoginEmail };

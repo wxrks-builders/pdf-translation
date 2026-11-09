@@ -1,5 +1,7 @@
-import { Routes, Route, Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Routes, Route, Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
+import { SIGNUP_CREDIT, aboutPages, wordsAndPages } from "./pricing";
 import Upload from "./pages/Upload";
 import Job from "./pages/Job";
 import Jobs from "./pages/Jobs";
@@ -30,7 +32,14 @@ function Header() {
                 My jobs
               </Link>
               <Link to="/account" className="text-slate-600 hover:text-slate-900">
-                {creditBalance != null ? `${creditBalance.toLocaleString()} credits` : "Account"}
+                {creditBalance != null ? (
+                  <>
+                    {creditBalance.toLocaleString("en-US")} words
+                    {creditBalance > 0 && <span className="hidden sm:inline"> ({aboutPages(creditBalance)})</span>}
+                  </>
+                ) : (
+                  "Account"
+                )}
               </Link>
               <button
                 onClick={async () => {
@@ -53,10 +62,43 @@ function Header() {
   );
 }
 
+// Back from a sign-in link that made a new account: the server added the sign-up credit and
+// says so with ?credit= (server/routes/auth.js). Shown once, then taken off the address.
+function CreditAdded() {
+  const location = useLocation();
+  const [words, setWords] = useState(null);
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const credit = parseInt(params.get("credit"), 10);
+    if (!credit) return;
+    setWords(credit);
+    params.delete("credit");
+    const rest = params.toString();
+    window.history.replaceState(null, "", `${location.pathname}${rest ? `?${rest}` : ""}`);
+  }, [location.search, location.pathname]);
+  if (!words) return null;
+  return (
+    <div className="mx-auto mt-6 max-w-xl px-4">
+      <div className="wx-alert wx-alert--success" role="status">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="mt-0.5 shrink-0">
+          <path d="M3 8.5l3.2 3L13 4.5" />
+        </svg>
+        <span>
+          <strong className="inline font-medium">${SIGNUP_CREDIT.dollars} in credits added for signing up.</strong> You have {wordsAndPages(words)}.
+        </span>
+        <button type="button" onClick={() => setWords(null)} className="ml-auto text-xs underline">
+          Close
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <div className="wx min-h-screen" style={{ background: "var(--wx-surface-sidebar)" }}>
       <Header />
+      <CreditAdded />
       <main className="mx-auto max-w-4xl px-4 py-8">
         <Routes>
           <Route path="/" element={<Upload />} />

@@ -185,9 +185,9 @@ async function migrate() {
   // and the JSON of scores per language once done.
   addColumn("jobs", "confidence_status", "TEXT");
   addColumn("jobs", "confidence", "TEXT");
-  // A visitor's first document is free up to FIRST_FREE_MAX_WORDS (services/pipeline.js gate):
-  // eligible when nothing of theirs (device, IP or account) was translated before; used when
-  // that bigger allowance carried a file past the daily 1,000.
+  // client_ip: where a job came from. welcome_eligible and welcome_used belonged to the free
+  // first document up to 20,000 words (2026-11-09 morning to evening, replaced by the sign-up
+  // credit, services/signupCredit.js); nothing writes them now, and they stay for those jobs.
   addColumn("jobs", "client_ip", "TEXT");
   addColumn("jobs", "welcome_eligible", "INTEGER");
   addColumn("jobs", "welcome_used", "INTEGER");

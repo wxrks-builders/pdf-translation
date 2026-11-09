@@ -2,17 +2,19 @@
  * The buying funnel, so we can tell "never saw a price" from "saw it and left":
  *
  *   offer_shown         a price was on screen (client): over_limit, needs_credits, free_used,
- *                       pricing, account. Once per place, job and visitor a day.
+ *                       pricing, account; or the sign-up credit offer, signup. Once per place,
+ *                       job and visitor a day.
  *   checkout_started    a Buy button opened Stripe Checkout (routes/checkout.js)
  *   checkout_cancelled  the buyer came back from Checkout without paying (client)
  *   checkout_paid       Stripe confirmed the payment (the webhook)
  *   free_limit_hit      an upload refused because the day's free document was used
+ *   signup_credit       a new account got the sign-up credit (services/signupCredit.js)
  *
  * /admin and the daily digest add them up per place (services/digest.js funnel()).
  */
 const store = require("../store");
 
-const PLACES = ["over_limit", "needs_credits", "free_used", "pricing", "account"];
+const PLACES = ["over_limit", "needs_credits", "free_used", "pricing", "account", "signup"];
 const CLIENT_EVENTS = ["offer_shown", "checkout_cancelled"];
 
 const visitorOf = (req) => req.user?.id || req.anonId || null;
@@ -43,6 +45,7 @@ function funnel(events) {
   return {
     places: Object.entries(rows).map(([p, r]) => ({ place: p, shown: r.shown.size, started: r.started, cancelled: r.cancelled, paid: r.paid })),
     freeLimitHits: events.filter((e) => e.name === "free_limit_hit").length,
+    signupCredits: events.filter((e) => e.name === "signup_credit").length,
   };
 }
 

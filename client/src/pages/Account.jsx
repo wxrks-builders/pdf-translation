@@ -2,8 +2,11 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
-import { pagesFor } from "../pricing";
+import { aboutPages } from "../pricing";
 import { PackGrid } from "./Pricing";
+
+const KIND = { purchase: "Purchase", charge: "Translation", refund: "Refund", grant: "Added by wxrks", signup: "Sign-up credit" };
+const day = (iso) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
 export default function Account() {
   const { user, loading } = useAuth();
@@ -13,11 +16,11 @@ export default function Account() {
     if (user) api.credits().then(setData);
   }, [user]);
 
-  if (loading) return <p className="text-slate-500">Loading…</p>;
+  if (loading) return <p className="text-brand-500">Loading…</p>;
   if (!user)
     return (
       <p>
-        <Link to="/login" className="text-brand-600 underline">
+        <Link to="/login" className="underline">
           Sign in
         </Link>{" "}
         to see your account.
@@ -25,50 +28,51 @@ export default function Account() {
     );
 
   return (
-    <div className="space-y-6">
+    <section className="mx-auto max-w-2xl space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold">Account</h1>
-        <p className="mt-1 text-sm text-slate-600">{user.email}</p>
+        <h1 className="text-[22px] font-medium tracking-[-0.3px]">Account</h1>
+        <p className="mt-1 text-[13px] text-brand-500">{user.email}</p>
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-white p-6">
-        <p className="text-sm text-slate-500">Credit balance</p>
-        <p className="text-3xl font-semibold">{data ? data.balance.toLocaleString() : "…"}</p>
-        <p className="mt-2 text-sm text-slate-600">
-          1 credit = 1 source word into 1 language
-          {data?.balance > 0 ? `, so about ${pagesFor(data.balance).toLocaleString("en-US")} pages into one language.` : "."}
+      <div className="rounded-[10px] border border-brand-200 bg-white px-6 py-5">
+        <p className="text-xs text-brand-500">Words in your account</p>
+        <p className="mt-1 text-[29px] font-medium leading-tight tracking-[-0.4px]">
+          {data ? data.balance.toLocaleString("en-US") : "…"}
+          {data?.balance > 0 && <span className="ml-2 text-[15px] font-normal tracking-normal text-brand-500">({aboutPages(data.balance)})</span>}
         </p>
-      </div>
-
-      <div id="buy" className="rounded-lg border border-slate-200 bg-white p-6">
-        <h2 className="mb-4 text-sm font-medium">Buy words</h2>
-        <PackGrid place="account" />
+        <p className="mt-2 text-xs text-brand-500">One credit is one source word into one language.</p>
       </div>
 
       {data?.ledger?.length > 0 && (
-        <div>
-          <h2 className="mb-2 text-sm font-medium text-slate-500">History</h2>
-          <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white text-sm">
+        <div className="overflow-hidden rounded-[10px] border border-brand-200 bg-white">
+          <h2 className="border-b border-brand-200 px-5 py-3 text-xs font-medium text-brand-500">History</h2>
+          <ul className="divide-y divide-brand-200 text-[13px]">
             {data.ledger.map((row) => (
-              <li key={row.id} className="flex items-center justify-between px-4 py-2">
-                <span>
-                  <span className="capitalize">{row.kind}</span>
+              <li key={row.id} className="flex items-center justify-between gap-3 px-5 py-3">
+                <span className="min-w-0">
+                  <span className="font-medium">{row.kind === "signup" ? row.note || KIND.signup : KIND[row.kind] || row.kind}</span>
+                  {row.kind !== "signup" && row.note && <span className="text-brand-500"> · {row.note}</span>}
                   {row.job_id && (
-                    <Link to={`/jobs/${row.job_id}`} className="ml-2 text-brand-600 hover:underline">
+                    <Link to={`/jobs/${row.job_id}`} className="ml-2 text-brand-500 underline">
                       #{row.job_id}
                     </Link>
                   )}
-                  {row.note && <span className="ml-2 text-slate-400">{row.note}</span>}
+                  <span className="text-brand-500"> · {day(row.created_at)}</span>
                 </span>
-                <span className={row.delta > 0 ? "text-green-600" : "text-slate-700"}>
+                <span className={`shrink-0 font-medium ${row.delta > 0 ? "text-[#176b45]" : ""}`}>
                   {row.delta > 0 ? "+" : ""}
-                  {row.delta.toLocaleString()}
+                  {row.delta.toLocaleString("en-US")}
                 </span>
               </li>
             ))}
           </ul>
         </div>
       )}
-    </div>
+
+      <div id="buy" className="rounded-[10px] border border-brand-200 bg-white px-6 py-5">
+        <h2 className="mb-3 text-[13px] font-medium">Buy words</h2>
+        <PackGrid place="account" />
+      </div>
+    </section>
   );
 }

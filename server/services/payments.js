@@ -13,14 +13,19 @@ const axios = require("axios");
 const API = process.env.STRIPE_API_URL || "https://api.stripe.com/v1";
 const SIGNATURE_TOLERANCE_S = 5 * 60;
 
+// Rodrigo, 2026-11-09: "$9 per 10,000 words ... 29 per 60,000 words. Then 99 per 400,000 words".
 const PACKS = [
-  { words: 5000, cents: 900 },
-  { words: 30000, cents: 2900 },
-  { words: 200000, cents: 9900 },
+  { words: 10000, cents: 900 },
+  { words: 60000, cents: 2900 },
+  { words: 400000, cents: 9900 },
 ];
+// The packs before 2026-11-09. Nobody can start a Checkout for them any more, but one opened
+// just before the change can still be paid (a session lives 24 h), and its words must land.
+const EARLIER_PACK_WORDS = [5000, 30000, 200000];
 
 const isConfigured = () => Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET);
 const packFor = (words) => PACKS.find((p) => p.words === Number(words)) || null;
+const isGrantable = (words) => Boolean(packFor(words)) || EARLIER_PACK_WORDS.includes(Number(words));
 
 // Stripe takes form encoding with brackets for nesting: line_items[0][price_data][currency].
 function encode(value, prefix, out = new URLSearchParams()) {
@@ -116,4 +121,4 @@ function verifyWebhook(rawBody, header) {
   return JSON.parse(rawBody.toString("utf8"));
 }
 
-module.exports = { PACKS, isConfigured, packFor, createCheckout, listSessions, verifyWebhook, encode };
+module.exports = { PACKS, isConfigured, packFor, isGrantable, createCheckout, listSessions, verifyWebhook, encode };

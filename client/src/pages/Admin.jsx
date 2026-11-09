@@ -15,6 +15,7 @@ const PLACE = {
   free_used: "Free document used",
   pricing: "Pricing page",
   account: "Account page",
+  signup: "Sign-up credit offer",
   unknown: "Elsewhere",
 };
 
@@ -60,7 +61,7 @@ export default function Admin() {
           <h1 className="text-[22px] font-medium tracking-[-0.3px]">Who used the translator</h1>
           {t && (
             <p className="mt-1 text-[13px] text-brand-500">
-              {t.uploads} uploads · {t.delivered} delivered ({t.firstFree} as a free first document) · {t.overLimit} stopped at a price · {t.failed} failed · {t.purchases} purchases
+              {t.uploads} uploads · {t.delivered} delivered · {t.overLimit} stopped at a price · {t.failed} failed · {t.signupCredits} sign-up credits given · {t.purchases} purchases
             </p>
           )}
         </div>
@@ -189,7 +190,6 @@ export default function Admin() {
                   <td className="wx-numeric">{j.words != null ? n(j.words) : "–"}</td>
                   <td>
                     <span className={`wx-badge ${TONE[j.status] || ""}`}>{j.status}</span>
-                    {j.firstFree && <span className="mt-1 block text-[11px] text-brand-500">First document, free</span>}
                     {j.problem && <span className="mt-1 block max-w-[14rem] truncate text-[11px] text-brand-500" title={j.problem}>{j.problem}</span>}
                   </td>
                   <td className="whitespace-nowrap">

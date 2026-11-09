@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
+import { wordsAndPages } from "../pricing";
 
 // Where Stripe Checkout sends the buyer back. The words arrive with Stripe's webhook, usually
 // within seconds, so this page asks until they're there.
@@ -85,7 +86,7 @@ export default function Thanks() {
       </>
     );
   } else {
-    const words = `${purchase.words.toLocaleString("en-US")} words`;
+    const words = wordsAndPages(purchase.words);
     body = (
       <>
         <span className="wx-badge wx-badge--success">Paid</span>

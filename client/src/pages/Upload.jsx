@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { api, track } from "../api";
 import { useAuth } from "../context/AuthContext";
-import { PACKS, buy, pagesFor } from "../pricing";
+import { PACKS, FREE_WORDS, SIGNUP_CREDIT, buy, wordsAndPages } from "../pricing";
 import { TONES, TONE_NOTE_MAX } from "../tone";
 
 const ACCEPT = ".pdf,.docx,.doc,.txt,.csv,.json,.yml,.yaml,.xlsx,.pptx,.md,.html,.xml,.srt";
@@ -110,7 +110,7 @@ export default function Upload() {
       <div className="rounded-[10px] border border-brand-200 bg-white p-6 sm:p-8">
         <h1 className="text-[29px] font-medium leading-tight tracking-[-0.4px]">{landing.h1}</h1>
         <p className="mt-2 text-[15px] leading-relaxed text-brand-500">{landing.sub}</p>
-        <Allowance allowance={allowance} />
+        {/* No limits box (Rodrigo, 2026-11-09): the free limit and prices show after the upload. */}
 
         <div className="mt-6 space-y-5">
           {files.length === 0 || user ? (
@@ -226,20 +226,7 @@ export default function Upload() {
             {submitting ? "Uploading…" : "Translate"}
           </button>
 
-          {!user && (
-            <p className="text-[11px] leading-relaxed text-brand-500">
-              Free: your first document up to 20,000 words, then one document a day up to 1,000 words, into up to three
-              languages. No card, no account. For more,{" "}
-              <Link to="/pricing" className="underline">
-                buy words
-              </Link>{" "}
-              from ${PACKS[0].price} or{" "}
-              <Link to="/login" className="underline">
-                sign in
-              </Link>
-              . A scanned PDF (pictures of pages) comes back as a Word file.
-            </p>
-          )}
+          <p className="text-[11px] leading-relaxed text-brand-500">A scanned PDF (pictures of pages) comes back as a Word file.</p>
         </div>
       </div>
       <TrustStrip />
@@ -247,71 +234,15 @@ export default function Upload() {
   );
 }
 
-// What's left, as a meter: today's free document, or the credit balance once signed in.
-function Allowance({ allowance }) {
-  if (!allowance) return null;
-  // Nothing of theirs translated yet: the first document is free, up to 20,000 words.
-  if (allowance.firstDocument) {
-    return (
-      <div className="mt-5 rounded-md bg-[#e7f5ec] px-4 py-3">
-        <p className="text-[13px] font-medium text-[#176b45]">
-          Your first document is free, up to {allowance.firstDocument.maxWords.toLocaleString("en-US")} words
-        </p>
-        <p className="mt-0.5 text-[11px] text-[#24543a]">
-          About {pagesFor(allowance.firstDocument.maxWords).toLocaleString("en-US")} pages, into up to three languages. No card.
-        </p>
-      </div>
-    );
-  }
-  if (allowance.signedIn) {
-    const { balance } = allowance;
-    return (
-      <div className="mt-5 flex items-center justify-between gap-3 rounded-md bg-[#f5f7f9] px-4 py-3 text-xs">
-        <span>
-          <span className="font-medium">{balance.toLocaleString("en-US")} credits</span>
-          <span className="text-brand-500">
-            {balance > 0 ? ` · about ${pagesFor(balance).toLocaleString("en-US")} pages into one language` : " · buy words to start"}
-          </span>
-        </span>
-        <Link to="/pricing" className="wx-button wx-button--compact shrink-0">
-          Buy words
-        </Link>
-      </div>
-    );
-  }
-  const hours = Math.max(1, Math.ceil((new Date(allowance.resetsAt) - Date.now()) / 3600000));
-  return (
-    <div className="mt-5 rounded-md bg-[#f5f7f9] px-4 py-3">
-      <div className="flex items-center justify-between gap-3 text-xs">
-        <span className="font-medium">Free today</span>
-        <span className="text-brand-500">
-          {allowance.freeAvailable
-            ? `1 document, up to ${allowance.maxWords.toLocaleString("en-US")} words`
-            : `Used. Your next free document is in ${hours} h`}
-        </span>
-      </div>
-      <div className="wx-progress" role="meter" aria-label="Free documents left today" aria-valuemin="0" aria-valuemax="1" aria-valuenow={allowance.freeAvailable ? 1 : 0}>
-        <span style={{ width: allowance.freeAvailable ? "100%" : "0%" }} />
-      </div>
-      {!allowance.freeAvailable && (
-        <p className="mt-2 text-[11px] text-brand-500">
-          Need it today?{" "}
-          <Link to="/pricing" className="underline">
-            Words from ${PACKS[0].price}
-          </Link>
-          , paid once.
-        </p>
-      )}
-    </div>
-  );
-}
-
-// Shown when Translate meets a used free document: when the next one comes, and the smallest
-// pack straight to checkout. After paying, /thanks signs the buyer in to translate the file.
+// Shown when Translate meets a used free document: when the next one comes, and the sign-up
+// credit to keep going today (or, once today's credits are all given, the smallest pack straight
+// to checkout; after paying, /thanks signs the buyer in to translate the file).
 function FreeUsed({ allowance }) {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const pack = PACKS[0];
+  const free = allowance?.maxWords || FREE_WORDS;
+  const signup = allowance ? allowance.signupCredit > 0 : true;
   const hours = allowance?.resetsAt ? Math.max(1, Math.ceil((new Date(allowance.resetsAt) - Date.now()) / 3600000)) : null;
   useEffect(() => track("offer_shown", "free_used", { fits: pack.words }), [pack.words]);
 
@@ -328,18 +259,26 @@ function FreeUsed({ allowance }) {
 
   return (
     <div className="rounded-md border border-brand-200 bg-[#f5f7f9] px-4 py-3.5" role="status">
-      <p className="text-[13px] font-medium">Your free document for today is already used</p>
+      <p className="text-[13px] font-medium">Your free document for today is used</p>
       <p className="mt-1 text-xs leading-relaxed text-brand-500">
-        {hours ? `A new one is ready in ${hours} ${hours === 1 ? "hour" : "hours"}.` : "A new one is ready tomorrow."} Want
-        this file now? {pack.words.toLocaleString("en-US")} words cost ${pack.price}, paid once. That covers about{" "}
-        {pagesFor(pack.words)} pages.
+        {hours ? `A new one, up to ${wordsAndPages(free)}, is ready in ${hours} ${hours === 1 ? "hour" : "hours"}.` : "A new one is ready tomorrow."}{" "}
+        Want this file now?{" "}
+        {signup
+          ? `Sign up and get $${SIGNUP_CREDIT.dollars} in credits: ${wordsAndPages(SIGNUP_CREDIT.words)}.`
+          : `${wordsAndPages(pack.words)} cost $${pack.price}, paid once.`}
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <button type="button" onClick={buyNow} disabled={busy} className="wx-button wx-button--primary wx-button--compact">
-          {busy ? "Opening checkout…" : `Buy ${pack.words.toLocaleString("en-US")} words for $${pack.price}`}
-        </button>
+        {signup ? (
+          <Link to="/login" className="wx-button wx-button--primary wx-button--compact">
+            Get ${SIGNUP_CREDIT.dollars} in credits
+          </Link>
+        ) : (
+          <button type="button" onClick={buyNow} disabled={busy} className="wx-button wx-button--primary wx-button--compact">
+            {busy ? "Opening checkout…" : `Buy ${pack.words.toLocaleString("en-US")} words for $${pack.price}`}
+          </button>
+        )}
         <Link to="/pricing" className="text-xs underline">
-          See all word packs
+          {signup ? "Buy words" : "See all word packs"}
         </Link>
       </div>
       {failed && <p className="wx-error mt-2 text-xs">Checkout didn't open. Try again in a moment.</p>}

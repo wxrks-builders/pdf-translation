@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api, track, trackCancelledCheckout } from "../api";
-import { PACKS, BUY_EMAIL, buy, pagesFor, perThousand } from "../pricing";
+import { useAuth } from "../context/AuthContext";
+import { PACKS, BUY_EMAIL, FREE_WORDS, SIGNUP_CREDIT, buy, aboutPages, perThousand, wordsAndPages } from "../pricing";
 import { TrustStrip } from "./Upload";
 
 // The three packs as cards with a buy button each. `fits`: the smallest pack that covers the
@@ -40,7 +42,7 @@ export function PackGrid({ jobId, fits, place, words }) {
               {marked && <span className="wx-badge wx-badge--success mb-2 self-start">Covers this file</span>}
               <span className="text-[26px] font-medium leading-none tracking-[-0.4px]">${pack.price}</span>
               <span className="mt-2 text-[13px] font-medium">{pack.words.toLocaleString("en-US")} words</span>
-              <span className="text-[11px] text-brand-500">About {pagesFor(pack.words).toLocaleString("en-US")} pages</span>
+              <span className="text-[11px] text-brand-500">({aboutPages(pack.words)})</span>
               <span className="mt-1 text-[11px] text-brand-500">{perThousand(pack)}</span>
               <button
                 type="button"
@@ -74,6 +76,7 @@ export function PackGrid({ jobId, fits, place, words }) {
 }
 
 export default function Pricing() {
+  const { user, creditBalance } = useAuth();
   useEffect(() => trackCancelledCheckout(), []);
   return (
     <section className="mx-auto max-w-2xl">
@@ -83,9 +86,28 @@ export default function Pricing() {
           Translate whole documents, into as many languages as you need. You keep the design-kept PDF, the Word file,
           and the tone you pick.
         </p>
+        {user ? (
+          creditBalance != null && (
+            <p className="mt-5 rounded-[7px] bg-[#f5f7f9] px-4 py-3 text-[13px]">
+              <span className="font-medium">You have {creditBalance.toLocaleString("en-US")} words</span>
+              {creditBalance > 0 && <span className="text-brand-500"> ({aboutPages(creditBalance)})</span>}.
+            </p>
+          )
+        ) : (
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-[7px] bg-[#e7f5ec] px-4 py-3.5">
+            <div className="min-w-0 flex-1 basis-[260px]">
+              <p className="text-[13px] font-medium text-[#176b45]">New here? Get ${SIGNUP_CREDIT.dollars} in credits when you sign up</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-[#24543a]">That's {wordsAndPages(SIGNUP_CREDIT.words)}, before you buy anything.</p>
+            </div>
+            <Link to="/login" className="wx-button wx-button--primary wx-button--compact shrink-0">
+              Sign up
+            </Link>
+          </div>
+        )}
         <div className="mt-6">
           <PackGrid place="pricing" />
         </div>
+        <p className="mt-2 text-[11px] text-brand-500">Free every day: one document up to {wordsAndPages(FREE_WORDS)}.</p>
       </div>
       <TrustStrip />
     </section>

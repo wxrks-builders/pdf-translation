@@ -57,7 +57,6 @@ async function activity(sinceIso) {
       problem: job.status === "failed" ? String(job.error || "").slice(0, 160) : job.status === "no_text" && ocr ? `scan not read (${ocr.detail?.reason || "?"})` : null,
       scores,
       tone: job.tone?.preset && job.tone.preset !== "auto" ? job.tone.preset : null,
-      firstFree: job.timeline.some((e) => e.event === "first_document_free"),
     });
   }
   const purchases = (await store.listPurchasesSince(sinceIso)).map((p) => ({
@@ -74,11 +73,12 @@ async function activity(sinceIso) {
   // was measured. Soft: without Stripe, or on an error, the list is just missing.
   let checkouts = null;
   if (payments.isConfigured()) checkouts = await payments.listSessions(sinceIso).catch(() => null);
+  const funnel = events.funnel(await store.listEventsSince(sinceIso));
   return {
     since: sinceIso,
     jobs,
     purchases,
-    funnel: events.funnel(await store.listEventsSince(sinceIso)),
+    funnel,
     emails: await store.emailStatsSince(sinceIso),
     feedback: feedbackRows.map((f) => ({ jobId: f.job_id, file: files[f.job_id] || null, source: f.source, rating: f.rating, comment: f.comment, at: f.created_at })),
     checkouts,
@@ -89,7 +89,7 @@ async function activity(sinceIso) {
       failed: count("Failed"),
       emails: new Set(jobs.map((j) => j.email).filter(Boolean)).size,
       purchases: purchases.length,
-      firstFree: jobs.filter((j) => j.firstFree).length,
+      signupCredits: funnel.signupCredits,
       thumbsUp: feedbackRows.filter((f) => f.rating === "up").length,
       thumbsDown: feedbackRows.filter((f) => f.rating === "down").length,
     },
@@ -102,6 +102,7 @@ const PLACE_LABEL = {
   free_used: "free document used",
   pricing: "pricing page",
   account: "account page",
+  signup: "sign-up credit offer",
   unknown: "elsewhere",
 };
 
@@ -134,7 +135,7 @@ function line(j) {
     `${j.from} → ${j.to.join(", ")}`,
     j.words != null ? `${n(j.words)} words` : null,
     j.scannedPages ? `scan, ${j.scannedPages} pages` : null,
-    j.status + (j.problem ? ` (${j.problem})` : "") + (j.firstFree ? " (first document, free)" : ""),
+    j.status + (j.problem ? ` (${j.problem})` : ""),
     scores ? `score ${scores}` : null,
     j.tier,
     j.email,
@@ -147,7 +148,7 @@ function slackText(a, label) {
   const t = a.totals;
   const head = [
     `*Translator, ${label}*`,
-    `${t.uploads} uploads · ${t.delivered} delivered (${t.firstFree} as a free first document) · ${t.overLimit} stopped at a price · ${t.failed} failed`,
+    `${t.uploads} uploads · ${t.delivered} delivered · ${t.overLimit} stopped at a price · ${t.failed} failed · ${t.signupCredits} sign-up credits given`,
     funnelLine(a),
     emailLine(a),
     feedbackLine(a),

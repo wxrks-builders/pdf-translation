@@ -229,6 +229,24 @@ async function listPurchasesSince(sinceIso) {
   return db.prepare(`SELECT * FROM purchases WHERE created_at >= ? ORDER BY created_at DESC`).all(sinceIso);
 }
 
+async function recordEvent({ name, place, jobId, visitor, detail, dedupeKey }) {
+  db.prepare(`INSERT OR IGNORE INTO events (name, place, job_id, visitor, detail, dedupe_key) VALUES (?, ?, ?, ?, ?, ?)`).run(
+    name,
+    place || null,
+    jobId || null,
+    visitor || null,
+    detail ? JSON.stringify(detail) : null,
+    dedupeKey || null
+  );
+}
+
+async function listEventsSince(sinceIso) {
+  return db
+    .prepare(`SELECT * FROM events WHERE created_at >= ? ORDER BY created_at`)
+    .all(sinceIso)
+    .map((e) => ({ ...e, detail: e.detail ? JSON.parse(e.detail) : null }));
+}
+
 async function getSetting(key) {
   return db.prepare(`SELECT value FROM settings WHERE key = ?`).get(key)?.value ?? null;
 }
@@ -462,6 +480,46 @@ async function createdUserForPurchase(userId) {
   return Boolean(db.prepare(`SELECT 1 FROM purchases WHERE user_id = ? AND created_user = 1`).get(userId));
 }
 
+async function saveFeedback({ jobId, source, rating, comment, visitor }) {
+  db.prepare(
+    `INSERT INTO feedback (job_id, source, rating, comment, visitor, created_at) VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(job_id, source) DO UPDATE SET rating = excluded.rating,
+       comment = COALESCE(excluded.comment, feedback.comment), created_at = excluded.created_at`
+  ).run(jobId, source, rating, comment || null, visitor || null, nowIso());
+}
+
+async function getFeedback(jobId) {
+  return db.prepare(`SELECT * FROM feedback WHERE job_id = ? ORDER BY created_at DESC`).all(jobId);
+}
+
+async function listFeedbackSince(sinceIso) {
+  return db.prepare(`SELECT * FROM feedback WHERE created_at >= ? ORDER BY created_at DESC`).all(sinceIso);
+}
+
+// Delivered jobs that haven't had the feedback email, with the address it would go to.
+async function listFeedbackEmailCandidates() {
+  return db
+    .prepare(
+      `SELECT jobs.*, users.email AS user_email FROM jobs LEFT JOIN users ON users.id = jobs.user_id
+       WHERE jobs.status = 'delivered' AND jobs.excerpt_of IS NULL AND jobs.feedback_email_sent_at IS NULL
+         AND COALESCE(users.email, jobs.unlocked_email) IS NOT NULL`
+    )
+    .all()
+    .map(parseJob);
+}
+
+// Exactly one feedback email per job.
+async function claimFeedbackEmail(jobId) {
+  return Boolean(db.prepare(`UPDATE jobs SET feedback_email_sent_at = ? WHERE id = ? AND feedback_email_sent_at IS NULL`).run(nowIso(), jobId).changes);
+}
+
+// The email addresses visitors gave since a moment: at the email step (leads), and accounts made.
+async function emailStatsSince(sinceIso) {
+  const leads = db.prepare(`SELECT COUNT(*) AS n, COUNT(DISTINCT email) AS people, SUM(marketing_opt_in) AS news FROM leads WHERE created_at >= ? AND suspected_bot = 0`).get(sinceIso);
+  const accounts = db.prepare(`SELECT COUNT(*) AS n FROM users WHERE created_at >= ?`).get(sinceIso);
+  return { leads: leads.n, leadPeople: leads.people, newsOptIns: leads.news || 0, accounts: accounts.n };
+}
+
 // Exactly one files email per job: whoever sets files_emailed_at first sends it.
 async function claimFilesEmail(jobId) {
   const row = db
@@ -570,6 +628,14 @@ module.exports = {
   listJobsWithConfidence,
   listJobsSince,
   listPurchasesSince,
+  recordEvent,
+  listEventsSince,
+  saveFeedback,
+  getFeedback,
+  listFeedbackSince,
+  listFeedbackEmailCandidates,
+  claimFeedbackEmail,
+  emailStatsSince,
   getSetting,
   setSetting,
   updateJob,

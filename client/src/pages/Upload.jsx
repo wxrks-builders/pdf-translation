@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
-import { api } from "../api";
+import { api, track } from "../api";
 import { useAuth } from "../context/AuthContext";
 import { PACKS, buy, pagesFor } from "../pricing";
 import { TONES, TONE_NOTE_MAX } from "../tone";
@@ -300,12 +300,13 @@ function FreeUsed({ allowance }) {
   const [failed, setFailed] = useState(false);
   const pack = PACKS[0];
   const hours = allowance?.resetsAt ? Math.max(1, Math.ceil((new Date(allowance.resetsAt) - Date.now()) / 3600000)) : null;
+  useEffect(() => track("offer_shown", "free_used", { fits: pack.words }), [pack.words]);
 
   async function buyNow() {
     setBusy(true);
     setFailed(false);
     try {
-      await buy(pack);
+      await buy(pack, null, "free_used");
     } catch {
       setFailed(true);
       setBusy(false);

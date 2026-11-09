@@ -221,6 +221,37 @@ async function migrate() {
   // Small app state that must survive a restart (services/digest.js: when the last digest went).
   db.exec(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`);
 
+  // The buying funnel (services/events.js): each time a price is shown, a checkout opens, is
+  // cancelled or paid, or the day's free document stops an upload. visitor = user or anon id.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      place TEXT,
+      job_id TEXT,
+      visitor TEXT,
+      detail TEXT,
+      dedupe_key TEXT UNIQUE,
+      created_at TEXT NOT NULL DEFAULT ${NOW}
+    );
+    CREATE INDEX IF NOT EXISTS events_created_idx ON events (created_at);
+  `);
+
+  // Thumbs up or down on a delivered translation (services/feedback.js): on the job page, and
+  // from the one email sent a few days after delivery. One answer per job and place; the last wins.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS feedback (
+      job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+      source TEXT NOT NULL,
+      rating TEXT NOT NULL,
+      comment TEXT,
+      visitor TEXT,
+      created_at TEXT NOT NULL DEFAULT ${NOW},
+      PRIMARY KEY (job_id, source)
+    );
+  `);
+  addColumn("jobs", "feedback_email_sent_at", "TEXT");
+
   // deliverables gained `variant` and a wider UNIQUE; SQLite can't alter a table constraint,
   // so an old table is rebuilt once, keeping every row as the 'translation' variant.
   if (!columns("deliverables").includes("variant")) {

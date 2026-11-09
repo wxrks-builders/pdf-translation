@@ -42,7 +42,7 @@ export default function Account() {
 
       <div id="buy" className="rounded-lg border border-slate-200 bg-white p-6">
         <h2 className="mb-4 text-sm font-medium">Buy words</h2>
-        <PackGrid />
+        <PackGrid place="account" />
       </div>
 
       {data?.ledger?.length > 0 && (

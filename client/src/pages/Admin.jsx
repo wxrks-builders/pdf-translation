@@ -9,6 +9,15 @@ const RANGES = [1, 7, 30, 90];
 const n = (x) => Number(x || 0).toLocaleString("en-US");
 const when = (iso) => new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
+const PLACE = {
+  over_limit: "Over the free limit",
+  needs_credits: "Not enough credits",
+  free_used: "Free document used",
+  pricing: "Pricing page",
+  account: "Account page",
+  unknown: "Elsewhere",
+};
+
 const TONE = {
   Delivered: "wx-badge--success",
   "Over the free limit": "wx-badge--info",
@@ -51,8 +60,7 @@ export default function Admin() {
           <h1 className="text-[22px] font-medium tracking-[-0.3px]">Who used the translator</h1>
           {t && (
             <p className="mt-1 text-[13px] text-brand-500">
-              {t.uploads} uploads · {t.delivered} delivered · {t.overLimit} over the free limit · {t.failed} failed · {t.emails} emails ·{" "}
-              {t.purchases} purchases
+              {t.uploads} uploads · {t.delivered} delivered · {t.overLimit} stopped at a price · {t.failed} failed · {t.purchases} purchases
             </p>
           )}
         </div>
@@ -78,6 +86,74 @@ export default function Admin() {
         </div>
       </div>
       {sent && <p className="text-xs text-brand-500">Digest sent by {sent}.</p>}
+
+      {data && (
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="rounded-[10px] border border-brand-200 bg-white p-4">
+            <h2 className="text-[13px] font-medium">Prices shown</h2>
+            {data.funnel.places.length ? (
+              <table className="mt-2 w-full text-[12px]">
+                <thead className="text-left text-[11px] text-brand-500">
+                  <tr>
+                    <th className="font-normal">Where</th>
+                    <th className="font-normal">Saw it</th>
+                    <th className="font-normal">Checkout</th>
+                    <th className="font-normal">Back</th>
+                    <th className="font-normal">Paid</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.funnel.places.map((p) => (
+                    <tr key={p.place}>
+                      <td>{PLACE[p.place] || p.place}</td>
+                      <td>{p.shown}</td>
+                      <td>{p.started}</td>
+                      <td>{p.cancelled}</td>
+                      <td>{p.paid}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="mt-2 text-xs text-brand-500">Nothing recorded yet (counting since this page was added).</p>
+            )}
+            <p className="mt-2 text-[11px] text-brand-500">
+              {data.funnel.freeLimitHits} uploads stopped by the day's free document.
+              {data.checkouts && ` Stripe: ${data.checkouts.length} Checkouts opened, ${data.checkouts.filter((c) => c.paid).length} paid.`}
+            </p>
+          </div>
+          <div className="rounded-[10px] border border-brand-200 bg-white p-4">
+            <h2 className="text-[13px] font-medium">Emails</h2>
+            <p className="mt-2 text-[12px]">
+              {data.emails.leadPeople} left at the email step ({data.emails.newsOptIns} want product news)
+              <br />
+              {data.emails.accounts} accounts made
+              <br />
+              {data.totals.purchases} purchases
+            </p>
+          </div>
+          <div className="rounded-[10px] border border-brand-200 bg-white p-4">
+            <h2 className="text-[13px] font-medium">Did it work?</h2>
+            <p className="mt-2 text-[12px]">
+              {data.totals.thumbsUp} yes · {data.totals.thumbsDown} not really
+            </p>
+            <ul className="mt-2 space-y-1 text-[11px] text-brand-500">
+              {data.feedback
+                .filter((f) => f.comment)
+                .slice(0, 6)
+                .map((f) => (
+                  <li key={f.jobId + f.source}>
+                    {f.rating === "up" ? "Yes" : "Not really"} ·{" "}
+                    <Link to={`/jobs/${f.jobId}`} className="underline">
+                      {f.file || f.jobId}
+                    </Link>
+                    : “{f.comment}”
+                  </li>
+                ))}
+            </ul>
+          </div>
+        </div>
+      )}
 
       {!data ? (
         <p className="text-brand-500">Loading…</p>

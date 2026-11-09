@@ -31,10 +31,11 @@ export function buyHref(pack) {
 export const pagesFor = (words) => Math.max(1, Math.round(words / 250));
 
 // Stripe Checkout, or the email when checkout isn't switched on. jobId: the file over the free
-// limit this pack is for, so the thank-you page can offer to translate it.
-export async function buy(pack, jobId) {
+// limit this pack is for, so the thank-you page can offer to translate it. place: where the
+// button was, for the buying funnel (server/services/events.js).
+export async function buy(pack, jobId, place) {
   try {
-    const { url } = await api.checkout({ words: pack.words, jobId });
+    const { url } = await api.checkout({ words: pack.words, jobId, place });
     window.location.assign(url);
   } catch (err) {
     if (err.code !== "checkout_unavailable") throw err;

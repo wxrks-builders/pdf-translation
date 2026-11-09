@@ -40,4 +40,33 @@ export const api = {
   checkoutConfig: () => request("/api/checkout/config"),
   checkout: (body) => request("/api/checkout", { method: "POST", body: JSON.stringify(body) }),
   checkoutSession: (id) => request(`/api/checkout/session/${encodeURIComponent(id)}`),
+  jobFeedback: (id, body, k) =>
+    request(`/api/jobs/${id}/feedback${k ? `?k=${encodeURIComponent(k)}` : ""}`, { method: "POST", body: JSON.stringify(body) }),
+  emailFeedback: (body) => request("/api/feedback", { method: "POST", body: JSON.stringify(body) }),
 };
+
+// The buying funnel (server/services/events.js): fire and forget, never in the visitor's way.
+export function track(name, place, extra = {}) {
+  try {
+    fetch("/api/events", {
+      method: "POST",
+      credentials: "same-origin",
+      keepalive: true,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, place, ...extra }),
+    }).catch(() => {});
+  } catch {
+    // measuring never breaks the page
+  }
+}
+
+// Back from Stripe Checkout without paying: the cancel URL carries ?checkout=cancelled&place=…
+export function trackCancelledCheckout(jobId) {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("checkout") !== "cancelled") return;
+  track("checkout_cancelled", params.get("place") || (jobId ? "over_limit" : "pricing"), jobId ? { jobId } : {});
+  params.delete("checkout");
+  params.delete("place");
+  const rest = params.toString();
+  window.history.replaceState(null, "", `${window.location.pathname}${rest ? `?${rest}` : ""}`);
+}

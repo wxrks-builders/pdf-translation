@@ -257,6 +257,9 @@ async function migrate() {
     );
   `);
   addColumn("jobs", "feedback_email_sent_at", "TEXT");
+  // How a session began: "link" (a sign-in link, so the email is proven) or "purchase" (the
+  // account a Checkout created; Stripe never checks the email). Admin needs "link".
+  addColumn("sessions", "via", "TEXT");
 
   // deliverables gained `variant` and a wider UNIQUE; SQLite can't alter a table constraint,
   // so an old table is rebuilt once, keeping every row as the 'translation' variant.

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
 
-// Who used the translator, for the people who run it (ADMIN_EMAILS on the server). Everyone
+// Who used the translator, for the people who run it (@wxrks.com, or ADMIN_EMAILS). Everyone
 // else gets a 404 from the API and sees "Not found".
 const RANGES = [1, 7, 30, 90];
 const n = (x) => Number(x || 0).toLocaleString("en-US");
@@ -49,7 +49,7 @@ export default function Admin() {
         <Link to="/login" className="underline">
           Sign in
         </Link>{" "}
-        with an admin email.
+        with your @wxrks.com email.
       </p>
     );
   }

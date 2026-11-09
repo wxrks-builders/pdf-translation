@@ -1,6 +1,6 @@
 /**
  * Who used the translator: every upload since a moment, with what became of it, for the people
- * who run it (ADMIN_EMAILS). The admin page (/admin) shows it. Once a day the digest goes out.
+ * who run it (access.isAdmin). The admin page (/admin) shows it. Once a day the digest goes out.
  * By default the new people go to Rodrigo's Slack through an n8n workflow (RELAY_URL below), so
  * this app holds no Slack token. With SLACK_DIGEST_TOKEN and SLACK_DIGEST_USER set, the whole day
  * goes as a DM with that token instead. When neither works, it goes by email to ADMIN_EMAILS.
@@ -236,7 +236,7 @@ ${people.length ? `<ul style="padding-left:18px;">${people.join("")}</ul>` : ""}
 <p>${t.uploads} uploads · ${t.delivered} delivered · ${t.overLimit} stopped at a price · ${t.failed} failed</p>
 <p>${esc(funnelLine(a))}<br>${esc(emailLine(a))}<br>${esc(feedbackLine(a)).replace(/\n/g, "<br>")}</p>
 <ul style="padding-left:18px;">${rows.join("")}${buys.join("")}</ul>
-<p><a href="${base()}/admin" style="color:#252a31;">Everything on /admin</a> (sign in with an admin email).</p></div>`;
+<p><a href="${base()}/admin" style="color:#252a31;">Everything on /admin</a> (sign in with your @wxrks.com email).</p></div>`;
 }
 
 // The n8n workflow that DMs Rodrigo through n8n's own Slack connection, the way the CRM's

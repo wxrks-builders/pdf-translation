@@ -185,6 +185,12 @@ async function migrate() {
   // and the JSON of scores per language once done.
   addColumn("jobs", "confidence_status", "TEXT");
   addColumn("jobs", "confidence", "TEXT");
+  // A visitor's first document is free up to FIRST_FREE_MAX_WORDS (services/pipeline.js gate):
+  // eligible when nothing of theirs (device, IP or account) was translated before; used when
+  // that bigger allowance carried a file past the daily 1,000.
+  addColumn("jobs", "client_ip", "TEXT");
+  addColumn("jobs", "welcome_eligible", "INTEGER");
+  addColumn("jobs", "welcome_used", "INTEGER");
 
   // Events for the CRM (services/crm.js): written where they happen, sent in batches, kept
   // until the CRM confirms them. One row per event key, so a repeat is a no-op.

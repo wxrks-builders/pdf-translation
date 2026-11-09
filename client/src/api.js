@@ -42,6 +42,7 @@ export const api = {
   checkoutSession: (id) => request(`/api/checkout/session/${encodeURIComponent(id)}`),
   jobFeedback: (id, body, k) =>
     request(`/api/jobs/${id}/feedback${k ? `?k=${encodeURIComponent(k)}` : ""}`, { method: "POST", body: JSON.stringify(body) }),
+  previewText: (id) => request(`/api/jobs/${id}/preview-text`),
   emailFeedback: (body) => request("/api/feedback", { method: "POST", body: JSON.stringify(body) }),
 };
 

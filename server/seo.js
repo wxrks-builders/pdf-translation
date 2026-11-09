@@ -16,7 +16,7 @@ const PAGES = {
   "/": {
     title: "Free Online Document Translator | wxrks",
     description:
-      "Upload a PDF, Word, PowerPoint or Excel file and download it translated into 100+ languages. Free to try: one document a day, up to 1,000 words.",
+      "Upload a PDF, Word, PowerPoint or Excel file and download it translated into 100+ languages. Your first document is free, up to 20,000 words.",
     h1: "Translate a document",
     intro: "PDF, Word, PowerPoint, Excel and more, into 100+ languages.",
   },

@@ -57,6 +57,7 @@ async function activity(sinceIso) {
       problem: job.status === "failed" ? String(job.error || "").slice(0, 160) : job.status === "no_text" && ocr ? `scan not read (${ocr.detail?.reason || "?"})` : null,
       scores,
       tone: job.tone?.preset && job.tone.preset !== "auto" ? job.tone.preset : null,
+      firstFree: job.timeline.some((e) => e.event === "first_document_free"),
     });
   }
   const purchases = (await store.listPurchasesSince(sinceIso)).map((p) => ({
@@ -88,6 +89,7 @@ async function activity(sinceIso) {
       failed: count("Failed"),
       emails: new Set(jobs.map((j) => j.email).filter(Boolean)).size,
       purchases: purchases.length,
+      firstFree: jobs.filter((j) => j.firstFree).length,
       thumbsUp: feedbackRows.filter((f) => f.rating === "up").length,
       thumbsDown: feedbackRows.filter((f) => f.rating === "down").length,
     },
@@ -132,7 +134,7 @@ function line(j) {
     `${j.from} → ${j.to.join(", ")}`,
     j.words != null ? `${n(j.words)} words` : null,
     j.scannedPages ? `scan, ${j.scannedPages} pages` : null,
-    j.status + (j.problem ? ` (${j.problem})` : ""),
+    j.status + (j.problem ? ` (${j.problem})` : "") + (j.firstFree ? " (first document, free)" : ""),
     scores ? `score ${scores}` : null,
     j.tier,
     j.email,
@@ -145,7 +147,7 @@ function slackText(a, label) {
   const t = a.totals;
   const head = [
     `*Translator, ${label}*`,
-    `${t.uploads} uploads · ${t.delivered} delivered · ${t.overLimit} stopped at a price · ${t.failed} failed`,
+    `${t.uploads} uploads · ${t.delivered} delivered (${t.firstFree} as a free first document) · ${t.overLimit} stopped at a price · ${t.failed} failed`,
     funnelLine(a),
     emailLine(a),
     feedbackLine(a),

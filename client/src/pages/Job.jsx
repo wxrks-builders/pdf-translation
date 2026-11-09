@@ -129,9 +129,11 @@ export default function Job() {
         </div>
         {job.analyzedWords != null && (
           <p className="mt-3 text-[11px] text-brand-500">
-            {job.tier === "free"
-              ? `Uses ${job.analyzedWords.toLocaleString()} of your ${FREE_WORDS.toLocaleString()} free words today.`
-              : `Uses ${(job.creditsCharged ?? job.analyzedWords * job.targetLocales.length).toLocaleString()} credits.`}
+            {job.timeline.some((e) => e.event === "first_document_free")
+              ? `Free: your first document, up to ${job.firstDocumentWords.toLocaleString()} words.`
+              : job.tier === "free"
+                ? `Uses ${job.analyzedWords.toLocaleString()} of your ${FREE_WORDS.toLocaleString()} free words today.`
+                : `Uses ${(job.creditsCharged ?? job.analyzedWords * job.targetLocales.length).toLocaleString()} credits.`}
           </p>
         )}
         <p className="mt-4 text-[11px] text-brand-500">Your file stays private and is deleted after 30 days.</p>
@@ -161,7 +163,7 @@ export default function Job() {
   }
 
   if (job.status === "over_free_limit") return <OverLimit job={job} bar={bar} nameOf={nameOf} tone={tone} />;
-  if (job.status === "needs_credits") return <NeedsCredits job={job} bar={bar} />;
+  if (job.status === "needs_credits") return <NeedsCredits job={job} bar={bar} nameOf={nameOf} tone={tone} />;
 
   if (!delivered) {
     return (
@@ -692,18 +694,77 @@ function EmailForm({ job, k, onDone, intro, cta, compact }) {
   );
 }
 
-// The file's words against the free 1,000, as a bar: how much the free part covers.
-function WordMeter({ words }) {
-  const covered = Math.min(100, (FREE_WORDS / words) * 100);
+// The file's words against the free words it was measured by, as a bar: how much free covers.
+function WordMeter({ words, free = FREE_WORDS }) {
+  const covered = Math.min(100, (free / words) * 100);
   return (
     <div className="mt-4">
-      <div className="wx-progress" role="meter" aria-label="Free words against this file" aria-valuemin="0" aria-valuemax={words} aria-valuenow={FREE_WORDS}>
+      <div className="wx-progress" role="meter" aria-label="Free words against this file" aria-valuemin="0" aria-valuemax={words} aria-valuenow={free}>
         <span style={{ width: `${covered}%` }} />
       </div>
       <div className="mt-1.5 flex justify-between text-[11px] text-brand-500">
-        <span>{FREE_WORDS.toLocaleString()} free</span>
-        <span>{(words - FREE_WORDS).toLocaleString()} more</span>
+        <span>{free.toLocaleString()} free</span>
+        <span>{(words - free).toLocaleString()} more</span>
       </div>
+    </div>
+  );
+}
+
+// Page 1 of a file stopped at a price, translated free (server/services/excerpt.js): the
+// design-kept page next to the original, or the text of both when there is none.
+function ExcerptPreview({ excerpt, nameOf, tone }) {
+  const [text, setText] = useState(null);
+  const image = excerpt?.previews?.[0];
+  useEffect(() => {
+    if (excerpt?.textPreview && !image) api.previewText(excerpt.jobId).then(setText).catch(() => {});
+  }, [excerpt?.textPreview, excerpt?.jobId, image]);
+  if (!excerpt) return null;
+  if (ACTIVE.includes(excerpt.status) && !image) {
+    return (
+      <div className="mt-5 rounded-md bg-[#f5f7f9] p-4">
+        <p className="text-[13px]">Translating page 1 so you can see it…</p>
+        <div className="wx-progress" role="progressbar" aria-label="Page 1 preview">
+          <span style={{ width: `${PROGRESS[excerpt.status] ?? 10}%` }} />
+        </div>
+      </div>
+    );
+  }
+  const caption = (
+    <p className="mt-2 text-[11px] text-brand-500">
+      Page 1{excerpt.totalPages > 1 ? ` of ${excerpt.totalPages}` : ""}, translated free{tone ? ` (tone: ${tone})` : ""}. The
+      downloads come with the whole file.
+    </p>
+  );
+  if (image) {
+    return (
+      <div className="mt-5">
+        <Preview job={{ id: excerpt.jobId }} preview={image} language={nameOf(image.locale)} q="" />
+        {caption}
+      </div>
+    );
+  }
+  if (!text?.target) return null;
+  return (
+    <div className="mt-5">
+      <div className={`grid gap-3 ${text.source ? "sm:grid-cols-2" : ""}`}>
+        {[
+          ["Original", text.source],
+          [nameOf(text.locale), text.target],
+        ]
+          .filter(([, body]) => body)
+          .map(([label, body], i) => (
+            <figure key={label} className="m-0">
+              <div
+                dir={i === 1 && /^(ar|he|iw|fa|ur)/i.test(text.locale) ? "rtl" : "auto"}
+                className="max-h-72 overflow-hidden whitespace-pre-line rounded border border-brand-200 bg-white p-4 text-[13px] leading-relaxed"
+              >
+                {body}
+              </div>
+              <figcaption className="mt-1.5 text-[11px] text-brand-500">{label}</figcaption>
+            </figure>
+          ))}
+      </div>
+      {caption}
     </div>
   );
 }
@@ -736,7 +797,7 @@ function OverLimit({ job, bar, nameOf, tone }) {
   const fits = credits != null ? packFor(credits) : null;
   const canRunNow = Boolean(user && credits != null && creditBalance >= credits);
   const excerpt = job.excerpt;
-  const excerptPreview = excerpt?.previews?.[0];
+  const firstDoc = job.firstDocument && job.freeLimit > FREE_WORDS;
   const Option = ({ href, to, title, note }) => {
     const body = (
       <>
@@ -752,29 +813,17 @@ function OverLimit({ job, bar, nameOf, tone }) {
   };
   return (
     <Screen bar={bar}>
-      <h1 className="text-[22px] font-medium tracking-[-0.3px]">This file has {count} words. Free covers 1,000.</h1>
+      <h1 className="text-[22px] font-medium tracking-[-0.3px]">
+        This file has {count} words.{" "}
+        {firstDoc
+          ? `Your first document is free up to ${job.freeLimit.toLocaleString("en-US")}.`
+          : `Free covers ${job.freeLimit.toLocaleString("en-US")} a day.`}
+      </h1>
       <p className="mt-1 text-[13px] text-brand-500">
         {excerpt ? "So we translated page 1 for free, to show you the result." : "Nothing was translated, so this one doesn't count as your free document."}
       </p>
-      {words != null && <WordMeter words={words} />}
-
-      {excerpt && !excerptPreview && ACTIVE.includes(excerpt.status) && (
-        <div className="mt-5 rounded-md bg-[#f5f7f9] p-4">
-          <p className="text-[13px]">Translating page 1 so you can see it…</p>
-          <div className="wx-progress" role="progressbar" aria-label="Page 1 preview">
-            <span style={{ width: `${PROGRESS[excerpt.status] ?? 10}%` }} />
-          </div>
-        </div>
-      )}
-      {excerptPreview && (
-        <div className="mt-5">
-          <Preview job={{ id: excerpt.jobId }} preview={excerptPreview} language={nameOf(excerptPreview.locale)} q="" />
-          <p className="mt-2 text-[11px] text-brand-500">
-            Page 1{excerpt.totalPages > 1 ? ` of ${excerpt.totalPages}` : ""}, translated free{tone ? ` (tone: ${tone})` : ""}. The
-            downloads come with the whole file.
-          </p>
-        </div>
-      )}
+      {words != null && <WordMeter words={words} free={job.freeLimit} />}
+      <ExcerptPreview excerpt={excerpt} nameOf={nameOf} tone={tone} />
 
       <div className="mt-6">
         <h2 className="text-[15px] font-medium">Translate the whole file</h2>
@@ -804,7 +853,7 @@ function OverLimit({ job, bar, nameOf, tone }) {
       </div>
 
       <div className="mt-6 space-y-2">
-        <Option to="/" title="Translate a shorter document" note="Free, up to 1,000 words a day" />
+        <Option to="/" title="Translate a shorter document" note={`Free, up to ${FREE_WORDS.toLocaleString("en-US")} words a day`} />
         <Option href={DEMO_URL} title="A team account in wxrks" note="Whole documents, with your glossary, review, and shared projects. Book a demo." />
       </div>
       <TrustStrip />
@@ -812,7 +861,7 @@ function OverLimit({ job, bar, nameOf, tone }) {
   );
 }
 
-function NeedsCredits({ job, bar }) {
+function NeedsCredits({ job, bar, nameOf, tone }) {
   const { creditBalance } = useAuth();
   const { rerun, busy, error } = useRerun(job);
   const needed = job.analyzedWords != null ? job.analyzedWords * job.targetLocales.length : null;
@@ -826,6 +875,7 @@ function NeedsCredits({ job, bar }) {
           : "This job needs more credits than your account has."}{" "}
         Nothing was charged.
       </p>
+      <ExcerptPreview excerpt={job.excerpt} nameOf={nameOf} tone={tone} />
       {job.rerunJobId ? (
         <Link to={`/jobs/${job.rerunJobId}`} className="wx-button wx-button--primary mt-5" style={{ minHeight: 40 }}>
           See the translation

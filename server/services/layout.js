@@ -117,6 +117,14 @@ async function excerpt(pdfBuffer, maxWords) {
   });
 }
 
+// → the PDF's text in reading order, at most maxWords words (paragraphs split by blank lines).
+async function text(pdfBuffer, maxWords) {
+  return withTempDir(async (dir) => {
+    await fs.writeFile(path.join(dir, "in.pdf"), pdfBuffer);
+    return JSON.parse(await run(["text", path.join(dir, "in.pdf"), String(maxWords)])).text;
+  });
+}
+
 // A scanned PDF with its text read off the pictures and laid invisibly on top.
 // → { pdf (Buffer) or null when nothing was read, scanned (pages that were pictures), pages, words, reason }
 async function ocr(pdfBuffer, locale) {
@@ -133,4 +141,4 @@ async function ocr(pdfBuffer, locale) {
   });
 }
 
-module.exports = { isAvailable, extract, rebuild, preview, excerpt, ocr, ocrLanguages, LayoutError };
+module.exports = { isAvailable, extract, rebuild, preview, excerpt, text, ocr, ocrLanguages, LayoutError };

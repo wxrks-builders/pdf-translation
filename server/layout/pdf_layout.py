@@ -14,6 +14,9 @@ font, shrunk to fit. Proven on spike 7 (spikes/07-inplace-pdf.py has the verdict
   pdf_layout.py excerpt <in.pdf> <out.pdf> <max_words>
       → page 1 alone as a PDF, when it has at most max_words words (a free document over the
         limit gets it translated as a preview); prints {"pages", "words", "total_pages"}
+  pdf_layout.py text <in.pdf> <max_words>
+      → the PDF's text in reading order, cut at max_words; prints {"text", "words"} (the text
+        side of a preview when there is no design-kept page to show)
   pdf_layout.py ocr <in.pdf> <out.pdf> <languages>
       → reads the text off scanned pages (pictures of pages) with Tesseract, built into PyMuPDF,
         and lays it invisibly over each page's own picture, so a converter can read it. Writes
@@ -563,6 +566,27 @@ def excerpt(pdf, out_path, max_words):
     print(json.dumps({"pages": pages, "words": words, "total_pages": len(doc)}))
 
 
+def text(pdf, max_words):
+    doc = pymupdf.open(pdf)
+    paragraphs, count = [], 0
+    for page in doc:
+        for block in page.get_text("blocks", sort=True):
+            if block[6] != 0:  # 0 = text, 1 = image
+                continue
+            words = block[4].split()
+            if not words:
+                continue
+            take = words[: max(0, max_words - count)]
+            if take:
+                paragraphs.append(" ".join(take))
+            count += len(take)
+            if count >= max_words:
+                break
+        if count >= max_words:
+            break
+    print(json.dumps({"text": "\n\n".join(paragraphs), "words": count}, ensure_ascii=False))
+
+
 def needs_ocr(page):
     """A scanned page: nothing to select, and a picture covering most of it."""
     if len(page.get_text("words")) >= 3:
@@ -621,6 +645,8 @@ if __name__ == "__main__":
             preview(args[1], args[2])
         elif args[:1] == ["excerpt"] and len(args) == 4:
             excerpt(args[1], args[2], int(args[3]))
+        elif args[:1] == ["text"] and len(args) == 3:
+            text(args[1], int(args[2]))
         elif args[:1] == ["ocr"] and len(args) == 4:
             ocr(args[1], args[2], args[3])
         else:

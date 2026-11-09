@@ -228,8 +228,8 @@ export default function Upload() {
 
           {!user && (
             <p className="text-[11px] leading-relaxed text-brand-500">
-              Free: one document a day, up to 1,000 words, into up to three languages. No card, no account. For longer
-              documents,{" "}
+              Free: your first document up to 20,000 words, then one document a day up to 1,000 words, into up to three
+              languages. No card, no account. For more,{" "}
               <Link to="/pricing" className="underline">
                 buy words
               </Link>{" "}
@@ -250,6 +250,19 @@ export default function Upload() {
 // What's left, as a meter: today's free document, or the credit balance once signed in.
 function Allowance({ allowance }) {
   if (!allowance) return null;
+  // Nothing of theirs translated yet: the first document is free, up to 20,000 words.
+  if (allowance.firstDocument) {
+    return (
+      <div className="mt-5 rounded-md bg-[#e7f5ec] px-4 py-3">
+        <p className="text-[13px] font-medium text-[#176b45]">
+          Your first document is free, up to {allowance.firstDocument.maxWords.toLocaleString("en-US")} words
+        </p>
+        <p className="mt-0.5 text-[11px] text-[#24543a]">
+          About {pagesFor(allowance.firstDocument.maxWords).toLocaleString("en-US")} pages, into up to three languages. No card.
+        </p>
+      </div>
+    );
+  }
   if (allowance.signedIn) {
     const { balance } = allowance;
     return (

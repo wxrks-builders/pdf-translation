@@ -17,6 +17,29 @@ const tone = require("./tone");
 const { buildWxrksFilename } = require("./filenames");
 
 const FREE_TIER_MAX_WORDS = parseInt(process.env.FREE_TIER_MAX_WORDS || "1000", 10);
+// Rodrigo, 2026-11-09: "the first maybe we could give free up to 20k". 0 turns it off; the
+// daily cap bounds what it can cost when many first documents arrive at once.
+const FIRST_FREE_MAX_WORDS = parseInt(process.env.FIRST_FREE_MAX_WORDS ?? "20000", 10);
+const FIRST_FREE_DAILY_CAP = parseInt(process.env.FIRST_FREE_DAILY_CAP || "50", 10);
+
+const startOfTodayUtc = () => `${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`;
+
+// The words this job's first-document allowance covers, or 0 when it has none (not their first
+// document, an excerpt, switched off, or today's cap reached).
+async function welcomeAllowance(job) {
+  if (!FIRST_FREE_MAX_WORDS || !job.welcome_eligible || job.excerpt_of) return 0;
+  if ((await store.countWelcomesSince(startOfTodayUtc())) >= FIRST_FREE_DAILY_CAP) return 0;
+  return FIRST_FREE_MAX_WORDS;
+}
+
+async function welcomeAvailable() {
+  return FIRST_FREE_MAX_WORDS > 0 && (await store.countWelcomesSince(startOfTodayUtc())) < FIRST_FREE_DAILY_CAP;
+}
+
+async function useWelcome(jobId, words) {
+  await store.updateJob(jobId, { welcome_used: 1 });
+  await store.appendJobEvent(jobId, "first_document_free", { words, limit: FIRST_FREE_MAX_WORDS });
+}
 
 async function setStatus(jobId, status, event, detail) {
   await store.updateJob(jobId, { status });
@@ -109,23 +132,32 @@ async function runPipeline(jobId) {
     return;
   }
 
-  // 5. Gate
+  // 5. Gate. A visitor's first document is free up to FIRST_FREE_MAX_WORDS, signed in or not;
+  // after it, the free tier is one document a day up to FREE_TIER_MAX_WORDS.
+  const welcome = await welcomeAllowance(job);
+  const fitsWelcome = welcome > 0 && analyzedWords <= welcome;
   if (job.tier === "free") {
+    const limit = Math.max(FREE_TIER_MAX_WORDS, welcome);
     await store.setFreeTierUsageWords(jobId, analyzedWords);
-    if (analyzedWords > FREE_TIER_MAX_WORDS) {
+    if (analyzedWords > limit) {
       // Nothing gets translated, so the day's free document is still theirs (store.js caps this).
       await store.releaseFreeTierUsage(jobId);
       await wxrks.cancelProject(project.uuid, "free tier word limit exceeded");
-      await setStatus(jobId, "over_free_limit", "over_free_limit", { words: analyzedWords, limit: FREE_TIER_MAX_WORDS });
+      await setStatus(jobId, "over_free_limit", "over_free_limit", { words: analyzedWords, limit });
       // Page 1 as a preview of what the whole file would get (a PDF's excerpt never gets one).
       if (!job.excerpt_of) await require("./excerpt").start(jobId, FREE_TIER_MAX_WORDS);
       return;
     }
+    if (analyzedWords > FREE_TIER_MAX_WORDS) await useWelcome(jobId, analyzedWords);
+  } else if (fitsWelcome) {
+    await useWelcome(jobId, analyzedWords); // a signed-in visitor's first document: no credits
   } else if (charge > 0) {
     const result = await store.chargeForJob(job.user_id, jobId, charge);
     if (!result.ok) {
       await wxrks.cancelProject(project.uuid, "insufficient credits");
       await setStatus(jobId, "needs_credits", "needs_credits", { required: charge, balance: result.balance });
+      // Page 1 as a preview, as for a free file over the limit.
+      await require("./excerpt").start(jobId, FREE_TIER_MAX_WORDS);
       return;
     }
     await store.appendJobEvent(jobId, "credits_charged", { amount: charge });
@@ -283,4 +315,4 @@ function startPipeline(jobId) {
   runPipeline(jobId).catch((err) => markJobFailed(jobId, err));
 }
 
-module.exports = { runPipeline, startPipeline, resumeApproval, markJobFailed, cancelJob, FREE_TIER_MAX_WORDS };
+module.exports = { runPipeline, startPipeline, resumeApproval, markJobFailed, cancelJob, welcomeAvailable, FREE_TIER_MAX_WORDS, FIRST_FREE_MAX_WORDS };

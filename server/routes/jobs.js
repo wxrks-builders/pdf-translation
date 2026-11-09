@@ -1,5 +1,6 @@
 const express = require("express");
 const multer = require("multer");
+const AdmZip = require("adm-zip");
 const store = require("../store");
 const pipeline = require("../services/pipeline");
 const freeTier = require("../services/freeTier");
@@ -47,17 +48,37 @@ function previewsOf(deliverables) {
   return previews;
 }
 
-// The page-1 preview of a free file over the limit (services/excerpt.js), if one was started.
+// The page-1 preview of a file stopped at a price (services/excerpt.js), if one was started.
+// Without a design-kept page to show (a scan, a script the fonts lack), the page asks for the
+// text of both sides instead (preview-text below).
 async function excerptOf(job) {
-  if (job.status !== "over_free_limit") return null;
+  if (!["over_free_limit", "needs_credits"].includes(job.status)) return null;
   const child = await store.getExcerptFor(job.id);
   if (!child) return null;
+  const deliverables = await store.listDeliverables(child.id);
   return {
     jobId: child.id,
     status: child.status,
     totalPages: child.excerpt_total_pages,
-    previews: previewsOf(await store.listDeliverables(child.id)),
+    previews: previewsOf(deliverables),
+    textPreview: child.status === "delivered" && deliverables.some((d) => d.variant === "translation"),
   };
+}
+
+// The words of a .docx, paragraph by paragraph, at most maxWords.
+function docxText(buffer, maxWords) {
+  const xml = new AdmZip(buffer).readAsText("word/document.xml");
+  const decode = (s) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+  const out = [];
+  let count = 0;
+  for (const p of xml.split("</w:p>")) {
+    const words = decode([...p.matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g)].map((m) => m[1]).join("")).split(/\s+/).filter(Boolean);
+    const take = words.slice(0, Math.max(0, maxWords - count));
+    if (take.length) out.push(take.join(" "));
+    count += take.length;
+    if (count >= maxWords) break;
+  }
+  return out.join("\n\n");
 }
 
 // The paid job a stopped job was translated as (POST /:id/rerun), unless that one stopped too.
@@ -89,6 +110,10 @@ async function serializeJob(job, req) {
     tone: job.tone,
     confidence: job.confidence_status ? { status: job.confidence_status, byLocale: job.confidence?.byLocale || {} } : null,
     feedback: (await store.getFeedback(job.id)).find((f) => f.source === "page")?.rating || null,
+    // The free words this job was measured against, and whether it's their free first document.
+    freeLimit: [...job.timeline].reverse().find((e) => e.event === "over_free_limit")?.detail?.limit || pipeline.FREE_TIER_MAX_WORDS,
+    firstDocument: Boolean(job.welcome_eligible) && !job.excerpt_of,
+    firstDocumentWords: pipeline.FIRST_FREE_MAX_WORDS,
     excerpt: await excerptOf(job),
     rerunJobId: (await rerunOf(job))?.id || null,
     createdAt: job.created_at,
@@ -155,6 +180,9 @@ router.post("/", optionalSession, freeTier.anonCookie, upload.array("files"), as
     targetLocales,
     orgUnitUuid: orgUnitFor(tier),
     tone: tone.parse(req.body),
+    clientIp: req.ip,
+    // Their first document gets the bigger free allowance (services/pipeline.js gate).
+    welcomeEligible: !(await store.hasTranslatedBefore({ ip: req.ip, cookieId: req.anonId, userId: req.user?.id })),
   });
 
   const wxrksNames = files.map((f) => buildWxrksFilename(job.id, f.originalname));
@@ -200,7 +228,26 @@ router.get("/", optionalSession, async (req, res) => {
   });
 });
 
-const REVIEWER_UTM = "?utm_source=translate.wxrks.com&utm_medium=referral&utm_campaign=free-translator&utm_content=reviewer";
+// The text of a translated sample next to its original, when there is no page image to show:
+// the first words of the source PDF and of the translated Word file, first language.
+router.get("/:id/preview-text", optionalSession, freeTier.anonCookie, async (req, res) => {
+  const job = await store.getJob(req.params.id);
+  if (!job || !canSeeJob(req, job) || job.status !== "delivered") return res.status(404).json({ error: "not_found" });
+  const [file] = await store.listJobFiles(job.id);
+  const translation = (await store.listDeliverables(job.id, { withContent: true })).find(
+    (d) => d.variant === "translation" && /\.docx$/i.test(d.filename) && d.content?.length
+  );
+  if (!file || !translation) return res.status(404).json({ error: "not_found" });
+  try {
+    const source = /\.pdf$/i.test(file.original_filename) ? await layout.text(await store.getJobFileContent(file.id), 250) : null;
+    res.json({ locale: translation.locale, source, target: docxText(translation.content, 250) });
+  } catch (err) {
+    console.error(`[preview-text] job ${job.id}: ${err.message}`);
+    res.status(500).json({ error: "preview_failed" });
+  }
+});
+
+const REVIEWER_UTM ="?utm_source=translate.wxrks.com&utm_medium=referral&utm_campaign=free-translator&utm_content=reviewer";
 
 // Who could check this translation: marketplace partners for each target language, paid ones
 // first (services/marketplace.js).

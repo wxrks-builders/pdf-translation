@@ -9,6 +9,8 @@ const leads = require("../services/leads");
 const email = require("../services/email");
 const tone = require("../services/tone");
 const marketplace = require("../services/marketplace");
+const events = require("../services/events");
+const feedback = require("../services/feedback");
 const { canSeeJob, isUnlocked } = require("../services/access");
 const { createRateLimiter } = require("../middleware/rateLimit");
 const { buildWxrksFilename, extensionAllowed, findTruncationCollision, ALLOWED_EXTENSIONS } = require("../services/filenames");
@@ -86,6 +88,7 @@ async function serializeJob(job, req) {
     previews,
     tone: job.tone,
     confidence: job.confidence_status ? { status: job.confidence_status, byLocale: job.confidence?.byLocale || {} } : null,
+    feedback: (await store.getFeedback(job.id)).find((f) => f.source === "page")?.rating || null,
     excerpt: await excerptOf(job),
     rerunJobId: (await rerunOf(job))?.id || null,
     createdAt: job.created_at,
@@ -138,7 +141,10 @@ router.post("/", optionalSession, freeTier.anonCookie, upload.array("files"), as
   if (tier === "free") {
     if (files.length > 1) return res.status(400).json({ error: "free_tier_one_file" });
     const used = await freeTier.findUsageToday(req);
-    if (used) return res.status(429).json({ error: "free_limit_reached", message: "Free tier allows 1 document per day." });
+    if (used) {
+      await events.record(req, "free_limit_hit", { place: "free_used" });
+      return res.status(429).json({ error: "free_limit_reached", message: "Free tier allows 1 document per day." });
+    }
   }
 
   const job = await store.createJob({
@@ -208,6 +214,18 @@ router.get("/:id/reviewers", optionalSession, freeTier.anonCookie, async (req, r
     byLocale[key] = await marketplace.reviewersFor(names[key] || loc, { utm: REVIEWER_UTM });
   }
   res.json({ byLocale });
+});
+
+// Thumbs up or down from the job page (services/feedback.js); a second post adds the comment.
+router.post("/:id/feedback", optionalSession, freeTier.anonCookie, async (req, res) => {
+  const job = await store.getJob(req.params.id);
+  if (!job || !canSeeJob(req, job) || job.status !== "delivered") return res.status(404).json({ error: "not_found" });
+  try {
+    await feedback.record({ jobId: job.id, source: "page", rating: req.body?.rating, comment: req.body?.comment, visitor: req.user?.id || req.anonId });
+    res.status(204).end();
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
 });
 
 router.get("/:id", optionalSession, freeTier.anonCookie, async (req, res) => {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useSearchParams, useNavigate } from "react-router-dom";
-import { api } from "../api";
+import { api, trackCancelledCheckout } from "../api";
 import { useAuth } from "../context/AuthContext";
 import { TrustStrip } from "./Upload";
 import { PackGrid } from "./Pricing";
@@ -62,6 +62,8 @@ export default function Job() {
   const [job, setJob] = useState(null);
   const [names, setNames] = useState({});
   const [error, setError] = useState(null);
+
+  useEffect(() => trackCancelledCheckout(id), [id]);
 
   useEffect(() => {
     api
@@ -310,6 +312,8 @@ function Delivered({ job, bar, byLocale, preview, nameOf, tone, q, k }) {
         <Reviewers language={language} entry={reviewers?.[loc]} loading={!reviewers} flagged={conf?.flagged} />
       </div>
 
+      <Thumbs job={job} k={k} />
+
       {job.deliverables.some((d) => d.variant?.startsWith("pdf-")) && (
         <p className="mt-4 text-[11px] leading-relaxed text-brand-500">
           Beta: the design-kept PDF redraws the translation into your original pages in a similar font. Check it before
@@ -461,6 +465,86 @@ function Flagged({ entry }) {
         </p>
       )}
       <p className="text-[11px] text-brand-500">A high score is not a guarantee: for contracts, medical or published text, have a person check it.</p>
+    </div>
+  );
+}
+
+// Thumbs up or down on the translation (server/services/feedback.js), then an optional note.
+export function ThumbIcon({ down }) {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={down ? { transform: "scaleY(-1)" } : undefined}>
+      <path d="M7 10v12" />
+      <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z" />
+    </svg>
+  );
+}
+
+function Thumbs({ job, k }) {
+  const [rating, setRating] = useState(job.feedback);
+  const [comment, setComment] = useState("");
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function rate(r) {
+    setRating(r);
+    setError(null);
+    try {
+      await api.jobFeedback(job.id, { rating: r }, k);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function send(e) {
+    e.preventDefault();
+    try {
+      await api.jobFeedback(job.id, { rating, comment }, k);
+      setSent(true);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  const choice = (r, label) => (
+    <button
+      type="button"
+      onClick={() => rate(r)}
+      aria-pressed={rating === r}
+      className={`wx-button inline-flex items-center gap-2 ${rating === r ? "wx-button--primary" : ""}`}
+    >
+      <ThumbIcon down={r === "down"} />
+      {label}
+    </button>
+  );
+
+  return (
+    <div className="mt-6 rounded-md border border-brand-200 p-4">
+      <p className="text-[13px] font-medium">Did this translation work for you?</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {choice("up", "Yes")}
+        {choice("down", "Not really")}
+      </div>
+      {rating && !sent && (
+        <form onSubmit={send} className="mt-3 space-y-2">
+          <label className="wx-label" htmlFor={`fb-${job.id}`}>
+            {rating === "up" ? "Thanks! Anything we should know? (optional)" : "Sorry. What went wrong? (optional)"}
+          </label>
+          <textarea
+            id={`fb-${job.id}`}
+            className="wx-input w-full"
+            rows={3}
+            maxLength={2000}
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            style={{ height: "auto", paddingTop: 8, paddingBottom: 8 }}
+          />
+          <button type="submit" className="wx-button wx-button--compact" disabled={!comment.trim()}>
+            Send
+          </button>
+        </form>
+      )}
+      {sent && <p className="mt-2 text-xs text-brand-500">Thank you. A person reads every note.</p>}
+      {error && <p className="wx-error mt-2 text-xs">{error}</p>}
     </div>
   );
 }
@@ -714,7 +798,7 @@ function OverLimit({ job, bar, nameOf, tone }) {
               {fits ? `${packLabel(fits)} covers it.` : `Packs from ${packLabel(PACKS[0])}.`} After you pay, you translate this file
               from here, without uploading it again.
             </p>
-            <PackGrid jobId={job.id} fits={fits} />
+            <PackGrid jobId={job.id} fits={fits} place="over_limit" words={credits} />
           </>
         )}
       </div>
@@ -752,7 +836,7 @@ function NeedsCredits({ job, bar }) {
         </button>
       ) : (
         <div className="mt-5">
-          <PackGrid jobId={job.id} fits={short != null ? packFor(short) : null} />
+          <PackGrid jobId={job.id} fits={short != null ? packFor(short) : null} place="needs_credits" words={needed} />
         </div>
       )}
       {error && <p className="wx-error mt-2 text-xs">{error}</p>}

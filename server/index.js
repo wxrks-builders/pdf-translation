@@ -30,6 +30,8 @@ app.use("/api/allowance", require("./routes/allowance"));
 app.use("/api/checkout", checkout.router);
 app.use("/api/webhooks", require("./routes/webhooks"));
 app.use("/api/admin", require("./routes/admin"));
+app.use("/api/events", require("./routes/events"));
+app.use("/api/feedback", require("./routes/feedback"));
 
 app.get("/robots.txt", seo.robots);
 app.get("/sitemap.xml", seo.sitemap);
@@ -64,6 +66,7 @@ async function main() {
   crm.flush().catch((err) => console.error(`[crm] flush failed: ${err.message}`));
   poller.startPoller();
   require("./services/digest").start(); // the daily digest of who used it (ADMIN_EMAILS)
+  require("./services/feedback").start(); // the thumbs-up-or-down email, days after delivery
   app.listen(PORT, () => console.log(`DocTranslate listening on :${PORT}`));
 }
 

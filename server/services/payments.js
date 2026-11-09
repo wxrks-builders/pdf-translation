@@ -44,7 +44,9 @@ function stripe(method, url, data) {
   }).then((res) => res.data);
 }
 
-function createCheckout({ pack, email, userId, jobId, baseUrl }) {
+// place: where the Buy button was (services/events.js), carried through Stripe so the payment
+// and a cancelled return are counted against it.
+function createCheckout({ pack, email, userId, jobId, baseUrl, place }) {
   const words = pack.words.toLocaleString("en-US");
   return stripe("post", "/checkout/sessions", {
     mode: "payment",
@@ -66,9 +68,37 @@ function createCheckout({ pack, email, userId, jobId, baseUrl }) {
     ],
     customer_email: email || null,
     success_url: `${baseUrl}/thanks?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${baseUrl}${jobId ? `/jobs/${jobId}` : "/pricing"}`,
-    metadata: { source: "translate.wxrks.com", words: pack.words, user_id: userId || null, job_id: jobId || null },
+    cancel_url: `${baseUrl}${jobId ? `/jobs/${jobId}` : "/pricing"}?checkout=cancelled${place ? `&place=${place}` : ""}`,
+    metadata: { source: "translate.wxrks.com", words: pack.words, user_id: userId || null, job_id: jobId || null, place: place || null },
   });
+}
+
+// The translator's Checkout Sessions since a moment, paid or not: who opened Checkout before
+// the funnel was measured. → [{ id, created, status, paid, words, place, jobId }]
+async function listSessions(sinceIso) {
+  const created = Math.floor(new Date(sinceIso).getTime() / 1000);
+  const out = [];
+  let after = null;
+  for (let page = 0; page < 10; page++) {
+    const params = new URLSearchParams({ limit: "100", "created[gte]": String(created) });
+    if (after) params.set("starting_after", after);
+    const data = await stripe("get", `/checkout/sessions?${params}`);
+    for (const s of data.data || []) {
+      if (s.metadata?.source !== "translate.wxrks.com") continue;
+      out.push({
+        id: s.id,
+        created: new Date(s.created * 1000).toISOString(),
+        status: s.status, // open | complete | expired
+        paid: s.payment_status === "paid",
+        words: Number(s.metadata.words) || null,
+        place: s.metadata.place || null,
+        jobId: s.metadata.job_id || null,
+      });
+    }
+    if (!data.has_more || !data.data?.length) break;
+    after = data.data[data.data.length - 1].id;
+  }
+  return out;
 }
 
 // Stripe-Signature: t=<unix>,v1=<hex HMAC-SHA256 of "<t>.<raw body>">[,v1=…]. → the event.
@@ -86,4 +116,4 @@ function verifyWebhook(rawBody, header) {
   return JSON.parse(rawBody.toString("utf8"));
 }
 
-module.exports = { PACKS, isConfigured, packFor, createCheckout, verifyWebhook, encode };
+module.exports = { PACKS, isConfigured, packFor, createCheckout, listSessions, verifyWebhook, encode };

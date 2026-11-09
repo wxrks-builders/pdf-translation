@@ -13,6 +13,8 @@ const axios = require("axios");
 const store = require("../store");
 const email = require("./email");
 const locales = require("./locales");
+const events = require("./events");
+const payments = require("./payments");
 
 const TZ = process.env.DIGEST_TZ || "America/Toronto";
 const HOUR = parseInt(process.env.DIGEST_HOUR || "8", 10);
@@ -65,19 +67,62 @@ async function activity(sinceIso) {
     jobId: p.job_id,
   }));
   const count = (status) => jobs.filter((j) => j.status === status).length;
+  const feedbackRows = await store.listFeedbackSince(sinceIso);
+  const files = Object.fromEntries(jobs.map((j) => [j.id, j.file]));
+  // Checkout Sessions straight from Stripe: who opened Checkout, including before the funnel
+  // was measured. Soft: without Stripe, or on an error, the list is just missing.
+  let checkouts = null;
+  if (payments.isConfigured()) checkouts = await payments.listSessions(sinceIso).catch(() => null);
   return {
     since: sinceIso,
     jobs,
     purchases,
+    funnel: events.funnel(await store.listEventsSince(sinceIso)),
+    emails: await store.emailStatsSince(sinceIso),
+    feedback: feedbackRows.map((f) => ({ jobId: f.job_id, file: files[f.job_id] || null, source: f.source, rating: f.rating, comment: f.comment, at: f.created_at })),
+    checkouts,
     totals: {
       uploads: jobs.length,
       delivered: count("Delivered"),
-      overLimit: count("Over the free limit"),
+      overLimit: count("Over the free limit") + count("Needed more credits"),
       failed: count("Failed"),
       emails: new Set(jobs.map((j) => j.email).filter(Boolean)).size,
       purchases: purchases.length,
+      thumbsUp: feedbackRows.filter((f) => f.rating === "up").length,
+      thumbsDown: feedbackRows.filter((f) => f.rating === "down").length,
     },
   };
+}
+
+const PLACE_LABEL = {
+  over_limit: "over the free limit",
+  needs_credits: "not enough credits",
+  free_used: "free document used",
+  pricing: "pricing page",
+  account: "account page",
+  unknown: "elsewhere",
+};
+
+// "Prices shown: over the free limit 3 people → 1 opened Checkout → 0 paid; …"
+function funnelLine(a) {
+  const rows = a.funnel.places.filter((p) => p.shown || p.started || p.paid);
+  const parts = rows.map((p) => `${PLACE_LABEL[p.place] || p.place}: ${p.shown} saw it → ${p.started} opened Checkout → ${p.paid} paid`);
+  const stripe = a.checkouts
+    ? ` · Stripe: ${a.checkouts.length} Checkouts opened, ${a.checkouts.filter((c) => c.paid).length} paid, ${a.checkouts.filter((c) => c.status === "expired").length} expired unpaid`
+    : "";
+  return `Prices shown: ${parts.join("; ") || "none recorded"}${a.funnel.freeLimitHits ? ` · ${a.funnel.freeLimitHits} uploads stopped by the free limit` : ""}${stripe}`;
+}
+
+function emailLine(a) {
+  const e = a.emails;
+  return `Emails: ${e.leadPeople} left at the email step (${e.newsOptIns} want product news) · ${e.accounts} accounts made · ${a.totals.purchases} purchases`;
+}
+
+function feedbackLine(a) {
+  const f = a.feedback;
+  if (!f.length) return "Feedback: none yet";
+  const notes = f.filter((x) => x.comment).slice(0, 5).map((x) => `${x.rating === "up" ? "+" : "−"} “${x.comment.slice(0, 140)}”`);
+  return [`Feedback: ${a.totals.thumbsUp} thumbs up · ${a.totals.thumbsDown} thumbs down`, ...notes].join("\n");
 }
 
 function line(j) {
@@ -98,7 +143,13 @@ function line(j) {
 
 function slackText(a, label) {
   const t = a.totals;
-  const head = `*Translator, ${label}*\n${t.uploads} uploads · ${t.delivered} delivered · ${t.overLimit} over the free limit · ${t.failed} failed · ${t.emails} emails · ${t.purchases} purchases`;
+  const head = [
+    `*Translator, ${label}*`,
+    `${t.uploads} uploads · ${t.delivered} delivered · ${t.overLimit} stopped at a price · ${t.failed} failed`,
+    funnelLine(a),
+    emailLine(a),
+    feedbackLine(a),
+  ].join("\n");
   const jobs = a.jobs.slice(0, 40).map((j) => `• <${j.url}|${line(j).replace(/[<>|]/g, "")}>`);
   const more = a.jobs.length > 40 ? [`…and ${a.jobs.length - 40} more`] : [];
   const buys = a.purchases.map((p) => `• Bought ${n(p.words)} words${p.amount ? ` for ${p.amount}` : ""} · ${p.email}`);
@@ -112,7 +163,8 @@ function emailHtml(a, label) {
   const buys = a.purchases.map((p) => `<li>Bought ${n(p.words)} words${p.amount ? ` for ${esc(p.amount)}` : ""} · ${esc(p.email)}</li>`);
   return `<div style="font-family:helvetica,arial,sans-serif;font-size:14px;line-height:20px;color:#252a31;">
 <p style="font-size:17px;font-weight:600;">Translator, ${esc(label)}</p>
-<p>${t.uploads} uploads · ${t.delivered} delivered · ${t.overLimit} over the free limit · ${t.failed} failed · ${t.emails} emails · ${t.purchases} purchases</p>
+<p>${t.uploads} uploads · ${t.delivered} delivered · ${t.overLimit} stopped at a price · ${t.failed} failed</p>
+<p>${esc(funnelLine(a))}<br>${esc(emailLine(a))}<br>${esc(feedbackLine(a)).replace(/\n/g, "<br>")}</p>
 <ul style="padding-left:18px;">${rows.join("")}${buys.join("")}</ul>
 <p><a href="${base()}/admin" style="color:#252a31;">Everything on /admin</a> (sign in with an admin email).</p></div>`;
 }
@@ -134,6 +186,9 @@ async function send(sinceIso, label) {
   const a = await activity(sinceIso);
   // The log keeps no emails: counts and files only.
   console.log(`[digest] ${label}: ${JSON.stringify(a.totals)}`);
+  console.log(`[digest] ${funnelLine(a)}`);
+  console.log(`[digest] ${emailLine(a)}`);
+  for (const c of a.checkouts || []) console.log(`[digest]   checkout ${c.created} ${c.status}${c.paid ? " paid" : ""} ${c.words} words place=${c.place || "-"} job=${c.jobId || "-"}`);
   for (const j of a.jobs) console.log(`[digest]   ${j.id} ${line({ ...j, email: j.email ? "(email)" : null })}`);
   if (await slackDm(slackText(a, label))) return "slack";
   const to = String(process.env.ADMIN_EMAILS || "").split(",").map((e) => e.trim()).filter(Boolean);

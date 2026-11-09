@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { api } from "../api";
+import { api, track, trackCancelledCheckout } from "../api";
 import { PACKS, BUY_EMAIL, buy, pagesFor, perThousand } from "../pricing";
 import { TrustStrip } from "./Upload";
 
 // The three packs as cards with a buy button each. `fits`: the smallest pack that covers the
-// file in hand, marked so the visitor doesn't have to do the math.
-export function PackGrid({ jobId, fits }) {
+// file in hand, marked so the visitor doesn't have to do the math. `place` names where the
+// prices are shown, and `words` the credits the file needs, for the buying funnel.
+export function PackGrid({ jobId, fits, place, words }) {
   const [checkout, setCheckout] = useState(null);
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
@@ -14,11 +15,15 @@ export function PackGrid({ jobId, fits }) {
     api.checkoutConfig().then((c) => setCheckout(c.enabled)).catch(() => setCheckout(false));
   }, []);
 
+  useEffect(() => {
+    if (place) track("offer_shown", place, { jobId, words: words ?? undefined, fits: fits?.words });
+  }, [place, jobId, words, fits?.words]);
+
   async function onBuy(pack) {
     setBusy(pack.words);
     setError(null);
     try {
-      await buy(pack, jobId);
+      await buy(pack, jobId, place);
     } catch {
       setError("Checkout didn't open. Try again in a moment.");
       setBusy(null);
@@ -69,6 +74,7 @@ export function PackGrid({ jobId, fits }) {
 }
 
 export default function Pricing() {
+  useEffect(() => trackCancelledCheckout(), []);
   return (
     <section className="mx-auto max-w-2xl">
       <div className="rounded-[10px] border border-brand-200 bg-white p-6 sm:p-8">
@@ -78,7 +84,7 @@ export default function Pricing() {
           and the tone you pick.
         </p>
         <div className="mt-6">
-          <PackGrid />
+          <PackGrid place="pricing" />
         </div>
       </div>
       <TrustStrip />

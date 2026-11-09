@@ -8,6 +8,7 @@ const express = require("express");
 const store = require("../store");
 const payments = require("../services/payments");
 const crm = require("../services/crm");
+const events = require("../services/events");
 const freeTier = require("../services/freeTier");
 const { canSeeJob } = require("../services/access");
 const { createRateLimiter } = require("../middleware/rateLimit");
@@ -29,8 +30,10 @@ router.post("/", checkoutLimiter, optionalSession, freeTier.anonCookie, async (r
     const job = await store.getJob(String(req.body.jobId));
     if (job && canSeeJob(req, job)) jobId = job.id;
   }
+  const place = events.PLACES.includes(req.body?.place) ? req.body.place : null;
   try {
-    const session = await payments.createCheckout({ pack, email: req.user?.email, userId: req.user?.id, jobId, baseUrl: baseUrl() });
+    const session = await payments.createCheckout({ pack, email: req.user?.email, userId: req.user?.id, jobId, baseUrl: baseUrl(), place });
+    await events.record(req, "checkout_started", { place, jobId, detail: { words: pack.words } });
     res.json({ url: session.url });
   } catch (err) {
     console.error(`[checkout] session failed: ${err.response?.data?.error?.message || err.message}`);
@@ -74,6 +77,7 @@ async function fulfil(session) {
   });
   if (granted) {
     console.log(`[checkout] ${words} words for ${user.id} (session ${session.id})`);
+    await events.record({ user }, "checkout_paid", { place: session.metadata?.place, jobId: session.metadata?.job_id || null, detail: { words } });
     if (!existing) await crm.queue(crm.accountEvent(user, "purchase"));
     await crm.queue(crm.purchaseEvent(await store.getPurchase(session.id)));
   }

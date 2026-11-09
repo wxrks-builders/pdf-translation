@@ -19,6 +19,8 @@ const PLACE = {
   unknown: "Elsewhere",
 };
 
+const MAIL = { work: "work email", school: "school email", personal: "personal email", unknown: "email" };
+
 const TONE = {
   Delivered: "wx-badge--success",
   "Over the free limit": "wx-badge--info",
@@ -153,6 +155,36 @@ export default function Admin() {
                 ))}
             </ul>
           </div>
+        </div>
+      )}
+
+      {data?.people?.length > 0 && (
+        <div className="rounded-[10px] border border-brand-200 bg-white p-4">
+          <h2 className="text-[13px] font-medium">
+            New people: {data.people.length} ({data.totals.workEmails} with a work email)
+          </h2>
+          <ul className="mt-2 space-y-1 text-[12px]">
+            {data.people.map((p) => (
+              <li key={p.email}>
+                <span className={p.mail === "work" ? "font-medium" : ""}>{p.email}</span>
+                <span className="text-brand-500">
+                  {" "}
+                  · {MAIL[p.mail]}
+                  {p.mail !== "personal" && p.domain ? `, ${p.domain}` : ""} · {p.how === "account" ? "made an account" : "left an email"}
+                  {p.boughtWords > 0 && ` · bought ${n(p.boughtWords)} words`}
+                  {p.job && (
+                    <>
+                      {" · "}
+                      <Link to={`/jobs/${p.job.id}`} className="underline">
+                        {p.job.file}
+                      </Link>
+                      {`, ${p.job.from} → ${p.job.to.join(", ")}${p.job.words != null ? `, ${n(p.job.words)} words` : ""}, ${p.job.status}`}
+                    </>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

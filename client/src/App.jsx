@@ -17,7 +17,7 @@ function Header() {
   const navigate = useNavigate();
   return (
     <header className="border-b border-brand-200 bg-white">
-      <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4">
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
         <Link to="/" className="flex items-center gap-2" aria-label="wxrks Translate, home">
           <img src="/wxrks-logo.svg" alt="wxrks" className="h-[18px] w-auto" />
           <span className="text-[15px] font-medium text-brand-500">Translate</span>
@@ -99,7 +99,7 @@ export default function App() {
     <div className="wx min-h-screen" style={{ background: "var(--wx-surface-sidebar)" }}>
       <Header />
       <CreditAdded />
-      <main className="mx-auto max-w-4xl px-4 py-8">
+      <main className="mx-auto max-w-6xl px-4 py-8">
         <Routes>
           <Route path="/" element={<Upload />} />
           <Route path="/pdf" element={<Upload />} />
@@ -115,7 +115,7 @@ export default function App() {
         </Routes>
       </main>
       {/* AGPL-3.0 §13: users of the network service get a way to the source. */}
-      <footer className="mx-auto max-w-4xl px-4 pb-8 text-xs text-brand-500">
+      <footer className="mx-auto max-w-6xl px-4 pb-8 text-xs text-brand-500">
         <Link to="/pdf" className="underline hover:text-slate-600">
           PDF translator
         </Link>{" "}

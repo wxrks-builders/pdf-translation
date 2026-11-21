@@ -40,21 +40,21 @@ export function Sent({ offer }) {
     <div className="rounded-lg border border-[#c8e8d4] bg-[#e7f5ec] px-5 py-4" role="status">
       <p className="text-[15px] font-medium text-[#176b45]">Check your inbox</p>
       <p className="mt-1 text-[13px] leading-relaxed text-[#24543a]">
-        We sent a link to {offer.email}. Click it within 15 minutes and you come back here, signed in, to translate the whole file.
+        We sent a link to {offer.email}. Click it within 15 minutes: the whole file starts translating, and we email you the files when they're ready.
       </p>
     </div>
   );
 }
 
 // The inline form, under the headline.
-export default function OfferForm({ offer, cta, id = "offer-email", formRef }) {
+export default function OfferForm({ offer, cta, id = "offer-email", formRef, stacked = false }) {
   if (offer.sent) return <Sent offer={offer} />;
   return (
     <form ref={formRef} onSubmit={offer.submit} className="flex flex-col gap-2">
       <label htmlFor={id} className="text-[13px] font-medium">
         Your email
       </label>
-      <div className="flex flex-wrap gap-2.5">
+      <div className={stacked ? "flex flex-col gap-2.5" : "flex flex-wrap gap-2.5"}>
         <input
           id={id}
           type="email"
@@ -63,9 +63,9 @@ export default function OfferForm({ offer, cta, id = "offer-email", formRef }) {
           onChange={(e) => offer.setEmail(e.target.value)}
           placeholder="you@company.com"
           autoComplete="email"
-          className="h-[50px] min-w-[220px] flex-1 rounded-lg border border-[#757d88] bg-white px-3.5 text-[15px]"
+          className={`h-[54px] rounded-[10px] border-2 border-[#252a31] bg-white px-4 text-[16px] ${stacked ? "w-full" : "min-w-[220px] flex-1"}`}
         />
-        <button type="submit" disabled={offer.busy} className="wx-button wx-button--primary w-full px-6 text-[15px] font-medium sm:w-auto" style={{ minHeight: 50 }}>
+        <button type="submit" disabled={offer.busy} className={`wx-button wx-button--primary w-full px-6 text-[16px] font-semibold ${stacked ? "" : "sm:w-auto"}`} style={{ minHeight: 54, borderRadius: 10 }}>
           {offer.busy ? "Sending…" : cta}
         </button>
       </div>

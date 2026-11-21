@@ -27,6 +27,8 @@ const TEAM_URL =
   "https://wxrks.com/?utm_source=translate.wxrks.com&utm_medium=referral&utm_campaign=free-translator&utm_content=delivered";
 
 const norm = (code) => String(code || "").toLowerCase().replace(/[-_]/g, "");
+// "Portuguese (Brazil) and Spanish", "French, German and Italian".
+const andList = (xs) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
 
 // Why a job found nothing to translate, from the pipeline's OCR step (server/services/pipeline.js).
 function noTextReason(job) {
@@ -96,7 +98,7 @@ export default function Job() {
   const bar = (
     <>
       <span className="min-w-0 truncate">{job.files.length > 1 ? `${job.files.length} files` : fileName}</span>
-      <StatusBadge status={job.status} />
+      <StatusBadge status={job.status} excerpt={job.excerpt} />
     </>
   );
 
@@ -131,7 +133,7 @@ export default function Job() {
         )}
         <p className="mt-4 text-[11px] text-brand-500">Your file stays private and is deleted after 30 days.</p>
 
-        {job.tier === "free" && job.emailDelivery && (
+        {(job.tier === "free" || job.unlockedEmail) && job.emailDelivery && (
           <div className="mt-6 rounded-md border border-brand-200 bg-[#f7f8fa] p-4">
             {job.unlockedEmail ? (
               <p className="text-[13px]">We'll email the files to {job.unlockedEmail} when they're ready. You can close this tab.</p>
@@ -363,10 +365,13 @@ function Screen({ bar, children, wide }) {
   );
 }
 
-function StatusBadge({ status }) {
+function StatusBadge({ status, excerpt }) {
   if (status === "delivered") return <span className="wx-badge wx-badge--success">Done</span>;
   if (ACTIVE.includes(status)) return <span className="wx-badge wx-badge--pending">In progress</span>;
-  if (status === "over_free_limit") return <span className="wx-badge wx-badge--info">Over the free limit</span>;
+  // Not "Over the free limit": on a first visit that reads as a refusal (Rodrigo, 2026-11-21).
+  if (status === "over_free_limit") {
+    return excerpt?.status === "delivered" ? <span className="wx-badge wx-badge--success">Sample ready</span> : <span className="wx-badge wx-badge--info">Ready to translate</span>;
+  }
   return <span className="wx-badge">{status === "cancelled" ? "Cancelled" : "Stopped"}</span>;
 }
 
@@ -728,10 +733,10 @@ export function sampleRange(excerpt) {
   return last > first ? `Pages ${first}–${last}${of}` : `Page ${first}${of}`;
 }
 
-function ExcerptPreview({ excerpt, nameOf, tone }) {
+function ExcerptPreview({ excerpt, nameOf, tone, defaultOnly = false }) {
   const [text, setText] = useState(null);
   const [page, setPage] = useState(0);
-  const [only, setOnly] = useState(false);
+  const [only, setOnly] = useState(defaultOnly);
   const image = excerpt?.previews?.[0];
   useEffect(() => {
     if (excerpt?.textPreview && !image) api.previewText(excerpt.jobId).then(setText).catch(() => {});
@@ -873,30 +878,6 @@ function PagesBar({ total, first, done }) {
   );
 }
 
-function CheckItem({ state, children }) {
-  return (
-    <li className={`flex items-start gap-2.5 text-[13px] leading-5 ${state === "todo" ? "text-brand-500" : ""}`}>
-      <span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center" aria-hidden="true">
-        {state === "done" ? (
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#e7f5ec]">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#176b45" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 12.5l4.5 4.5L19 7.5" />
-            </svg>
-          </span>
-        ) : state === "active" ? (
-          <svg className="wx-step-spinner" width="16" height="16" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="9" stroke="#e7ebef" strokeWidth="3" />
-            <path d="M21 12a9 9 0 0 0-9-9" stroke="#252a31" strokeWidth="3" strokeLinecap="round" />
-          </svg>
-        ) : (
-          <span className="h-3.5 w-3.5 rounded-full border-2 border-[#c3c9d0]" />
-        )}
-      </span>
-      <span>{children}</span>
-    </li>
-  );
-}
-
 function OverLimit({ job, bar, nameOf, tone }) {
   const { user, creditBalance } = useAuth();
   const { rerun, busy, error } = useRerun(job);
@@ -912,8 +893,23 @@ function OverLimit({ job, bar, nameOf, tone }) {
   const toBuy = credits != null ? (user ? credits - balance : credits) : null;
   const fits = toBuy != null ? packFor(toBuy) : null;
   const excerpt = job.excerpt;
-  const offer = useSignupOffer({ jobId: job.id, next: `/jobs/${job.id}`, words: credits, enabled: !user && !job.rerunJobId });
-  const languages = job.targetLocales.map(nameOf).join(", ");
+  const offer = useSignupOffer({ jobId: job.id, next: `/jobs/${job.id}?finish=1`, words: credits, enabled: !user && !job.rerunJobId });
+  // Back from the offer's link (?finish=1), signed in: the whole file starts on its own when the
+  // account covers it, so "type your email to download the complete file" needs no second click.
+  const navigate = useNavigate();
+  const finish = new URLSearchParams(window.location.search).get("finish") === "1";
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (!finish || autoStarted.current) return;
+    if (job.rerunJobId) {
+      autoStarted.current = true;
+      navigate(`/jobs/${job.rerunJobId}`);
+    } else if (canRunNow) {
+      autoStarted.current = true;
+      rerun();
+    }
+  }, [finish, canRunNow, job.rerunJobId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const languages = andList(job.targetLocales.map(nameOf));
   const isPdf = /\.pdf$/i.test(job.files[0]?.name || "");
 
   // Pages: the PDF's own count when the sample read it, else from the words (250 a page).
@@ -993,58 +989,92 @@ function OverLimit({ job, bar, nameOf, tone }) {
     );
   }
 
-  // A guest: the sign-up credit covers the file, or covers part and a pack the rest.
+  // A guest (version 2 of https://claude.ai/artifact/18xGVkjURBpX9DWTCWCKAG): the sample on the
+  // left, big enough to read, and on the right one card that stays in view while they read it:
+  // "Type your email to download the complete file". The link it sends signs them in and starts
+  // the whole file (?finish=1), and the files are emailed when ready, so the promise holds.
   const covers = credits != null && credits <= SIGNUP_CREDIT.words;
-  const morePages = covers ? Math.floor((SIGNUP_CREDIT.words - credits) / 250) : 0;
   const rest = credits != null ? Math.max(0, credits - SIGNUP_CREDIT.words) : 0;
   const restPack = rest ? packFor(rest) : null;
-  const headline = !covers
-    ? `Translate ${all}${restPack ? ` for $${restPack.price}` : ""}`
-    : sampled && left > 0
-      ? `You're ${pg(sampled)} in. Finish the other ${left} free.`
-      : `Get ${all} translated, free`;
+  const morePages = covers ? Math.floor((SIGNUP_CREDIT.words - credits) / 250) : 0;
+  const headline = covers
+    ? "Type your email to download the complete file"
+    : `Translate ${all}${restPack ? ` for $${restPack.price}` : ""}`;
   const sub = covers
-    ? `Sign up with your email: your free account covers this whole file${morePages > 0 ? `, and about ${pg(morePages)} more for your next ones` : ""}.`
-    : `Sign up free and your account starts with ${wordsAndPages(SIGNUP_CREDIT.words)}. ${
-        restPack ? `A $${restPack.price} pack covers the other ${n(rest)} words.` : "Word packs cover the rest."
-      }`;
-  const cta = !covers ? "Sign up free" : sampled ? "Finish my translation" : `Translate ${all}`;
+    ? `${total != null ? `All ${pg(total)}` : "The whole file"}, in ${languages}.`
+    : `Sign up free with your email: your account starts with ${wordsAndPages(SIGNUP_CREDIT.words)}${
+        restPack ? `, and a $${restPack.price} pack covers the other ${n(rest)}` : ""
+      }.`;
+  const cta = covers ? "Get the complete file" : "Sign up free";
+  const hasSample = Boolean(excerpt);
+  const card = (
+    <aside className="wx-offer-card">
+      {sampled > 0 && total != null && (
+        <div className="flex items-center gap-3.5">
+          <PagesRing done={sampled} total={total} />
+          <span className="text-[13px] leading-[19px] text-[#176b45]">
+            {sampled} of {total} pages are translated.{covers && left > 0 ? ` The other ${left} are free too.` : ""}
+          </span>
+        </div>
+      )}
+      {sampling && (
+        <p className="text-[13px] text-brand-500">Translating {pg(excerpt.pages || 1)} of it so you can see the result…</p>
+      )}
+      <h1 className="mt-3 text-[26px] font-bold leading-8 tracking-[-0.4px]">{headline}</h1>
+      <p className="mt-2 text-[14px] leading-[21px] text-[#3d4650]">{sub}</p>
+      <div className="mt-4">
+        <OfferForm offer={offer} cta={cta} formRef={formRef} stacked />
+      </div>
+      <ul className="mt-4 space-y-2 text-[13px] text-[#3d4650]">
+        {[
+          isPdf ? "A Word file and a PDF that looks like your original" : "Your translated file, by email",
+          covers ? (morePages > 0 ? `Free, and about ${pg(morePages)} left for your next files` : "Free") : "Sign up free; pay only for the rest",
+          "Your file is deleted after 30 days",
+        ].map((t) => (
+          <li key={t} className="flex items-center gap-2">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#176b45" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M5 12.5l4.5 4.5L19 7.5" />
+            </svg>
+            {t}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-4 border-t border-[#e7ebef] pt-3.5 text-xs text-brand-500">
+        Not now?{" "}
+        <Link to="/" className="underline">
+          A shorter file
+        </Link>{" "}
+        ·{" "}
+        <button type="button" onClick={() => setShowPacks(true)} className="underline">
+          Buy words
+        </button>{" "}
+        ·{" "}
+        <a href={DEMO_URL} className="underline">
+          Team account
+        </a>
+      </p>
+    </aside>
+  );
 
   return (
     <Screen bar={bar} wide>
-      <div className="max-w-2xl">
-      <PagesBar total={total} first={excerpt?.firstPage} done={sampled} />
-      <h1 className={`${sampled ? "mt-6" : ""} text-[26px] font-semibold leading-8 tracking-[-0.4px]`}>{headline}</h1>
-      <p className="mt-2 text-[15px] leading-6 text-brand-500">{sub}</p>
-      <div className="mt-5">
-        <OfferForm offer={offer} cta={cta} formRef={formRef} />
-      </div>
-      <ul className="mt-6 space-y-2.5 border-t border-[#e7ebef] pt-5">
-        {sampled > 0 && (
-          <CheckItem state="done">
-            {sampleRange(excerpt)} translated, free.{" "}
-            <a href="#sample" className="underline">
-              See them
-            </a>
-          </CheckItem>
-        )}
-        {sampling && <CheckItem state="active">Translating {pg(excerpt.pages || 1)} of it so you can see the result</CheckItem>}
-        <CheckItem state="todo">
-          {sampled && left > 0 ? `The other ${pg(left)}` : total != null ? `All ${pg(total)}` : "The whole file"}, into {languages},{" "}
-          {covers ? "as soon as you click the link" : "once your words cover it"}
-        </CheckItem>
-        <CheckItem state="todo">
-          {isPdf ? "A Word file and a PDF that looks like your original, in your inbox" : "Your translated file, in your inbox"}
-        </CheckItem>
-      </ul>
-      </div>
-      {sample}
+      {hasSample ? (
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="order-2 min-w-0 lg:order-1">
+            <div id="sample" className="-mt-5">
+              <ExcerptPreview excerpt={excerpt} nameOf={nameOf} tone={tone} defaultOnly />
+            </div>
+          </div>
+          <div className="order-1 lg:sticky lg:top-6 lg:order-2">{card}</div>
+        </div>
+      ) : (
+        <div className="mx-auto max-w-xl">{card}</div>
+      )}
       {showPacks && (
         <div className="mt-6">
           <PackGrid jobId={job.id} fits={fits} place="over_limit" words={credits} />
         </div>
       )}
-      {quiet}
       <TrustStrip />
       <StickyOffer
         offer={offer}
@@ -1054,6 +1084,31 @@ function OverLimit({ job, bar, nameOf, tone }) {
         watchRef={formRef}
       />
     </Screen>
+  );
+}
+
+// The sample's pages against the file's, as a small pale ring: progress, not a second button.
+function PagesRing({ done, total }) {
+  const c = 2 * Math.PI * 15;
+  const part = Math.min(1, done / total) * c;
+  return (
+    <svg width="54" height="54" viewBox="0 0 36 36" role="img" aria-label={`${done} of ${total} pages translated`} className="shrink-0" style={{ width: 54, height: 54 }}>
+      <circle cx="18" cy="18" r="15" fill="none" stroke="#e7f5ec" strokeWidth="4" />
+      <circle
+        cx="18"
+        cy="18"
+        r="15"
+        fill="none"
+        stroke="#8fcca6"
+        strokeWidth="4"
+        strokeDasharray={`${part} ${c}`}
+        strokeLinecap="round"
+        transform="rotate(-90 18 18)"
+      />
+      <text x="18" y="21.5" textAnchor="middle" fontSize="9" fontWeight="600" fill="#176b45">
+        {done}/{total}
+      </text>
+    </svg>
   );
 }
 

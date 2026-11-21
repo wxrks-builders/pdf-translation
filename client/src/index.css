@@ -132,7 +132,7 @@ body {
 /* The over-limit page (Job.jsx OverLimit): the file's pages as segments, the sample's in green;
    and on a phone the offer that stays at the bottom while the form is out of sight. */
 .wx-seg--done {
-  background: var(--wx-accent);
+  background: #8fcca6;
   transform-origin: bottom;
   animation: wx-seg 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
@@ -179,4 +179,15 @@ body {
     background: none;
     color: var(--wx-text);
   }
+}
+
+/* The over-limit page's offer card (Job.jsx OverLimit): the one loud thing on the page, beside
+   the sample on a computer and above it on a phone. */
+.wx-offer-card {
+  display: block;
+  background: #ffffff;
+  border: 2px solid var(--wx-text);
+  border-radius: 14px;
+  padding: 26px 24px;
+  box-shadow: 0 18px 40px rgba(17, 20, 24, 0.1);
 }

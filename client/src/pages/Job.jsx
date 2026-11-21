@@ -929,7 +929,7 @@ function OverLimit({ job, bar, nameOf, tone }) {
         <Option to="/" title="Translate a shorter document" note={`Free, up to ${wordsAndPages(freeLimit)} a day`} />
         <Option href={DEMO_URL} title="A team account in wxrks" note="Whole documents, with your glossary, review, and shared projects. Book a demo." />
       </div>
-      <RecentActivity className="mt-6" />
+      <RecentActivity />
       <TrustStrip />
     </Screen>
   );

@@ -328,7 +328,7 @@ async function createJobFile({ jobId, originalFilename, wxrksFilename, sizeBytes
 async function listJobFiles(jobId, { withContent = false } = {}) {
   const cols = withContent
     ? "*"
-    : "id, job_id, original_filename, wxrks_filename, resource_uuid, size_bytes, content_type, status, layout_status, layout_filename, layout_resource_uuid, ocr_pages";
+    : "id, job_id, original_filename, wxrks_filename, resource_uuid, size_bytes, content_type, status, layout_status, layout_filename, layout_resource_uuid, ocr_pages, reader_only";
   return db.prepare(`SELECT ${cols} FROM job_files WHERE job_id = ? ORDER BY original_filename`).all(jobId);
 }
 
@@ -347,12 +347,12 @@ async function getJobFileLayoutUnits(id) {
   return row?.layout_units ? JSON.parse(row.layout_units) : null;
 }
 
-async function updateJobFile(id, { resourceUuid, status, wxrksFilename, layoutStatus, layoutFilename, layoutResourceUuid, layoutUnits }) {
+async function updateJobFile(id, { resourceUuid, status, wxrksFilename, layoutStatus, layoutFilename, layoutResourceUuid, layoutUnits, readerOnly }) {
   db.prepare(
     `UPDATE job_files SET resource_uuid = COALESCE(?, resource_uuid), status = COALESCE(?, status),
        wxrks_filename = COALESCE(?, wxrks_filename), layout_status = COALESCE(?, layout_status),
        layout_filename = COALESCE(?, layout_filename), layout_resource_uuid = COALESCE(?, layout_resource_uuid),
-       layout_units = COALESCE(?, layout_units) WHERE id = ?`
+       layout_units = COALESCE(?, layout_units), reader_only = COALESCE(?, reader_only) WHERE id = ?`
   ).run(
     resourceUuid || null,
     status || null,
@@ -361,6 +361,7 @@ async function updateJobFile(id, { resourceUuid, status, wxrksFilename, layoutSt
     layoutFilename || null,
     layoutResourceUuid || null,
     layoutUnits ? JSON.stringify(layoutUnits) : null,
+    readerOnly ? 1 : null,
     id
   );
 }

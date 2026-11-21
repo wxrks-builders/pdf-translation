@@ -5,10 +5,13 @@ source text is removed by redaction (text only — images and vector art untouch
 translation is drawn back on the original baselines, in the original colors, in a substitute
 font, shrunk to fit. Proven on spike 7 (spikes/07-inplace-pdf.py has the verdict and the cases).
 
-  pdf_layout.py extract <in.pdf> <out_dir>
-      → out_dir/units.json (layout) + out_dir/segments.json ({id: source text}, sent to wxrks)
-  pdf_layout.py rebuild <in.pdf> <units.json> <translated.json> <out_dir>
-      → out_dir/design.pdf (live text) + out_dir/images.pdf (one picture per page)
+  pdf_layout.py extract <in.pdf> <out_dir> [max_pages]
+      → out_dir/units.json (layout) + out_dir/segments.json ({id: source text}, sent to wxrks).
+        max_pages defaults to LAYOUT_MAX_PAGES; a PDF the converter can't read is extracted
+        with a higher one, since this is then the only way its text gets translated.
+  pdf_layout.py rebuild <in.pdf> <units.json> <translated.json> <out_dir> [--no-images]
+      → out_dir/design.pdf (live text) + out_dir/images.pdf (one picture per page; left out
+        with --no-images, which a long document gets: its pictures would run to tens of MB)
   pdf_layout.py preview <in.pdf> <out.jpg>
       → page 1 as a JPEG, PREVIEW_WIDTH px wide (the free tier shows it before the email step)
   pdf_layout.py excerpt <in.pdf> <out.pdf> <max_words>
@@ -23,7 +26,8 @@ font, shrunk to fit. Proven on spike 7 (spikes/07-inplace-pdf.py has the verdict
         out.pdf only when it read something; prints {"scanned", "pages", "words", "reason"}.
         languages: Tesseract codes joined by "+" ("por+eng"); the first one must be installed.
 
-Exit codes: 0 ok · 3 a translation needs characters the bundled fonts lack (non-Latin script)
+Exit codes: 0 ok · 3 a translation needs characters the bundled fonts lack (a script with no
+bundled font, such as Chinese; Latin, Arabic, Devanagari and Tamil have one)
 · 4 too many pages (LAYOUT_MAX_PAGES) · 5 a scan: its text is an OCR layer over pictures, so a
 design-kept PDF would draw over words still in the picture · anything else is a crash.
 
@@ -69,6 +73,17 @@ SYMBOL_STAND_INS = {
     "✓": "v", "✔": "v", "✗": "x", "✘": "x", "★": "*", "☆": "*", "●": "•", "▪": "•", "■": "•",
     "◦": "·", "□": "·", "≥": ">=", "≤": "<=", "≠": "!=", "≈": "~", "×": "x", "÷": "/", "−": "-",
     "…": "...", "“": '"', "”": '"', "‘": "'", "’": "'", "–": "-", "—": "-", "•": "·",
+}
+
+# Scripts whose letters change shape with their neighbours: Arabic joins its letters and runs
+# right to left; Devanagari and Tamil build conjuncts and move vowel signs. insert_text draws one
+# glyph after another, which leaves them broken, so a translation in one of these is drawn through
+# MuPDF's HTML layout, which shapes it (HarfBuzz), in a bundled Noto font. Another script is one
+# entry here plus its two fonts.
+SHAPED = {
+    "ARABIC": {"regular": "NotoSansArabic-Regular.ttf", "bold": "NotoSansArabic-Bold.ttf", "rtl": True},
+    "DEVANAGARI": {"regular": "NotoSansDevanagari-Regular.ttf", "bold": "NotoSansDevanagari-Bold.ttf", "rtl": False},
+    "TAMIL": {"regular": "NotoSansTamil-Regular.ttf", "bold": "NotoSansTamil-Bold.ttf", "rtl": False},
 }
 
 
@@ -217,10 +232,10 @@ def page_lines(page):
     return out
 
 
-def extract(pdf, out_dir):
+def extract(pdf, out_dir, max_pages=MAX_PAGES):
     doc = pymupdf.open(pdf)
-    if len(doc) > MAX_PAGES:
-        print(f"{len(doc)} pages > LAYOUT_MAX_PAGES={MAX_PAGES}", file=sys.stderr)
+    if len(doc) > max_pages:
+        print(f"{len(doc)} pages > {max_pages}", file=sys.stderr)
         sys.exit(4)
     if any(base_font(f[3]).startswith(OCR_FONTS) for page in doc for f in page.get_fonts(full=True)):
         raise Scanned("the text is an OCR layer over scanned pages")
@@ -277,7 +292,7 @@ def extract(pdf, out_dir):
             })
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    (out / "units.json").write_text(json.dumps({"units": units}))
+    (out / "units.json").write_text(json.dumps({"units": units, "pages": len(doc)}))
     segments = {u["id"]: u["text"] for u in units if u["translate"]}
     (out / "segments.json").write_text(json.dumps(segments, ensure_ascii=False, indent=1))
     print(json.dumps({"pages": len(doc), "units": len(units), "segments": len(segments),
@@ -427,16 +442,87 @@ def layout(font, text, u, widths, extra=0):
     return balanced(font, text, size, widths, wrap_widths(font, text, size, widths)), size
 
 
+def script_of(c):
+    """The SHAPED script a character belongs to ("ARABIC-INDIC DIGIT ONE" counts as Arabic)."""
+    name = unicodedata.name(c, "")
+    for s in SHAPED:
+        if name.startswith(s) or name.startswith(f"EXTENDED {s}"):
+            return s
+    return None
+
+
+def shaped_script(text):
+    """The SHAPED script most of a translation's characters are in, or None."""
+    counts = {}
+    for c in text:
+        s = script_of(c)
+        if s:
+            counts[s] = counts.get(s, 0) + 1
+    return max(counts, key=counts.get) if counts else None
+
+
+def shaped_html(text, script):
+    """The translation as HTML: runs in the script take the default (Noto) family, everything else
+    the unit's own Latin font (class l), so "PDF" inside a Hindi sentence stays sans. Spaces and
+    joiners stay in the run they're in."""
+    runs = []
+    for c in text:
+        kind = "s" if script_of(c) == script else None if c.isspace() or unicodedata.category(c) in ("Mn", "Me", "Cf") else "l"
+        if runs and (kind is None or runs[-1][0] in (None, kind)):
+            runs[-1][0] = runs[-1][0] or kind
+            runs[-1][1] += c
+        else:
+            runs.append([kind, c])
+    esc = lambda s: s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return "".join(f'<span class="l">{esc(t)}</span>' if k == "l" else esc(t) for k, t in runs)
+
+
+def draw_shaped(page, p, archive):
+    """A SHAPED translation in the box its lines (and the free lines below) give it, through
+    insert_htmlbox, which shapes the script and shrinks the text to fit. Right-to-left: a paragraph
+    starts at the box's right edge, as it reads; a single line (a heading, a label) keeps the side
+    the original was anchored to, so it doesn't float mid-page."""
+    u, spec = p["u"], SHAPED[p["script"]]
+    size, lines = u["size"], u["lines"]
+    base = [l["baseline"] for l in lines]
+    pitch = (base[-1] - base[0]) / (len(base) - 1) if len(base) > 1 else size * 1.2
+    lh = max(1.0, pitch / size)
+    width = max(p["widths"])
+    left, right = min(l["x0"] for l in lines), max(l["x1"] for l in lines)
+    x0 = left if p["align"] == "left" else right - width if p["align"] == "right" else (left + right) / 2 - width / 2
+    top = base[0] - size * ((lh - 1) / 2 + 0.86)  # the first line's baseline lands on the original's
+    rect = pymupdf.Rect(x0, top, x0 + width, top + lh * size * (len(lines) + p["extra"]) + size * 0.25) & page.rect
+    c = u["color"]
+    bold = re.search(r"Bold|Black", p["fname"]) is not None
+    if p["align"] == "center" or not spec["rtl"]:
+        align = p["align"]
+    else:  # MuPDF mirrors text-align under dir=rtl: "right" draws at the left edge (PyMuPDF 2.1)
+        align = None if len(lines) > 1 else {"left": "right", "right": "left"}[p["align"]]
+    css = (
+        f"@font-face {{font-family: s; src: url({spec['bold' if bold else 'regular']});}} "
+        f"@font-face {{font-family: l; src: url({p['fname']});}} "
+        f"p {{font-family: s, l; font-size: {size:.2f}px; line-height: {lh:.3f}; color: #{c:06x}; margin: 0; padding: 0;"
+        f"{f' text-align: {align};' if align else ''}}} "
+        ".l {font-family: l;}"
+    )
+    html = f'<p dir="{"rtl" if spec["rtl"] else "ltr"}">{shaped_html(p["text"], p["script"])}</p>'
+    floor = 0.6 if len(lines) == 1 else MIN_SCALE
+    spare, _ = page.insert_htmlbox(rect, html, css=css, archive=archive, scale_low=floor)
+    if spare < 0:  # doesn't fit even at the floor: smaller still beats leaving the place empty
+        page.insert_htmlbox(rect, html, css=css, archive=archive, scale_low=0)
+
+
 def sibling_key(u, align):
     """Units that started identical in style and edge (checklist items) end identical in size."""
     edge = round(u["lines"][0]["x0"] / 6) if align == "left" else round(max(l["x1"] for l in u["lines"]) / 6) if align == "right" else None
     return (u["page"], u["font"], u["size"], u["color"], align, edge)
 
 
-def rebuild(pdf, units_path, translated_path, out_dir):
+def rebuild(pdf, units_path, translated_path, out_dir, images=True):
     units = json.loads(Path(units_path).read_text())["units"]
     translated = json.loads(Path(translated_path).read_text())
     fonts = {}
+    archive = pymupdf.Archive(str(FONTS))
 
     def load(fname):
         if fname not in fonts:
@@ -447,14 +533,19 @@ def rebuild(pdf, units_path, translated_path, out_dir):
         return all(f.has_glyph(ord(c)) for c in s if not c.isspace())
 
     def font_for(u, text):
-        """(font file, font, text to draw), or None when the unit can't be drawn. Prefers the
-        matched font, then plain sans and serif. Otherwise symbols get stand-ins and a few stray
-        uncovered letters are dropped ("Faça o 申博" — a translation glitch — draws "Faça o");
-        a unit mostly in an uncovered script is None."""
+        """(font file, font, text to draw, SHAPED script or None), or None when the unit can't be
+        drawn. A translation in a SHAPED script is drawn as HTML (draw_shaped), its other
+        characters in the matched font. Otherwise prefers the matched font, then plain sans and
+        serif; then symbols get stand-ins and a few stray uncovered letters are dropped ("Faça o
+        申博" — a translation glitch — draws "Faça o"); a unit mostly in an uncovered script is
+        None."""
         fname = pick_font(u["font"], u.get("flags", 0))
+        script = shaped_script(text)
+        if script:
+            return fname, load(fname), text, script
         for candidate in (fname, FAMILIES["sans"]["regular"], FAMILIES["serif"]["regular"]):
             if covers(load(candidate), text):
-                return candidate, load(candidate), text
+                return candidate, load(candidate), text, None
         f = load(fname)
         missing = {c for c in text if not c.isspace() and not f.has_glyph(ord(c))}
         letters = [c for c in text if unicodedata.category(c)[0] in "LM"]
@@ -462,7 +553,7 @@ def rebuild(pdf, units_path, translated_path, out_dir):
         if letters and len(lost) / len(letters) > 0.2:
             return None
         stand_in = lambda c: c if c not in missing else (SYMBOL_STAND_INS.get(c, "") if covers(f, SYMBOL_STAND_INS.get(c, "")) else "")
-        return fname, f, "".join(stand_in(c) for c in text)
+        return fname, f, "".join(stand_in(c) for c in text), None
 
     # A target script the fonts don't cover shows up as most units undrawable: refuse the PDF
     # (the DOCX still delivers). A handful of undrawable units just keep their source text.
@@ -485,7 +576,7 @@ def rebuild(pdf, units_path, translated_path, out_dir):
         obs = obstacles(page, units, pno)
         plans = []
         for u in todo:
-            fname, font, text = drawable[u["id"]]
+            fname, font, text, script = drawable[u["id"]]
             own = [o for o in obs if o != unit_rect(u)]
             align = alignment(u, page_w, page_units)
             box = container(u, own)
@@ -493,13 +584,18 @@ def rebuild(pdf, units_path, translated_path, out_dir):
             if box and len(u["lines"]) == 1 and abs(r.x0 + r.width / 2 - (box.x0 + box.width / 2)) < box.width * 0.08:
                 align = "center"  # a single line centered in its shape stays centered
             widths = room(u, align, own, page_w)
+            plan = {"u": u, "fname": fname, "font": font, "text": text, "script": script, "align": align, "widths": widths}
+            if script:  # shaped text is wrapped and sized by insert_htmlbox
+                plans.append({**plan, "extra": lines_below(u, own)})
+                continue
             lines, size = layout(font, text, u, widths, lines_below(u, own))
-            plans.append({"u": u, "fname": fname, "font": font, "text": text, "align": align, "widths": widths, "lines": lines, "size": size})
+            plans.append({**plan, "lines": lines, "size": size})
+        plain = [p for p in plans if not p["script"]]
         scale_of = {}
-        for p in plans:
+        for p in plain:
             k = sibling_key(p["u"], p["align"])
             scale_of[k] = min(scale_of.get(k, 1.0), p["size"] / p["u"]["size"])
-        for p in plans:
+        for p in plain:
             target = p["u"]["size"] * scale_of[sibling_key(p["u"], p["align"])]
             if target < p["size"] - 0.01:
                 p["size"] = target
@@ -517,6 +613,9 @@ def rebuild(pdf, units_path, translated_path, out_dir):
         page.apply_redactions(images=pymupdf.PDF_REDACT_IMAGE_NONE, graphics=pymupdf.PDF_REDACT_LINE_ART_NONE)
 
         for p in plans:
+            if p["script"]:
+                draw_shaped(page, p, archive)
+                continue
             u, lines, size, font = p["u"], p["lines"], p["size"], p["font"]
             base = [l["baseline"] for l in u["lines"]]
             pitch = ((base[-1] - base[0]) / (len(base) - 1) if len(base) > 1 else u["size"] * 1.05) * size / u["size"]
@@ -537,14 +636,17 @@ def rebuild(pdf, units_path, translated_path, out_dir):
 
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    doc.save(out / "design.pdf", garbage=3, deflate=True)
-    img_doc = pymupdf.open()
-    for page in doc:
-        pix = page.get_pixmap(dpi=150)
-        p = img_doc.new_page(width=page.rect.width, height=page.rect.height)
-        p.insert_image(p.rect, stream=pix.tobytes("jpeg", jpg_quality=85))
-    img_doc.save(out / "images.pdf", garbage=3, deflate=True)
-    print(json.dumps({"pages": len(doc)}))
+    # garbage=4 merges identical streams: every insert_htmlbox embeds its own copy of the Noto
+    # font, which left a 400-page Hindi rebuild at 365 MB; merged, it is 451 KB.
+    doc.save(out / "design.pdf", garbage=4, deflate=True)
+    if images:
+        img_doc = pymupdf.open()
+        for page in doc:
+            pix = page.get_pixmap(dpi=150)
+            p = img_doc.new_page(width=page.rect.width, height=page.rect.height)
+            p.insert_image(p.rect, stream=pix.tobytes("jpeg", jpg_quality=85))
+        img_doc.save(out / "images.pdf", garbage=3, deflate=True)
+    print(json.dumps({"pages": len(doc), "images": images}))
 
 
 def preview(pdf, out_path):
@@ -637,10 +739,10 @@ def ocr(pdf, out_path, languages):
 if __name__ == "__main__":
     args = sys.argv[1:]
     try:
-        if args[:1] == ["extract"] and len(args) == 3:
-            extract(args[1], args[2])
-        elif args[:1] == ["rebuild"] and len(args) == 5:
-            rebuild(args[1], args[2], args[3], args[4])
+        if args[:1] == ["extract"] and len(args) in (3, 4):
+            extract(args[1], args[2], *(int(a) for a in args[3:]))
+        elif args[:1] == ["rebuild"] and (len(args) == 5 or (len(args) == 6 and args[5] == "--no-images")):
+            rebuild(args[1], args[2], args[3], args[4], images=len(args) == 5)
         elif args[:1] == ["preview"] and len(args) == 3:
             preview(args[1], args[2])
         elif args[:1] == ["excerpt"] and len(args) == 4:

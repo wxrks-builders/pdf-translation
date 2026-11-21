@@ -149,6 +149,9 @@ async function migrate() {
   addColumn("job_files", "layout_resource_uuid", "TEXT");
   addColumn("job_files", "layout_units", "TEXT"); // JSON from pdf_layout.py extract
   addColumn("job_files", "ocr_pages", "INTEGER"); // scanned pages whose text was read by OCR
+  // 1 = wxrks can't read this PDF (no DOCX, or no words in it): the design-kept path is its whole
+  // translation, and its Word file is built from that path's segments (services/docx.js).
+  addColumn("job_files", "reader_only", "INTEGER");
 
   // Free tier: downloads open once the visitor leaves an email (routes/jobs.js unlock). Jobs
   // from before the email step stay open.

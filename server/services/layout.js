@@ -3,7 +3,9 @@
  * into translatable segments plus the layout needed to put them back; rebuild() draws a
  * translation into the original pages. The pipeline sends the segments through a second,
  * unmetered wxrks project; the poller rebuilds when it delivers. Every failure here is soft —
- * the DOCX deliverable never depends on it.
+ * the DOCX deliverable never depends on it — except for a PDF wxrks can't read (job_files
+ * .reader_only): this path is then its whole translation, and services/docx.js builds its Word
+ * file from the same translated segments.
  */
 const { execFile } = require("child_process");
 const fs = require("fs/promises");
@@ -13,6 +15,12 @@ const path = require("path");
 const PYTHON = process.env.LAYOUT_PYTHON || "python3";
 const SCRIPT = path.join(__dirname, "..", "layout", "pdf_layout.py");
 const TIMEOUT_MS = 5 * 60 * 1000;
+// Pages a design-kept PDF is made for, next to wxrks's DOCX (pdf_layout.py reads the same env).
+const LAYOUT_MAX_PAGES = parseInt(process.env.LAYOUT_MAX_PAGES || "100", 10);
+// Pages read when wxrks can't read a PDF at all: this path is then its only translation, so it
+// takes long documents too (a 400-page rebuild runs in about 30 s). Past LAYOUT_MAX_PAGES such a
+// file gets no page-image PDF, which would run to tens of MB.
+const READER_MAX_PAGES = parseInt(process.env.LAYOUT_READER_MAX_PAGES || "1000", 10);
 
 let available = null;
 
@@ -40,9 +48,9 @@ function ocrLanguages(locale) {
   return lang === "eng" ? "eng" : `${lang}+eng`;
 }
 
-function run(args) {
+function run(args, timeoutMs = TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
-    execFile(PYTHON, [SCRIPT, ...args], { timeout: TIMEOUT_MS, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
+    execFile(PYTHON, [SCRIPT, ...args], { timeout: timeoutMs, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) return reject(new LayoutError((stderr || err.message).trim().slice(0, 300), err.code));
       resolve(stdout);
     });
@@ -68,29 +76,34 @@ async function withTempDir(fn) {
   }
 }
 
-// → { units (object, kept for rebuild), segments ({id: text}, sent to wxrks), words }
-async function extract(pdfBuffer) {
+// → { units (object, kept for rebuild), segments ({id: text}, sent to wxrks), words, pages }.
+// maxPages: LAYOUT_MAX_PAGES unless wxrks can't read the file (READER_MAX_PAGES).
+async function extract(pdfBuffer, { maxPages = LAYOUT_MAX_PAGES } = {}) {
   return withTempDir(async (dir) => {
     await fs.writeFile(path.join(dir, "in.pdf"), pdfBuffer);
-    const summary = JSON.parse(await run(["extract", path.join(dir, "in.pdf"), dir]));
+    const summary = JSON.parse(await run(["extract", path.join(dir, "in.pdf"), dir, String(maxPages)]));
     return {
       units: JSON.parse(await fs.readFile(path.join(dir, "units.json"), "utf8")),
       segments: JSON.parse(await fs.readFile(path.join(dir, "segments.json"), "utf8")),
       words: summary.words,
+      pages: summary.pages,
     };
   });
 }
 
-// → { design (Buffer, live text), images (Buffer, one picture per page) }
+// → { design (Buffer, live text), images (Buffer, one picture per page; null past LAYOUT_MAX_PAGES) }
 async function rebuild(pdfBuffer, units, translated) {
+  const pages = units.pages || 0; // units extracted before pages were stored: short files
+  const images = pages <= LAYOUT_MAX_PAGES;
   return withTempDir(async (dir) => {
     await fs.writeFile(path.join(dir, "in.pdf"), pdfBuffer);
     await fs.writeFile(path.join(dir, "units.json"), JSON.stringify(units));
     await fs.writeFile(path.join(dir, "translated.json"), JSON.stringify(translated));
-    await run(["rebuild", path.join(dir, "in.pdf"), path.join(dir, "units.json"), path.join(dir, "translated.json"), dir]);
+    const args = ["rebuild", path.join(dir, "in.pdf"), path.join(dir, "units.json"), path.join(dir, "translated.json"), dir];
+    await run(images ? args : [...args, "--no-images"], TIMEOUT_MS + pages * 1000);
     return {
       design: await fs.readFile(path.join(dir, "design.pdf")),
-      images: await fs.readFile(path.join(dir, "images.pdf")),
+      images: images ? await fs.readFile(path.join(dir, "images.pdf")) : null,
     };
   });
 }
@@ -141,4 +154,4 @@ async function ocr(pdfBuffer, locale) {
   });
 }
 
-module.exports = { isAvailable, extract, rebuild, preview, excerpt, text, ocr, ocrLanguages, LayoutError };
+module.exports = { isAvailable, extract, rebuild, preview, excerpt, text, ocr, ocrLanguages, LayoutError, LAYOUT_MAX_PAGES, READER_MAX_PAGES };

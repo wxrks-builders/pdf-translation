@@ -100,7 +100,10 @@ async function scoreWorkUnit(wu) {
 
 async function run(jobId) {
   const job = await store.getJob(jobId);
-  const units = ((await wxrks.listWorkUnits(job.wxrks_project_uuid)).content || []).filter((w) => w.workStatus === "DELIVERED");
+  const delivered = async (project) => ((await wxrks.listWorkUnits(project)).content || []).filter((w) => w.workStatus === "DELIVERED");
+  let units = await delivered(job.wxrks_project_uuid);
+  // Every file reader_only (a PDF wxrks can't read): the design-kept project holds the translation.
+  if (!units.length && job.layout_project_uuid) units = await delivered(job.layout_project_uuid);
   const byLocale = {};
   for (const w of units) {
     const loc = locales.normalize(w.targetLanguage);

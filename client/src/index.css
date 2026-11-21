@@ -96,3 +96,87 @@ body {
     display: none;
   }
 }
+
+/* The progress checklist (src/pages/ProgressSteps.jsx): a new tick pops in, the step at work has
+   a spinner and a light sheen on its label. */
+.wx-step--active {
+  background: var(--wx-surface-summary);
+}
+.wx-step--done .wx-step-tick {
+  animation: wx-tick 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.wx-step-spinner {
+  animation: wx-spin 0.9s linear infinite;
+}
+.wx-step--active .wx-step-label {
+  background: linear-gradient(90deg, #252a31 0%, #252a31 40%, #8a929c 50%, #252a31 60%, #252a31 100%);
+  background-size: 600px 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: wx-sheen 1.8s linear infinite;
+}
+@keyframes wx-tick {
+  0% { transform: scale(0.3); opacity: 0; }
+  70% { transform: scale(1.18); opacity: 1; }
+  100% { transform: scale(1); }
+}
+@keyframes wx-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes wx-sheen {
+  0% { background-position: -200px 0; }
+  100% { background-position: 400px 0; }
+}
+
+/* The over-limit page (Job.jsx OverLimit): the file's pages as segments, the sample's in green;
+   and on a phone the offer that stays at the bottom while the form is out of sight. */
+.wx-seg--done {
+  background: var(--wx-accent);
+  transform-origin: bottom;
+  animation: wx-seg 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.wx-seg--todo {
+  background: #ffffff;
+  border: 1px dashed #c3c9d0;
+}
+@keyframes wx-seg {
+  from { transform: scaleY(0.2); opacity: 0.4; }
+  to { transform: scaleY(1); opacity: 1; }
+}
+.wx-sticky-offer {
+  display: none;
+}
+@media (max-width: 640px) {
+  .wx-sticky-offer {
+    display: block;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    padding: 16px 16px calc(18px + env(safe-area-inset-bottom));
+    background: #ffffff;
+    border-top: 1px solid var(--wx-border);
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -10px 30px rgba(17, 20, 24, 0.1);
+    animation: wx-sheet 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+}
+@keyframes wx-sheet {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wx-step--done .wx-step-tick,
+  .wx-step-spinner,
+  .wx-seg--done,
+  .wx-sticky-offer {
+    animation: none;
+  }
+  .wx-step--active .wx-step-label {
+    animation: none;
+    background: none;
+    color: var(--wx-text);
+  }
+}

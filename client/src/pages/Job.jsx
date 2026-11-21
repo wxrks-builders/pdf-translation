@@ -1,26 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, Link, useSearchParams, useNavigate } from "react-router-dom";
 import { api, trackCancelledCheckout } from "../api";
 import { useAuth } from "../context/AuthContext";
 import { TrustStrip } from "./Upload";
 import { PackGrid } from "./Pricing";
-import SignupOffer from "./SignupOffer";
+import OfferForm, { useSignupOffer, StickyOffer } from "./SignupOffer";
+import { progressSteps, ProgressChecklist } from "./ProgressSteps";
 import RecentActivity from "../RecentActivity";
-import { FREE_WORDS, SIGNUP_CREDIT, packFor, packLabel, wordsAndPages, aboutPages } from "../pricing";
+import { FREE_WORDS, PACKS, SIGNUP_CREDIT, packFor, packLabel, pagesFor, wordsAndPages, aboutPages } from "../pricing";
 import { toneLine } from "../tone";
 
 const ACTIVE = ["created", "uploading", "analyzing", "approving", "translating"];
 
-// The progress bar is honest about stages, not seconds: wxrks doesn't report a percentage.
+// The sample's progress bar is honest about stages, not seconds: wxrks doesn't report a percentage.
 const PROGRESS = { created: 5, uploading: 15, analyzing: 35, approving: 50, translating: 75 };
-
-const STAGE_COPY = {
-  created: "Getting your file ready",
-  uploading: "Uploading your file",
-  analyzing: "Counting words",
-  approving: "Starting the translation",
-  translating: "Translating",
-};
 
 const VARIANT_NOTE = {
   "pdf-design": "Looks like your original",
@@ -108,18 +101,17 @@ export default function Job() {
   );
 
   if (ACTIVE.includes(job.status)) {
-    const pct = PROGRESS[job.status] ?? 10;
+    // Every step stays on screen once done, with what it found (pages/ProgressSteps.jsx).
+    const progress = progressSteps(job, nameOf, tone ? `${tone}, by Sous-Chef` : null);
+    const pct = progress.pct;
     return (
       <Screen bar={bar}>
-        <h1 className="text-[22px] font-medium tracking-[-0.3px]">
-          {job.status === "translating" ? `Translating into ${languages}` : STAGE_COPY[job.status]}
-        </h1>
-        <p className="mt-1 text-[13px] text-brand-500">Usually under a minute for a short document.</p>
-        {tone && <p className="mt-1 text-[11px] text-brand-500">Tone: {tone}, by Sous-Chef</p>}
+        <h1 className="text-[22px] font-medium tracking-[-0.3px]">{progress.title}</h1>
+        {progress.sub && <p className="mt-1 text-[13px] text-brand-500">{progress.sub}</p>}
         <div className="mt-5">
           <div className="mb-1.5 flex justify-between text-xs">
             <span className="font-medium">
-              {job.analyzedWords != null ? wordsAndPages(job.analyzedWords) : STAGE_COPY[job.status]}
+              {progress.done} of {progress.total} steps done
             </span>
             <span className="text-brand-500">{pct}%</span>
           </div>
@@ -127,6 +119,7 @@ export default function Job() {
             <span style={{ width: `${pct}%` }} />
           </div>
         </div>
+        <ProgressChecklist steps={progress.steps} />
         {job.analyzedWords != null && (
           <p className={`mt-3 text-xs ${job.tier === "free" ? "text-[#176b45]" : "text-brand-500"}`}>
             {job.timeline.some((e) => e.event === "first_document_free")
@@ -710,24 +703,6 @@ function EmailForm({ job, k, onDone, intro, cta, compact }) {
   );
 }
 
-// The file's words against the free words it was measured by, as a bar: how much free covers.
-function WordMeter({ words, free = FREE_WORDS }) {
-  const covered = Math.min(100, (free / words) * 100);
-  return (
-    <div className="mt-4">
-      <div className="wx-progress" role="meter" aria-label="Free words against this file" aria-valuemin="0" aria-valuemax={words} aria-valuenow={free}>
-        <span style={{ width: `${covered}%` }} />
-      </div>
-      <div className="mt-1.5 flex justify-between text-[11px] text-brand-500">
-        <span>
-          {free.toLocaleString()} free ({aboutPages(free)})
-        </span>
-        <span>{words.toLocaleString()}</span>
-      </div>
-    </div>
-  );
-}
-
 // The sample of a file stopped at a price, translated free (server/services/excerpt.js): its
 // design-kept pages next to the originals, one page at a time, or the text of both when there are
 // none. "Pages 3–9 of 252": the sample skips covers and blank pages.
@@ -835,15 +810,73 @@ function useRerun(job) {
   return { rerun, busy, error };
 }
 
-// A guest's file over the free limit (Rodrigo, 2026-11-09): the sign-up credit first, packs for
-// what it doesn't cover. Once signed in (the link brings them back here), credits translate it.
+// A file over the free limit (Rodrigo, 2026-11-09; 2026-11-21: "give a straight line to the
+// visitor", versions 3 and 4 of https://claude.ai/artifact/DJecEvPSpxZbwscREcUUKG). A guest sees
+// how far the free sample got and one action: an email that signs them up, after which the
+// sign-up credit translates the file. Everything else is one quiet line. Signed in (the link
+// brings them back here), one button translates it, or packs cover what the balance doesn't.
+function PagesBar({ total, first, done }) {
+  if (!total || !done) return null;
+  const from = Math.max(0, (first || 1) - 1);
+  return (
+    <div>
+      {total <= 30 ? (
+        <div className="flex gap-1" role="img" aria-label={`${done} of ${total} pages translated`}>
+          {Array.from({ length: total }, (_, i) => (
+            <span
+              key={i}
+              className={`wx-seg h-9 flex-1 rounded ${i >= from && i < from + done ? "wx-seg--done" : "wx-seg--todo"}`}
+              style={{ animationDelay: `${(i - from) * 0.05}s` }}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="wx-progress" role="progressbar" aria-label="Pages translated" aria-valuemin="0" aria-valuemax={total} aria-valuenow={done}>
+          <span style={{ width: `${Math.max(2, (done / total) * 100)}%`, background: "#00742c" }} />
+        </div>
+      )}
+      <div className="mt-2 flex justify-between text-[13px]">
+        <span className="font-medium text-[#176b45]">
+          {done} of {total} pages translated
+        </span>
+        <span className="text-brand-500">{total - done} to go</span>
+      </div>
+    </div>
+  );
+}
+
+function CheckItem({ state, children }) {
+  return (
+    <li className={`flex items-start gap-2.5 text-[13px] leading-5 ${state === "todo" ? "text-brand-500" : ""}`}>
+      <span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center" aria-hidden="true">
+        {state === "done" ? (
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#e7f5ec]">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#176b45" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12.5l4.5 4.5L19 7.5" />
+            </svg>
+          </span>
+        ) : state === "active" ? (
+          <svg className="wx-step-spinner" width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="9" stroke="#e7ebef" strokeWidth="3" />
+            <path d="M21 12a9 9 0 0 0-9-9" stroke="#252a31" strokeWidth="3" strokeLinecap="round" />
+          </svg>
+        ) : (
+          <span className="h-3.5 w-3.5 rounded-full border-2 border-[#c3c9d0]" />
+        )}
+      </span>
+      <span>{children}</span>
+    </li>
+  );
+}
+
 function OverLimit({ job, bar, nameOf, tone }) {
   const { user, creditBalance } = useAuth();
   const { rerun, busy, error } = useRerun(job);
   const [showPacks, setShowPacks] = useState(false);
+  const formRef = useRef(null);
   const words = job.analyzedWords;
   const n = (x) => x.toLocaleString("en-US");
-  const freeLimit = job.freeLimit || FREE_WORDS;
+  const pg = (x) => `${n(x)} ${x === 1 ? "page" : "pages"}`;
   const credits = words != null ? words * job.targetLocales.length : null;
   const balance = creditBalance ?? 0;
   const canRunNow = Boolean(user && credits != null && balance >= credits);
@@ -851,86 +884,143 @@ function OverLimit({ job, bar, nameOf, tone }) {
   const toBuy = credits != null ? (user ? credits - balance : credits) : null;
   const fits = toBuy != null ? packFor(toBuy) : null;
   const excerpt = job.excerpt;
-  const Option = ({ href, to, title, note }) => {
-    const body = (
-      <>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[13px] font-medium">{title}</span>
-          <span className="block text-[11px] text-brand-500">{note}</span>
-        </span>
-        <span aria-hidden="true" className="text-brand-500">→</span>
-      </>
-    );
-    const cls = "flex items-center gap-3 rounded-md border border-brand-200 px-4 py-3 no-underline hover:bg-[#f7f8fa]";
-    return to ? <Link to={to} className={cls}>{body}</Link> : <a href={href} className={cls}>{body}</a>;
-  };
-  return (
-    <Screen bar={bar}>
-      <h1 className="text-[22px] font-medium tracking-[-0.3px]">
-        {words != null ? `This file has ${wordsAndPages(words)}` : `This file has more than ${wordsAndPages(freeLimit)}`}
-      </h1>
-      <p className="mt-1 text-[13px] leading-relaxed text-brand-500">
-        Free covers one document a day, up to {wordsAndPages(freeLimit)}.{" "}
-        {excerpt
-          ? `We translated ${excerpt.pages > 1 ? `${excerpt.pages} pages` : "a page"} of it for free, so you can see the result.`
-          : "Nothing was translated, so this one doesn't count as your free document."}
-      </p>
-      {words != null && <WordMeter words={words} free={freeLimit} />}
-      <ExcerptPreview excerpt={excerpt} nameOf={nameOf} tone={tone} />
+  const offer = useSignupOffer({ jobId: job.id, next: `/jobs/${job.id}`, words: credits, enabled: !user && !job.rerunJobId });
+  const languages = job.targetLocales.map(nameOf).join(", ");
+  const isPdf = /\.pdf$/i.test(job.files[0]?.name || "");
 
-      {job.rerunJobId ? (
-        <Link to={`/jobs/${job.rerunJobId}`} className="wx-button wx-button--primary mt-6" style={{ minHeight: 40 }}>
-          See the whole translation
-        </Link>
-      ) : canRunNow ? (
-        <div className="mt-6">
-          <h2 className="text-[15px] font-medium">Translate the whole file</h2>
-          <p className="mt-1 text-[13px] text-brand-500">
-            Uses {n(credits)} of your {n(balance)} credits. {wordsAndPages(balance - credits)} stay in your account.
-          </p>
-          <button type="button" onClick={rerun} disabled={busy} className="wx-button wx-button--primary mt-3" style={{ minHeight: 40 }}>
-            {busy ? "Starting…" : `Translate all ${n(words)} words`}
-          </button>
-          {error && <p className="wx-error mt-2 text-xs">{error}</p>}
-        </div>
-      ) : user ? (
-        <div className="mt-6">
-          <h2 className="text-[15px] font-medium">Translate the whole file</h2>
-          <p className="mt-1 mb-3 text-[13px] text-brand-500">
-            It needs {n(credits ?? 0)} credits and your account has {wordsAndPages(balance)}.{" "}
-            {fits ? `${packLabel(fits)} covers it.` : ""} After you pay, you translate this file from here, without uploading it again.
-          </p>
-          <PackGrid jobId={job.id} fits={fits} place="over_limit" words={credits} />
-        </div>
-      ) : (
+  // Pages: the PDF's own count when the sample read it, else from the words (250 a page).
+  const total = excerpt?.totalPages || (words != null ? pagesFor(words) : null);
+  const sampled = excerpt?.status === "delivered" ? excerpt.pages || 1 : 0;
+  const sampling = excerpt && ACTIVE.includes(excerpt.status);
+  const left = total != null ? Math.max(0, total - sampled) : null;
+  const all = total != null ? `all ${pg(total)}` : "the whole file";
+
+  const quiet = (
+    <p className="mt-8 text-center text-[13px] leading-5 text-brand-500">
+      Not now?{" "}
+      <Link to="/" className="underline">
+        Translate a shorter file free
+      </Link>
+      {!showPacks && (
         <>
-          <SignupOffer jobId={job.id} words={credits} next={`/jobs/${job.id}`} />
-          {credits != null && credits > SIGNUP_CREDIT.words ? (
-            <div className="mt-6">
-              <h2 className="mb-3 text-[15px] font-medium">Or buy words</h2>
-              <PackGrid jobId={job.id} fits={fits} place="over_limit" words={credits} />
-            </div>
-          ) : showPacks ? (
-            <div className="mt-5">
-              <PackGrid jobId={job.id} fits={fits} place="over_limit" words={credits} />
-            </div>
-          ) : (
-            <p className="mt-3 text-xs text-brand-500">
-              Or buy words: {packLabel(packFor(1))}, paid once.{" "}
-              <button type="button" onClick={() => setShowPacks(true)} className="underline">
-                See all packs
-              </button>
-            </p>
-          )}
+          {" · "}
+          <button type="button" onClick={() => setShowPacks(true)} className="underline">
+            Buy words from ${PACKS[0].price}
+          </button>
         </>
       )}
+      {" · "}
+      <a href={DEMO_URL} className="underline">
+        Team account
+      </a>
+    </p>
+  );
+  const sample = (
+    <div id="sample">
+      <ExcerptPreview excerpt={excerpt} nameOf={nameOf} tone={tone} />
+    </div>
+  );
 
-      <div className="mt-6 space-y-2">
-        <Option to="/" title="Translate a shorter document" note={`Free, up to ${wordsAndPages(freeLimit)} a day`} />
-        <Option href={DEMO_URL} title="A team account in wxrks" note="Whole documents, with your glossary, review, and shared projects. Book a demo." />
+  if (job.rerunJobId) {
+    return (
+      <Screen bar={bar}>
+        <h1 className="text-[26px] font-semibold leading-8 tracking-[-0.4px]">This file is being translated in full</h1>
+        <Link to={`/jobs/${job.rerunJobId}`} className="wx-button wx-button--primary mt-6" style={{ minHeight: 44 }}>
+          See the whole translation
+        </Link>
+      </Screen>
+    );
+  }
+
+  if (user) {
+    return (
+      <Screen bar={bar}>
+        <PagesBar total={total} first={excerpt?.firstPage} done={sampled} />
+        <h1 className={`${sampled ? "mt-6" : ""} text-[26px] font-semibold leading-8 tracking-[-0.4px]`}>
+          {canRunNow ? `Ready to translate ${all}` : `This file needs ${n(credits ?? 0)} credits`}
+        </h1>
+        <p className="mt-2 text-[15px] leading-6 text-brand-500">
+          {canRunNow
+            ? `Into ${languages}. Uses ${n(credits)} of your ${n(balance)} credits; ${wordsAndPages(balance - credits)} stay in your account.`
+            : `Your account has ${wordsAndPages(balance)}. ${fits ? `${packLabel(fits)} covers it.` : ""} After you pay, it translates from here, without uploading it again.`}
+        </p>
+        {canRunNow ? (
+          <div className="mt-5">
+            <button type="button" onClick={rerun} disabled={busy} className="wx-button wx-button--primary px-6 text-[15px] font-medium" style={{ minHeight: 50 }}>
+              {busy ? "Starting…" : `Translate ${all}`}
+            </button>
+            {error && <p className="wx-error mt-2 text-xs">{error}</p>}
+          </div>
+        ) : (
+          <div className="mt-5">
+            <PackGrid jobId={job.id} fits={fits} place="over_limit" words={credits} />
+          </div>
+        )}
+        {sample}
+        {quiet}
+        <TrustStrip />
+      </Screen>
+    );
+  }
+
+  // A guest: the sign-up credit covers the file, or covers part and a pack the rest.
+  const covers = credits != null && credits <= SIGNUP_CREDIT.words;
+  const morePages = covers ? Math.floor((SIGNUP_CREDIT.words - credits) / 250) : 0;
+  const rest = credits != null ? Math.max(0, credits - SIGNUP_CREDIT.words) : 0;
+  const restPack = rest ? packFor(rest) : null;
+  const headline = !covers
+    ? `Translate ${all}${restPack ? ` for $${restPack.price}` : ""}`
+    : sampled && left > 0
+      ? `You're ${pg(sampled)} in. Finish the other ${left} free.`
+      : `Get ${all} translated, free`;
+  const sub = covers
+    ? `Sign up with your email: your free account covers this whole file${morePages > 0 ? `, and about ${pg(morePages)} more for your next ones` : ""}.`
+    : `Sign up free and your account starts with ${wordsAndPages(SIGNUP_CREDIT.words)}. ${
+        restPack ? `A $${restPack.price} pack covers the other ${n(rest)} words.` : "Word packs cover the rest."
+      }`;
+  const cta = !covers ? "Sign up free" : sampled ? "Finish my translation" : `Translate ${all}`;
+
+  return (
+    <Screen bar={bar}>
+      <PagesBar total={total} first={excerpt?.firstPage} done={sampled} />
+      <h1 className={`${sampled ? "mt-6" : ""} text-[26px] font-semibold leading-8 tracking-[-0.4px]`}>{headline}</h1>
+      <p className="mt-2 text-[15px] leading-6 text-brand-500">{sub}</p>
+      <div className="mt-5">
+        <OfferForm offer={offer} cta={cta} formRef={formRef} />
       </div>
-      <RecentActivity />
+      <ul className="mt-6 space-y-2.5 border-t border-[#e7ebef] pt-5">
+        {sampled > 0 && (
+          <CheckItem state="done">
+            {sampleRange(excerpt)} translated, free.{" "}
+            <a href="#sample" className="underline">
+              See them
+            </a>
+          </CheckItem>
+        )}
+        {sampling && <CheckItem state="active">Translating {pg(excerpt.pages || 1)} of it so you can see the result</CheckItem>}
+        <CheckItem state="todo">
+          {sampled && left > 0 ? `The other ${pg(left)}` : total != null ? `All ${pg(total)}` : "The whole file"}, into {languages},{" "}
+          {covers ? "as soon as you click the link" : "once your words cover it"}
+        </CheckItem>
+        <CheckItem state="todo">
+          {isPdf ? "A Word file and a PDF that looks like your original, in your inbox" : "Your translated file, in your inbox"}
+        </CheckItem>
+      </ul>
+      {sample}
+      {showPacks && (
+        <div className="mt-6">
+          <PackGrid jobId={job.id} fits={fits} place="over_limit" words={credits} />
+        </div>
+      )}
+      {quiet}
       <TrustStrip />
+      <StickyOffer
+        offer={offer}
+        title={covers ? `${total != null ? `All ${pg(total)}` : "The whole file"}, free` : headline}
+        note={covers ? `${sampled && left > 0 ? `${pg(left)} to go. ` : ""}No card, no password.` : "Sign up free, then a word pack covers the rest."}
+        cta={cta}
+        watchRef={formRef}
+      />
     </Screen>
   );
 }

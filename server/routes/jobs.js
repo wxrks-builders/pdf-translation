@@ -48,7 +48,7 @@ function previewsOf(deliverables) {
   return previews;
 }
 
-// The page-1 preview of a file stopped at a price (services/excerpt.js), if one was started.
+// The sample of a file stopped at a price (services/excerpt.js), if one was started.
 // Without a design-kept page to show (a scan, a script the fonts lack), the page asks for the
 // text of both sides instead (preview-text below).
 async function excerptOf(job) {
@@ -60,6 +60,8 @@ async function excerptOf(job) {
     jobId: child.id,
     status: child.status,
     totalPages: child.excerpt_total_pages,
+    pages: child.excerpt_pages || 1,
+    firstPage: child.excerpt_first_page || 1,
     previews: previewsOf(deliverables),
     textPreview: child.status === "delivered" && deliverables.some((d) => d.variant === "translation"),
   };
@@ -235,8 +237,10 @@ router.get("/:id/preview-text", optionalSession, freeTier.anonCookie, async (req
   );
   if (!file || !translation) return res.status(404).json({ error: "not_found" });
   try {
-    const source = /\.pdf$/i.test(file.original_filename) ? await layout.text(await store.getJobFileContent(file.id), 250) : null;
-    res.json({ locale: translation.locale, source, target: docxText(translation.content, 250) });
+    // A sample's whole text (about 2,000 words, the box scrolls); 250 words of anything else.
+    const words = job.excerpt_of ? 2500 : 250;
+    const source = /\.pdf$/i.test(file.original_filename) ? await layout.text(await store.getJobFileContent(file.id), words) : null;
+    res.json({ locale: translation.locale, source, target: docxText(translation.content, words) });
   } catch (err) {
     console.error(`[preview-text] job ${job.id}: ${err.message}`);
     res.status(500).json({ error: "preview_failed" });
@@ -337,10 +341,11 @@ router.post("/:id/rerun", optionalSession, freeTier.anonCookie, async (req, res)
   res.status(202).json({ jobId: paid.id });
 });
 
-// Page 1 of the original or of the design-kept translation, as a JPEG. Rendered on demand
-// and kept for a while; it's what the free tier shows before the email step.
+// A page of the original or of the design-kept translation, as a JPEG (?page=, 0-based, default
+// the first). Rendered on demand and kept for a while; it's what the free tier shows before the
+// email step, and a sample's pages one by one.
 const previewCache = new Map();
-const PREVIEW_CACHE_MAX = 40;
+const PREVIEW_CACHE_MAX = 120; // a sample is up to 10 pages, two sides each
 
 router.get("/:id/preview/:deliverableId/:side", optionalSession, freeTier.anonCookie, async (req, res) => {
   const job = await store.getJob(req.params.id);
@@ -349,13 +354,14 @@ router.get("/:id/preview/:deliverableId/:side", optionalSession, freeTier.anonCo
   if (!d || d.job_id !== job.id || d.variant !== "pdf-design" || !["original", "translated"].includes(req.params.side)) {
     return res.status(404).json({ error: "not_found" });
   }
-  const key = `${d.id}:${req.params.side}`;
+  const page = Math.min(Math.max(parseInt(req.query.page, 10) || 0, 0), 20);
+  const key = `${d.id}:${req.params.side}:${page}`;
   try {
     let jpeg = previewCache.get(key);
     if (!jpeg) {
       const pdf = req.params.side === "original" ? await store.getJobFileContent(d.job_file_id) : d.content;
       if (!pdf?.length) return res.status(404).json({ error: "expired" });
-      jpeg = await layout.preview(pdf);
+      jpeg = await layout.preview(pdf, page);
       if (previewCache.size >= PREVIEW_CACHE_MAX) previewCache.delete(previewCache.keys().next().value);
       previewCache.set(key, jpeg);
     }

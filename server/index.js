@@ -32,6 +32,7 @@ app.use("/api/webhooks", require("./routes/webhooks"));
 app.use("/api/admin", require("./routes/admin"));
 app.use("/api/events", require("./routes/events"));
 app.use("/api/feedback", require("./routes/feedback"));
+app.use("/api/activity", require("./routes/activity"));
 
 app.get("/robots.txt", seo.robots);
 app.get("/sitemap.xml", seo.sitemap);

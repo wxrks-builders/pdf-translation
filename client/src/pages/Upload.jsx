@@ -3,6 +3,7 @@ import { useNavigate, useLocation, Link } from "react-router-dom";
 import { api, track } from "../api";
 import { useAuth } from "../context/AuthContext";
 import { PACKS, FREE_WORDS, SIGNUP_CREDIT, buy, wordsAndPages } from "../pricing";
+import RecentActivity from "../RecentActivity";
 import { TONES, TONE_NOTE_MAX } from "../tone";
 
 const ACCEPT = ".pdf,.docx,.doc,.txt,.csv,.json,.yml,.yaml,.xlsx,.pptx,.md,.html,.xml,.srt";
@@ -229,6 +230,7 @@ export default function Upload() {
           <p className="text-[11px] leading-relaxed text-brand-500">A scanned PDF (pictures of pages) comes back as a Word file.</p>
         </div>
       </div>
+      <RecentActivity />
       <TrustStrip />
     </section>
   );

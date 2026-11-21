@@ -36,6 +36,8 @@ router.post("/request-link", requestLinkLimiter, optionalSession, freeTier.anonC
   if (jobId) {
     const job = await store.getJob(jobId);
     next = job && canSeeJob(req, job) ? `/jobs/${job.id}?k=${accessKey(job.id)}` : null;
+    // Typed on that file's sign-up offer: its one reminder goes here (services/reminders.js).
+    if (next && ["over_free_limit", "needs_credits"].includes(job.status)) await store.updateJob(job.id, { reminder_email: address });
   }
   const loginUrl =
     `${process.env.APP_BASE_URL || `http://localhost:${process.env.PORT || 3000}`}/api/auth/verify?token=${token}` +

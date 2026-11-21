@@ -16,6 +16,7 @@ const tone = require("./tone");
 const crm = require("./crm");
 const confidence = require("./confidence");
 const docx = require("./docx");
+const reminders = require("./reminders");
 const { matchJobFile } = require("./filenames");
 const { normalize } = require("./locales");
 
@@ -267,6 +268,7 @@ async function tick() {
 
     await confidence.sweep(leads.sendFilesIfRequested); // scores lost to a restart
     await crm.flush(); // whatever didn't reach the CRM when it happened
+    await reminders.sweep().catch((err) => console.error("[reminders] sweep failed:", err.message));
     const today = new Date().toISOString().slice(0, 10);
     if (lastSweepDay !== today) {
       lastSweepDay = today;

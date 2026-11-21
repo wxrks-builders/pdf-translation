@@ -12,9 +12,11 @@ export const PACKS = [
 ];
 
 // A guest's one free document a day (FREE_TIER_MAX_WORDS in server/services/pipeline.js), and
-// what a new account starts with (server/services/signupCredit.js): the smallest pack, for free.
+// what a new account starts with (server/services/signupCredit.js): 20,000 words, two of the
+// smallest pack (Rodrigo, 2026-11-21: a bigger first file after sign-up, since the email lets us
+// follow up). Most files stopped at a price fit in it whole.
 export const FREE_WORDS = 2000;
-export const SIGNUP_CREDIT = { words: 10000, dollars: 9 };
+export const SIGNUP_CREDIT = { words: 20000, dollars: 18 };
 
 export const BUY_EMAIL = "demetrio@wxrks.com";
 

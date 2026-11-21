@@ -181,8 +181,9 @@ export default function Job() {
   // Delivered, before the email: page 1, then where to send the files.
   if (gated) {
     return (
-      <Screen bar={bar}>
+      <Screen bar={bar} wide>
         {preview && <Preview job={job} preview={preview} language={nameOf(preview.locale)} q={q} />}
+        <div className="max-w-2xl">
         <h1 className={`${preview ? "mt-5" : ""} text-[22px] font-medium tracking-[-0.3px]`}>
           {preview ? "Page 1 is done. Where should we send the files?" : "Your translation is ready. Where should we send it?"}
         </h1>
@@ -207,6 +208,7 @@ export default function Job() {
           <img src="/badges/soc2.svg" alt="" className="h-3.5 w-auto" />
           <span>Free: one document a day. No card, no subscription. wxrks is SOC 2 Type 2 audited, and your file is deleted after 30 days.</span>
         </p>
+        </div>
       </Screen>
     );
   }
@@ -352,7 +354,7 @@ function NextFile({ freeLimit }) {
 
 function Screen({ bar, children, wide }) {
   return (
-    <section className={`mx-auto ${wide ? "max-w-4xl" : "max-w-xl"}`}>
+    <section className={`mx-auto ${wide ? "max-w-6xl" : "max-w-xl"}`}>
       <div className="overflow-hidden rounded-[10px] border border-brand-200 bg-white">
         {bar && <div className="flex h-11 items-center justify-between gap-3 border-b border-brand-200 px-5 text-xs text-brand-500">{bar}</div>}
         <div className="p-6 sm:p-8">{children}</div>
@@ -627,25 +629,38 @@ function DownloadIcon() {
   );
 }
 
-function Preview({ job, preview, language, q, page = 0, tall = false }) {
+function Preview({ job, preview, language, q, page = 0, tall = false, only = false }) {
   const src = (side) => `/api/jobs/${job.id}/preview/${preview.deliverableId}/${side}${q}${page ? `${q ? "&" : "?"}page=${page}` : ""}`;
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className={`grid grid-cols-1 gap-4 ${only ? "" : "sm:grid-cols-2"}`}>
       {[
         ["original", "Original"],
         ["translated", language],
-      ].map(([side, label]) => (
+      ]
+        .filter(([side]) => !only || side === "translated")
+        .map(([side, label]) => (
         <figure key={side} className="m-0">
-          {/* full width, cropped at the bottom: the top of page 1 is enough to judge it; a sample's
-              pages show whole, one at a time */}
-          <div className={`overflow-hidden rounded border border-brand-200 bg-white ${tall ? "" : "max-h-56 sm:max-h-72"}`}>
+          {/* Big enough to read: side by side on a computer, one above the other on a phone,
+              cropped at the bottom on the delivered page (a sample's pages show whole); a click
+              opens the page full size. */}
+          <a
+            href={src(side)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`block overflow-hidden rounded border border-brand-200 bg-white ${tall ? "" : "max-h-[420px] sm:max-h-[640px]"}`}
+          >
             <img
               src={src(side)}
               alt={side === "original" ? `Page ${page + 1} of your original document` : `Page ${page + 1} translated into ${language}`}
               className="block w-full"
             />
-          </div>
-          <figcaption className="mt-1.5 text-[11px] text-brand-500">{label}</figcaption>
+          </a>
+          <figcaption className="mt-1.5 flex justify-between text-[11px] text-brand-500">
+            <span>{label}</span>
+            <a href={src(side)} target="_blank" rel="noopener noreferrer" className="underline">
+              Open full size
+            </a>
+          </figcaption>
         </figure>
       ))}
     </div>
@@ -716,6 +731,7 @@ export function sampleRange(excerpt) {
 function ExcerptPreview({ excerpt, nameOf, tone }) {
   const [text, setText] = useState(null);
   const [page, setPage] = useState(0);
+  const [only, setOnly] = useState(false);
   const image = excerpt?.previews?.[0];
   useEffect(() => {
     if (excerpt?.textPreview && !image) api.previewText(excerpt.jobId).then(setText).catch(() => {});
@@ -743,23 +759,35 @@ function ExcerptPreview({ excerpt, nameOf, tone }) {
     const first = excerpt.firstPage || 1;
     return (
       <div className="mt-5">
-        {pages > 1 && (
-          <div className="mb-2 flex items-center justify-between gap-3 text-[12px]">
+        {(
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-3 text-[12px]">
             <span className="text-brand-500">
               Page {first + page}
               {excerpt.totalPages ? ` of ${excerpt.totalPages}` : ""}
             </span>
-            <span className="flex gap-2">
+            <span className="flex flex-wrap gap-2">
+              <span className="hidden rounded-md border border-brand-200 p-0.5 sm:inline-flex" role="group" aria-label="How to show the pages">
+                <button type="button" aria-pressed={!only} onClick={() => setOnly(false)} className={`rounded px-2.5 py-1 ${only ? "text-brand-500" : "bg-brand-600 text-white"}`}>
+                  Side by side
+                </button>
+                <button type="button" aria-pressed={only} onClick={() => setOnly(true)} className={`rounded px-2.5 py-1 ${only ? "bg-brand-600 text-white" : "text-brand-500"}`}>
+                  {nameOf(image.locale)} only, bigger
+                </button>
+              </span>
+              {pages > 1 && (
+                <>
               <button type="button" className="wx-button" style={{ minHeight: 30 }} disabled={page === 0} onClick={() => setPage(page - 1)}>
                 ← Previous
               </button>
               <button type="button" className="wx-button" style={{ minHeight: 30 }} disabled={page >= pages - 1} onClick={() => setPage(page + 1)}>
                 Next page →
               </button>
+                </>
+              )}
             </span>
           </div>
         )}
-        <Preview job={{ id: excerpt.jobId }} preview={image} language={nameOf(image.locale)} q="" page={page} tall={pages > 1} />
+        <Preview job={{ id: excerpt.jobId }} preview={image} language={nameOf(image.locale)} q="" page={page} tall={pages > 1} only={only} />
         {caption}
       </div>
     );
@@ -934,7 +962,8 @@ function OverLimit({ job, bar, nameOf, tone }) {
 
   if (user) {
     return (
-      <Screen bar={bar}>
+      <Screen bar={bar} wide>
+        <div className="max-w-2xl">
         <PagesBar total={total} first={excerpt?.firstPage} done={sampled} />
         <h1 className={`${sampled ? "mt-6" : ""} text-[26px] font-semibold leading-8 tracking-[-0.4px]`}>
           {canRunNow ? `Ready to translate ${all}` : `This file needs ${n(credits ?? 0)} credits`}
@@ -956,6 +985,7 @@ function OverLimit({ job, bar, nameOf, tone }) {
             <PackGrid jobId={job.id} fits={fits} place="over_limit" words={credits} />
           </div>
         )}
+        </div>
         {sample}
         {quiet}
         <TrustStrip />
@@ -981,7 +1011,8 @@ function OverLimit({ job, bar, nameOf, tone }) {
   const cta = !covers ? "Sign up free" : sampled ? "Finish my translation" : `Translate ${all}`;
 
   return (
-    <Screen bar={bar}>
+    <Screen bar={bar} wide>
+      <div className="max-w-2xl">
       <PagesBar total={total} first={excerpt?.firstPage} done={sampled} />
       <h1 className={`${sampled ? "mt-6" : ""} text-[26px] font-semibold leading-8 tracking-[-0.4px]`}>{headline}</h1>
       <p className="mt-2 text-[15px] leading-6 text-brand-500">{sub}</p>
@@ -1006,6 +1037,7 @@ function OverLimit({ job, bar, nameOf, tone }) {
           {isPdf ? "A Word file and a PDF that looks like your original, in your inbox" : "Your translated file, in your inbox"}
         </CheckItem>
       </ul>
+      </div>
       {sample}
       {showPacks && (
         <div className="mt-6">
@@ -1031,7 +1063,7 @@ function NeedsCredits({ job, bar, nameOf, tone }) {
   const needed = job.analyzedWords != null ? job.analyzedWords * job.targetLocales.length : null;
   const short = needed != null && creditBalance != null ? needed - creditBalance : null;
   return (
-    <Screen bar={bar}>
+    <Screen bar={bar} wide>
       <h1 className="text-[22px] font-medium tracking-[-0.3px]">Not enough credits</h1>
       <p className="mt-2 text-[13px] text-brand-500">
         {needed != null

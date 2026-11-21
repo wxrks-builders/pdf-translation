@@ -50,7 +50,7 @@ import pymupdf
 FONTS = Path(__file__).parent / "fonts"
 MAX_PAGES = int(os.environ.get("LAYOUT_MAX_PAGES", "100"))
 MIN_SCALE = 0.7
-PREVIEW_WIDTH = 720
+PREVIEW_WIDTH = 1200  # readable at about 480 px a side, sharp on high-density screens
 
 # A PDF embeds only the glyphs its source text used (no ã/ç/é for an English source), so every
 # font is replaced by a full one: by family where we bundle it, otherwise by look — condensed,

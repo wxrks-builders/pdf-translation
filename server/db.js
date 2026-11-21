@@ -183,6 +183,11 @@ async function migrate() {
   addColumn("jobs", "excerpt_of", "TEXT");
   addColumn("jobs", "excerpt_pages", "INTEGER");
   addColumn("jobs", "excerpt_total_pages", "INTEGER");
+  addColumn("jobs", "excerpt_first_page", "INTEGER"); // 1-based: the sample skips covers and blank pages
+  // The one reminder about a file stopped at a price (services/reminders.js): the address typed
+  // on that file's sign-up offer, and when the reminder went.
+  addColumn("jobs", "reminder_email", "TEXT");
+  addColumn("jobs", "reminder_sent_at", "TEXT");
   db.exec(`CREATE INDEX IF NOT EXISTS jobs_excerpt_idx ON jobs (excerpt_of) WHERE excerpt_of IS NOT NULL`);
   // The Confidence Score of a delivered job (services/confidence.js): pending | done | failed | off,
   // and the JSON of scores per language once done.

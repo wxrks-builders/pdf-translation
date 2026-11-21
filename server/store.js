@@ -180,13 +180,13 @@ async function refundForJob(jobId) {
 
 // --- jobs ---
 
-async function createJob({ userId, anonCookieId, tier, sourceLocale, targetLocales, orgUnitUuid, tone, excerptOf, excerptPages, excerptTotalPages, clientIp, welcomeEligible }) {
+async function createJob({ userId, anonCookieId, tier, sourceLocale, targetLocales, orgUnitUuid, tone, excerptOf, excerptPages, excerptFirstPage, excerptTotalPages, clientIp, welcomeEligible }) {
   const id = newJobId();
   const row = db
     .prepare(
       `INSERT INTO jobs (id, user_id, anon_cookie_id, tier, status, source_locale, target_locales, org_unit_uuid, timeline,
-                         tone, excerpt_of, excerpt_pages, excerpt_total_pages, client_ip, welcome_eligible)
-       VALUES (?, ?, ?, ?, 'created', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`
+                         tone, excerpt_of, excerpt_pages, excerpt_first_page, excerpt_total_pages, client_ip, welcome_eligible)
+       VALUES (?, ?, ?, ?, 'created', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`
     )
     .get(
       id,
@@ -200,6 +200,7 @@ async function createJob({ userId, anonCookieId, tier, sourceLocale, targetLocal
       tone ? JSON.stringify(tone) : null,
       excerptOf || null,
       excerptPages || null,
+      excerptFirstPage || null,
       excerptTotalPages || null,
       clientIp || null,
       welcomeEligible ? 1 : 0
@@ -290,6 +291,7 @@ async function updateJob(id, fields) {
     "confidence_status",
     "confidence",
     "welcome_used",
+    "reminder_email",
   ];
   const sets = [];
   const params = [];
@@ -568,6 +570,59 @@ async function newPeopleSince(sinceIso) {
   ];
 }
 
+// --- reminders (services/reminders.js) and the real activity feed (routes/activity.js) ---
+
+// Files stopped at a price between afterIso and beforeIso with no reminder yet, with the
+// account's address beside the others.
+async function listReminderCandidates(beforeIso, afterIso) {
+  return db
+    .prepare(
+      `SELECT jobs.*, users.email AS user_email FROM jobs LEFT JOIN users ON users.id = jobs.user_id
+       WHERE jobs.status IN ('over_free_limit', 'needs_credits') AND jobs.excerpt_of IS NULL
+         AND jobs.reminder_sent_at IS NULL AND jobs.created_at <= ? AND jobs.created_at >= ?
+       ORDER BY jobs.created_at`
+    )
+    .all(beforeIso, afterIso)
+    .map(parseJob);
+}
+
+// One reminder per job: whoever sets reminder_sent_at first sends it.
+async function claimReminder(jobId) {
+  return Boolean(
+    db.prepare(`UPDATE jobs SET reminder_sent_at = ? WHERE id = ? AND reminder_sent_at IS NULL RETURNING id`).get(nowIso(), jobId)
+  );
+}
+
+async function countRemindersSince(sinceIso) {
+  return db.prepare(`SELECT COUNT(*) AS n FROM jobs WHERE reminder_sent_at >= ?`).get(sinceIso).n;
+}
+
+// Delivered translations since sinceIso, newest first: languages, words and when, nothing that
+// names a person or a file. The team's own jobs (an @wxrks.com account or address) are left out.
+async function listRecentDeliveries(sinceIso) {
+  return db
+    .prepare(
+      `SELECT jobs.source_locale, jobs.target_locales, jobs.analyzed_words, jobs.timeline, jobs.updated_at
+       FROM jobs LEFT JOIN users ON users.id = jobs.user_id
+       WHERE jobs.status = 'delivered' AND jobs.excerpt_of IS NULL AND jobs.updated_at >= ?
+         AND COALESCE(users.email, '') NOT LIKE '%@wxrks.com' AND COALESCE(jobs.unlocked_email, '') NOT LIKE '%@wxrks.com'
+       ORDER BY jobs.updated_at DESC LIMIT 200`
+    )
+    .all(sinceIso)
+    .map((row) => {
+      const timeline = JSON.parse(row.timeline || "[]");
+      const delivered = [...timeline].reverse().find((e) => e.event === "delivered");
+      return {
+        sourceLocale: row.source_locale,
+        targetLocales: JSON.parse(row.target_locales || "[]"),
+        words: row.analyzed_words || 0,
+        at: delivered?.at || row.updated_at,
+      };
+    })
+    .filter((r) => r.at >= sinceIso)
+    .sort((a, b) => b.at.localeCompare(a.at));
+}
+
 // Exactly one files email per job: whoever sets files_emailed_at first sends it.
 async function claimFilesEmail(jobId) {
   const row = db
@@ -720,5 +775,9 @@ module.exports = {
   recordLead,
   claimFilesEmail,
   countFilesEmailsSince,
+  listReminderCandidates,
+  claimReminder,
+  countRemindersSince,
+  listRecentDeliveries,
   sweepOldBlobs,
 };

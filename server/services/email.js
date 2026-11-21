@@ -137,10 +137,13 @@ async function sendFilesEmail(to, details) {
   await sendEmail({ to, subject: `Your translation of ${details.documentName} is ready${score}`, html: renderFilesEmail(details) });
 }
 
+// Words of credit at the smallest pack's price ($9 per 10,000).
+const creditDollars = (words) => Math.round((words * 9) / 10000);
+
 // signupWords: the sign-up credit this link brings when the address has no account yet (0: none).
 function renderLoginEmail(loginUrl, { signupWords = 0 } = {}) {
   const credit = signupWords
-    ? `<p style="Margin:0 0 28px;font-size:15px;line-height:23px;color:#176b45;">New account? We add $9 in credits when you click: ${signupWords.toLocaleString("en-US")} words (about ${Math.round(signupWords / 250).toLocaleString("en-US")} pages).</p>`
+    ? `<p style="Margin:0 0 28px;font-size:15px;line-height:23px;color:#176b45;">New account? We add $${creditDollars(signupWords)} in credits when you click: ${signupWords.toLocaleString("en-US")} words (about ${Math.round(signupWords / 250).toLocaleString("en-US")} pages).</p>`
     : "";
   return `<!doctype html>
 <html>
@@ -180,7 +183,7 @@ function renderLoginEmail(loginUrl, { signupWords = 0 } = {}) {
 }
 
 async function sendLoginEmail(to, loginUrl, { signupWords = 0 } = {}) {
-  const subject = signupWords ? "Your sign-in link, and $9 in credits" : "Sign in to wxrks Translate";
+  const subject = signupWords ? `Your sign-in link, and $${creditDollars(signupWords)} in credits` : "Sign in to wxrks Translate";
   await sendEmail({ to, subject, html: renderLoginEmail(loginUrl, { signupWords }) });
 }
 

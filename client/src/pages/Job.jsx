@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { TrustStrip } from "./Upload";
 import { PackGrid } from "./Pricing";
 import SignupOffer from "./SignupOffer";
+import RecentActivity from "../RecentActivity";
 import { FREE_WORDS, SIGNUP_CREDIT, packFor, packLabel, wordsAndPages, aboutPages } from "../pricing";
 import { toneLine } from "../tone";
 
@@ -44,7 +45,7 @@ function noTextReason(job) {
   return "We couldn't find text in this file. Try a file where you can select the text.";
 }
 
-// Over the free limit, a PDF's page 1 is translated as a preview (server/services/excerpt.js);
+// Over the free limit, a sample of a PDF is translated as a preview (server/services/excerpt.js);
 // keep asking while it runs, and for a moment before it has started.
 function stillWorking(j) {
   if (ACTIVE.includes(j.status)) return true;
@@ -633,8 +634,8 @@ function DownloadIcon() {
   );
 }
 
-function Preview({ job, preview, language, q }) {
-  const src = (side) => `/api/jobs/${job.id}/preview/${preview.deliverableId}/${side}${q}`;
+function Preview({ job, preview, language, q, page = 0, tall = false }) {
+  const src = (side) => `/api/jobs/${job.id}/preview/${preview.deliverableId}/${side}${q}${page ? `${q ? "&" : "?"}page=${page}` : ""}`;
   return (
     <div className="grid grid-cols-2 gap-3">
       {[
@@ -642,11 +643,12 @@ function Preview({ job, preview, language, q }) {
         ["translated", language],
       ].map(([side, label]) => (
         <figure key={side} className="m-0">
-          {/* full width, cropped at the bottom: the top of page 1 is enough to judge it */}
-          <div className="max-h-56 overflow-hidden rounded border border-brand-200 bg-white sm:max-h-72">
+          {/* full width, cropped at the bottom: the top of page 1 is enough to judge it; a sample's
+              pages show whole, one at a time */}
+          <div className={`overflow-hidden rounded border border-brand-200 bg-white ${tall ? "" : "max-h-56 sm:max-h-72"}`}>
             <img
               src={src(side)}
-              alt={side === "original" ? "Page 1 of your original document" : `Page 1 translated into ${language}`}
+              alt={side === "original" ? `Page ${page + 1} of your original document` : `Page ${page + 1} translated into ${language}`}
               className="block w-full"
             />
           </div>
@@ -726,20 +728,32 @@ function WordMeter({ words, free = FREE_WORDS }) {
   );
 }
 
-// Page 1 of a file stopped at a price, translated free (server/services/excerpt.js): the
-// design-kept page next to the original, or the text of both when there is none.
+// The sample of a file stopped at a price, translated free (server/services/excerpt.js): its
+// design-kept pages next to the originals, one page at a time, or the text of both when there are
+// none. "Pages 3–9 of 252": the sample skips covers and blank pages.
+export function sampleRange(excerpt) {
+  const first = excerpt.firstPage || 1;
+  const last = first + (excerpt.pages || 1) - 1;
+  const of = excerpt.totalPages > last ? ` of ${excerpt.totalPages}` : "";
+  return last > first ? `Pages ${first}–${last}${of}` : `Page ${first}${of}`;
+}
+
 function ExcerptPreview({ excerpt, nameOf, tone }) {
   const [text, setText] = useState(null);
+  const [page, setPage] = useState(0);
   const image = excerpt?.previews?.[0];
   useEffect(() => {
     if (excerpt?.textPreview && !image) api.previewText(excerpt.jobId).then(setText).catch(() => {});
   }, [excerpt?.textPreview, excerpt?.jobId, image]);
   if (!excerpt) return null;
+  const pages = excerpt.pages || 1;
   if (ACTIVE.includes(excerpt.status) && !image) {
     return (
       <div className="mt-5 rounded-md bg-[#f5f7f9] p-4">
-        <p className="text-[13px]">Translating page 1 so you can see it…</p>
-        <div className="wx-progress" role="progressbar" aria-label="Page 1 preview">
+        <p className="text-[13px]">
+          Translating {pages > 1 ? `${pages} pages` : "a page"} of it so you can see the result…
+        </p>
+        <div className="wx-progress" role="progressbar" aria-label="Sample translation">
           <span style={{ width: `${PROGRESS[excerpt.status] ?? 10}%` }} />
         </div>
       </div>
@@ -747,14 +761,30 @@ function ExcerptPreview({ excerpt, nameOf, tone }) {
   }
   const caption = (
     <p className="mt-2 text-[11px] text-brand-500">
-      Page 1{excerpt.totalPages > 1 ? ` of ${excerpt.totalPages}` : ""}, translated free{tone ? ` (tone: ${tone})` : ""}. The
-      downloads come with the whole file.
+      {sampleRange(excerpt)}, translated free{tone ? ` (tone: ${tone})` : ""}. The downloads come with the whole file.
     </p>
   );
   if (image) {
+    const first = excerpt.firstPage || 1;
     return (
       <div className="mt-5">
-        <Preview job={{ id: excerpt.jobId }} preview={image} language={nameOf(image.locale)} q="" />
+        {pages > 1 && (
+          <div className="mb-2 flex items-center justify-between gap-3 text-[12px]">
+            <span className="text-brand-500">
+              Page {first + page}
+              {excerpt.totalPages ? ` of ${excerpt.totalPages}` : ""}
+            </span>
+            <span className="flex gap-2">
+              <button type="button" className="wx-button" style={{ minHeight: 30 }} disabled={page === 0} onClick={() => setPage(page - 1)}>
+                ← Previous
+              </button>
+              <button type="button" className="wx-button" style={{ minHeight: 30 }} disabled={page >= pages - 1} onClick={() => setPage(page + 1)}>
+                Next page →
+              </button>
+            </span>
+          </div>
+        )}
+        <Preview job={{ id: excerpt.jobId }} preview={image} language={nameOf(image.locale)} q="" page={page} tall={pages > 1} />
         {caption}
       </div>
     );
@@ -772,7 +802,7 @@ function ExcerptPreview({ excerpt, nameOf, tone }) {
             <figure key={label} className="m-0">
               <div
                 dir={i === 1 && /^(ar|he|iw|fa|ur)/i.test(text.locale) ? "rtl" : "auto"}
-                className="max-h-72 overflow-hidden whitespace-pre-line rounded border border-brand-200 bg-white p-4 text-[13px] leading-relaxed"
+                className="max-h-96 overflow-y-auto whitespace-pre-line rounded border border-brand-200 bg-white p-4 text-[13px] leading-relaxed"
               >
                 {body}
               </div>
@@ -841,7 +871,9 @@ function OverLimit({ job, bar, nameOf, tone }) {
       </h1>
       <p className="mt-1 text-[13px] leading-relaxed text-brand-500">
         Free covers one document a day, up to {wordsAndPages(freeLimit)}.{" "}
-        {excerpt ? "We translated page 1 for free, so you can see the result." : "Nothing was translated, so this one doesn't count as your free document."}
+        {excerpt
+          ? `We translated ${excerpt.pages > 1 ? `${excerpt.pages} pages` : "a page"} of it for free, so you can see the result.`
+          : "Nothing was translated, so this one doesn't count as your free document."}
       </p>
       {words != null && <WordMeter words={words} free={freeLimit} />}
       <ExcerptPreview excerpt={excerpt} nameOf={nameOf} tone={tone} />
@@ -897,6 +929,7 @@ function OverLimit({ job, bar, nameOf, tone }) {
         <Option to="/" title="Translate a shorter document" note={`Free, up to ${wordsAndPages(freeLimit)} a day`} />
         <Option href={DEMO_URL} title="A team account in wxrks" note="Whole documents, with your glossary, review, and shared projects. Book a demo." />
       </div>
+      <RecentActivity className="mt-6" />
       <TrustStrip />
     </Screen>
   );

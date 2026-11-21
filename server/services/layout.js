@@ -108,24 +108,29 @@ async function rebuild(pdfBuffer, units, translated) {
   });
 }
 
-// → page 1 of a PDF as a JPEG Buffer
-async function preview(pdfBuffer) {
+// → one page of a PDF (0-based, default the first) as a JPEG Buffer
+async function preview(pdfBuffer, page = 0) {
   return withTempDir(async (dir) => {
     await fs.writeFile(path.join(dir, "in.pdf"), pdfBuffer);
-    await run(["preview", path.join(dir, "in.pdf"), path.join(dir, "page1.jpg")]);
-    return fs.readFile(path.join(dir, "page1.jpg"));
+    await run(["preview", path.join(dir, "in.pdf"), path.join(dir, "page.jpg"), String(page)]);
+    return fs.readFile(path.join(dir, "page.jpg"));
   });
 }
 
-// → { pdf (Buffer, page 1 alone) or null when page 1 has more than maxWords, words, totalPages }
+// The sample of a file over the free limit (pdf_layout.py excerpt): up to maxWords words of
+// consecutive pages, from the first page with real text.
+// → { pdf (Buffer) or null when there is no sample, pages, firstPage (1-based), words, totalPages, scan }
 async function excerpt(pdfBuffer, maxWords) {
   return withTempDir(async (dir) => {
     await fs.writeFile(path.join(dir, "in.pdf"), pdfBuffer);
-    const summary = JSON.parse(await run(["excerpt", path.join(dir, "in.pdf"), path.join(dir, "page1.pdf"), String(maxWords)]));
+    const summary = JSON.parse(await run(["excerpt", path.join(dir, "in.pdf"), path.join(dir, "sample.pdf"), String(maxWords)]));
     return {
-      pdf: summary.pages ? await fs.readFile(path.join(dir, "page1.pdf")) : null,
+      pdf: summary.pages ? await fs.readFile(path.join(dir, "sample.pdf")) : null,
+      pages: summary.pages,
+      firstPage: summary.first,
       words: summary.words,
       totalPages: summary.total_pages,
+      scan: summary.scan,
     };
   });
 }

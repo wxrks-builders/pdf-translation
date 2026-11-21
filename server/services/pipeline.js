@@ -146,12 +146,15 @@ async function runPipeline(jobId) {
   // pays in credits (a new one starts with the sign-up credit, services/signupCredit.js).
   if (job.tier === "free") {
     await store.setFreeTierUsageWords(jobId, analyzedWords);
-    if (analyzedWords > FREE_TIER_MAX_WORDS) {
+    // A sample was cut to FREE_TIER_MAX_WORDS by the PDF's own count; wxrks counts a little
+    // differently, and a scan's sample is only counted once OCR has read it: half again as many.
+    const limit = job.excerpt_of ? Math.round(FREE_TIER_MAX_WORDS * 1.5) : FREE_TIER_MAX_WORDS;
+    if (analyzedWords > limit) {
       // Nothing gets translated, so the day's free document is still theirs (store.js caps this).
       await store.releaseFreeTierUsage(jobId);
       await wxrks.cancelProject(project.uuid, "free tier word limit exceeded");
       await setStatus(jobId, "over_free_limit", "over_free_limit", { words: analyzedWords, limit: FREE_TIER_MAX_WORDS });
-      // Page 1 as a preview of what the whole file would get (a PDF's excerpt never gets one).
+      // A sample of what the whole file would get (a sample never gets one of its own).
       if (!job.excerpt_of) await require("./excerpt").start(jobId, FREE_TIER_MAX_WORDS);
       return;
     }
@@ -160,7 +163,7 @@ async function runPipeline(jobId) {
     if (!result.ok) {
       await wxrks.cancelProject(project.uuid, "insufficient credits");
       await setStatus(jobId, "needs_credits", "needs_credits", { required: charge, balance: result.balance });
-      // Page 1 as a preview, as for a free file over the limit.
+      // A sample, as for a free file over the limit.
       await require("./excerpt").start(jobId, FREE_TIER_MAX_WORDS);
       return;
     }

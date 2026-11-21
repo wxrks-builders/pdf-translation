@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { api, track } from "../api";
 import { SIGNUP_CREDIT, wordsAndPages } from "../pricing";
 
-// "Get $9 in credits when you sign up" (Rodrigo, 2026-11-09), on a guest's file over the free
-// limit. An email field: the link it sends makes the account, adds the sign-up credit
-// (server/services/signupCredit.js) and brings them back to `next`, this file.
+// The sign-up credit, on a guest's file over the free limit (Rodrigo, 2026-11-09; 2026-11-21: say
+// what they get). When the credit covers the file, the offer is the file itself: "Translate this
+// whole file free". An email field: the link it sends makes the account, adds the sign-up credit
+// (server/services/signupCredit.js) and brings them back to `next`, this file. The address is
+// also kept for this file's one reminder (services/reminders.js).
 // words: the credits the file needs, to say whether the credit covers all of it.
 export default function SignupOffer({ jobId, words, next }) {
   const [email, setEmail] = useState("");
@@ -32,12 +34,14 @@ export default function SignupOffer({ jobId, words, next }) {
 
   return (
     <div className="mt-5 rounded-[7px] bg-[#e7f5ec] px-5 py-4">
-      <p className="text-[15px] font-medium text-[#176b45]">Get ${SIGNUP_CREDIT.dollars} in credits when you sign up</p>
+      <p className="text-[15px] font-medium text-[#176b45]">
+        {covers ? "Translate this whole file free" : `Translate the first ${wordsAndPages(credit)} free`}
+      </p>
       {sent ? (
         <>
           <p className="mt-1.5 text-[13px] leading-relaxed text-[#24543a]">
-            We sent a link to {email}. It works for 15 minutes. Click it and your ${SIGNUP_CREDIT.dollars} in credits are ready:{" "}
-            {wordsAndPages(credit)}.
+            We sent a link to {email}. It works for 15 minutes. Click it and your account starts with{" "}
+            {wordsAndPages(credit)}, ${SIGNUP_CREDIT.dollars} in credits.
           </p>
           <p className="mt-2 text-xs text-[#24543a]">The link brings you back to this file.</p>
         </>
@@ -45,8 +49,8 @@ export default function SignupOffer({ jobId, words, next }) {
         <>
           <p className="mt-1.5 text-[13px] leading-relaxed text-[#24543a]">
             {covers
-              ? `That's ${wordsAndPages(credit)}, enough for this whole file. No card, no password: we email you a link.`
-              : `That's ${wordsAndPages(credit)} toward this file. For the other ${wordsAndPages(words - credit)}, add a pack once you're in.`}
+              ? `Sign up with your email and your account starts with ${wordsAndPages(credit)} ($${SIGNUP_CREDIT.dollars} in credits): enough for all of it. No card, no password: we email you a link.`
+              : `Sign up with your email and your account starts with ${wordsAndPages(credit)} ($${SIGNUP_CREDIT.dollars} in credits) toward this file. For the other ${wordsAndPages(words - credit)}, add a pack once you're in.`}
           </p>
           <form onSubmit={submit} className="mt-3.5 flex flex-wrap items-end gap-2">
             <label className="flex min-w-[220px] flex-1 flex-col gap-1 text-xs font-medium text-[#24543a]">
@@ -62,7 +66,7 @@ export default function SignupOffer({ jobId, words, next }) {
               />
             </label>
             <button type="submit" disabled={busy} className="wx-button wx-button--primary" style={{ minHeight: 38 }}>
-              {busy ? "Sending…" : `Get $${SIGNUP_CREDIT.dollars} in credits`}
+              {busy ? "Sending…" : "Email me the link"}
             </button>
           </form>
           {error && <p className="wx-error mt-2 text-xs">{error}</p>}

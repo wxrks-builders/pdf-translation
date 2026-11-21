@@ -1,11 +1,14 @@
 /**
  * A PDF stopped at a price (over the free limit, or not enough credits) still gets something to
- * look at: its first page, translated like any free document and shown next to the original,
- * with the price of the whole file. It runs as a child job (jobs.excerpt_of) that never opens
- * downloads and doesn't use the day's free document. The page shows the design-kept page 1, or
- * the text of both when there is none (a scan, a script the fonts lack): routes/jobs.js
- * preview-text. Soft: without PyMuPDF, or when page 1 alone is over the limit, the screen shows
- * the offer without a preview.
+ * look at: a sample of it, translated like any free document and shown page by page next to the
+ * original, with the price of the whole file. The sample is up to SAMPLE_WORDS words of
+ * consecutive pages (about 8, at most 10) from the first page with real text, so a cover or a
+ * blank page doesn't stand in for the document (pdf_layout.py excerpt); a scan gives its first
+ * pages, read by OCR in the sample's own job. It runs as a child job (jobs.excerpt_of) that never
+ * opens downloads and doesn't use the day's free document. The page shows the design-kept pages,
+ * or the text of both when there are none (a scan, a script the fonts lack): routes/jobs.js
+ * preview-text. Soft: without PyMuPDF, or when the first text page alone is over the limit, the
+ * screen shows the offer without a sample.
  */
 const store = require("../store");
 const layout = require("./layout");
@@ -20,7 +23,7 @@ async function start(parentId, maxWords) {
   try {
     const cut = await layout.excerpt(await store.getJobFileContent(files[0].id), maxWords);
     if (!cut.pdf) {
-      await store.appendJobEvent(parentId, "excerpt_skipped", { pageOneWords: cut.words });
+      await store.appendJobEvent(parentId, "excerpt_skipped", { firstPage: cut.firstPage, words: cut.words });
       return;
     }
     // Always a free-tier sample, seen by whoever sees the parent (its account, or its device).
@@ -33,7 +36,8 @@ async function start(parentId, maxWords) {
       orgUnitUuid: parent.org_unit_uuid,
       tone: parent.tone,
       excerptOf: parent.id,
-      excerptPages: 1,
+      excerptPages: cut.pages,
+      excerptFirstPage: cut.firstPage,
       excerptTotalPages: cut.totalPages,
     });
     await store.createJobFile({
@@ -44,7 +48,7 @@ async function start(parentId, maxWords) {
       contentType: "application/pdf",
       content: cut.pdf,
     });
-    await store.appendJobEvent(parentId, "excerpt_started", { job: child.id, totalPages: cut.totalPages });
+    await store.appendJobEvent(parentId, "excerpt_started", { job: child.id, pages: cut.pages, firstPage: cut.firstPage, totalPages: cut.totalPages });
     require("./pipeline").startPipeline(child.id);
   } catch (err) {
     console.warn(`[excerpt] job ${parentId}: ${err.message}`);

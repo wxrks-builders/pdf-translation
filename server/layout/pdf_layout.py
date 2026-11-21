@@ -12,11 +12,16 @@ font, shrunk to fit. Proven on spike 7 (spikes/07-inplace-pdf.py has the verdict
   pdf_layout.py rebuild <in.pdf> <units.json> <translated.json> <out_dir> [--no-images]
       → out_dir/design.pdf (live text) + out_dir/images.pdf (one picture per page; left out
         with --no-images, which a long document gets: its pictures would run to tens of MB)
-  pdf_layout.py preview <in.pdf> <out.jpg>
-      → page 1 as a JPEG, PREVIEW_WIDTH px wide (the free tier shows it before the email step)
+  pdf_layout.py preview <in.pdf> <out.jpg> [page]
+      → one page (default the first, 0-based) as a JPEG, PREVIEW_WIDTH px wide (the free tier
+        shows it before the email step; a sample's pages one by one)
   pdf_layout.py excerpt <in.pdf> <out.pdf> <max_words>
-      → page 1 alone as a PDF, when it has at most max_words words (a free document over the
-        limit gets it translated as a preview); prints {"pages", "words", "total_pages"}
+      → the sample of a file over the free limit, as a PDF of its own: consecutive pages up to
+        max_words words (at most SAMPLE_MAX_PAGES), starting at the first page with real text,
+        so a cover or a blank page doesn't stand in for the document; a scan without a text
+        layer gives its first SCAN_SAMPLE_PAGES pages, which the sample's job reads by OCR.
+        Prints {"pages", "first", "words", "total_pages", "scan"} (first is 1-based; pages 0:
+        no sample)
   pdf_layout.py text <in.pdf> <max_words>
       → the PDF's text in reading order, cut at max_words; prints {"text", "words"} (the text
         side of a preview when there is no design-kept page to show)
@@ -649,23 +654,44 @@ def rebuild(pdf, units_path, translated_path, out_dir, images=True):
     print(json.dumps({"pages": len(doc), "images": images}))
 
 
-def preview(pdf, out_path):
+def preview(pdf, out_path, page_no=0):
     doc = pymupdf.open(pdf)
-    page = doc[0]
+    page = doc[min(max(page_no, 0), len(doc) - 1)]
     zoom = min(PREVIEW_WIDTH / page.rect.width, 3)
     pix = page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), alpha=False)
     Path(out_path).write_bytes(pix.tobytes("jpeg", jpg_quality=82))
 
 
+SAMPLE_MAX_PAGES = 10
+SAMPLE_MIN_WORDS = 40  # a page with fewer is a cover, a divider or a blank: the sample starts after it
+SAMPLE_LOOK_PAGES = 20
+SCAN_SAMPLE_PAGES = 3
+
+
 def excerpt(pdf, out_path, max_words):
     doc = pymupdf.open(pdf)
-    words = len(doc[0].get_text("words")) if len(doc) else 0
-    pages = 1 if 0 < words <= max_words else 0
+    counts = [len(page.get_text("words")) for page in doc]
+    look = range(min(len(doc), SAMPLE_LOOK_PAGES))
+    start = next((i for i in look if counts[i] >= SAMPLE_MIN_WORDS), None)
+    if start is None:
+        start = next((i for i in look if counts[i] > 0), None)
+    scan = False
+    if start is None and any(needs_ocr(doc[i]) for i in look):
+        start, scan = next(i for i in look if needs_ocr(doc[i])), True
+    pages, words = 0, 0
+    if start is not None:
+        for i in range(start, min(len(doc), start + (SCAN_SAMPLE_PAGES if scan else SAMPLE_MAX_PAGES))):
+            if not scan and pages and words + counts[i] > max_words:
+                break
+            pages += 1
+            words += counts[i]
+        if not scan and words > max_words:  # its first page alone is over the limit
+            pages, words = 0, counts[start]
     if pages:
         out = pymupdf.open()
-        out.insert_pdf(doc, from_page=0, to_page=0)
+        out.insert_pdf(doc, from_page=start, to_page=start + pages - 1)
         out.save(out_path, garbage=3, deflate=True)
-    print(json.dumps({"pages": pages, "words": words, "total_pages": len(doc)}))
+    print(json.dumps({"pages": pages, "first": (start or 0) + 1, "words": words, "total_pages": len(doc), "scan": scan}))
 
 
 def text(pdf, max_words):
@@ -743,8 +769,8 @@ if __name__ == "__main__":
             extract(args[1], args[2], *(int(a) for a in args[3:]))
         elif args[:1] == ["rebuild"] and (len(args) == 5 or (len(args) == 6 and args[5] == "--no-images")):
             rebuild(args[1], args[2], args[3], args[4], images=len(args) == 5)
-        elif args[:1] == ["preview"] and len(args) == 3:
-            preview(args[1], args[2])
+        elif args[:1] == ["preview"] and len(args) in (3, 4):
+            preview(args[1], args[2], *(int(a) for a in args[3:]))
         elif args[:1] == ["excerpt"] and len(args) == 4:
             excerpt(args[1], args[2], int(args[3]))
         elif args[:1] == ["text"] and len(args) == 3:

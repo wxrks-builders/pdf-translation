@@ -7,3 +7,92 @@ body {
   background: var(--wx-surface-sidebar);
   color: var(--wx-text);
 }
+
+/* Recently translated here, as a corner pill (src/RecentActivity.jsx): bottom-left on a
+   computer; on a phone at the top, under the header, since at the bottom it covered the
+   Translate button. Pops in, the emoji wiggles once, fades out. */
+.wx-activity {
+  position: fixed;
+  left: 20px;
+  bottom: 20px;
+  z-index: 40;
+  max-width: min(460px, calc(100vw - 40px));
+  pointer-events: none;
+}
+.wx-activity-pill {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px 9px 12px;
+  background: var(--wx-success-surface);
+  border: 1px solid #c8e8d4;
+  border-radius: 999px;
+  box-shadow: 0 8px 22px rgba(23, 107, 69, 0.14), 0 1px 3px rgba(23, 107, 69, 0.08);
+  animation: wx-pill-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.wx-activity-pill[data-leaving="true"] {
+  animation: wx-pill-out 0.35s ease-in both;
+}
+.wx-activity-emoji {
+  display: inline-block;
+  animation: wx-wiggle 1.4s ease-in-out 0.35s 1;
+}
+.wx-activity-spark {
+  position: absolute;
+  border-radius: 999px;
+  opacity: 0;
+  animation: wx-sparkle 1.2s ease-out 0.4s 2;
+}
+@media (max-width: 640px) {
+  .wx-activity {
+    left: 50%;
+    top: 64px;
+    bottom: auto;
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: calc(100vw - 32px);
+  }
+  .wx-activity-pill {
+    border-radius: 18px;
+    animation-name: wx-pill-drop;
+  }
+  .wx-activity-text {
+    font-size: 12px;
+  }
+}
+@keyframes wx-pill-drop {
+  0% { opacity: 0; transform: translateY(-10px) scale(0.92); }
+  65% { opacity: 1; transform: translateY(0) scale(1.03); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes wx-pill-in {
+  0% { opacity: 0; transform: translateY(10px) scale(0.92); }
+  65% { opacity: 1; transform: translateY(0) scale(1.03); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes wx-pill-out {
+  to { opacity: 0; transform: translateY(-4px) scale(0.98); }
+}
+@keyframes wx-wiggle {
+  0%, 100% { transform: rotate(0); }
+  20% { transform: rotate(-14deg) scale(1.1); }
+  40% { transform: rotate(12deg) scale(1.1); }
+  60% { transform: rotate(-8deg); }
+  80% { transform: rotate(4deg); }
+}
+@keyframes wx-sparkle {
+  0% { opacity: 0; transform: translateY(0) scale(0.6); }
+  30% { opacity: 1; transform: translateY(-8px) scale(1); }
+  100% { opacity: 0; transform: translateY(-16px) scale(0.8); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wx-activity-pill,
+  .wx-activity-pill[data-leaving="true"],
+  .wx-activity-emoji {
+    animation: none;
+  }
+  .wx-activity-spark {
+    display: none;
+  }
+}

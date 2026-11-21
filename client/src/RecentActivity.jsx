@@ -1,19 +1,20 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
 
-// What people really translated here this week (server/routes/activity.js): languages, words and
-// when, nothing that names anyone. Shown only when there is enough of it to say something: three
+// What people really translated here this week (server/routes/activity.js): languages and words,
+// nothing that names anyone. Shown only when there is enough of it to say something: three
 // translations this week. Rodrigo, 2026-11-21, asked to show people finishing translations; this
-// shows only real ones.
+// shows only real ones. No day counts ("5 days ago" reads as a quiet site, he said): a row says
+// when only while that is fresh and true, "a few moments ago" or "earlier today".
 const MIN_ROWS = 3;
-const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 
-function ago(iso) {
-  const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
-  if (minutes < 60) return rtf.format(-Math.max(1, minutes), "minute");
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return rtf.format(-hours, "hour");
-  return rtf.format(-Math.round(hours / 24), "day");
+function when(iso) {
+  const at = new Date(iso);
+  const minutes = (Date.now() - at.getTime()) / 60000;
+  if (minutes < 5) return "a few moments ago";
+  if (minutes < 60) return "a few minutes ago";
+  if (at.toDateString() === new Date().toDateString()) return "earlier today";
+  return null;
 }
 
 export default function RecentActivity({ className = "mt-4" }) {
@@ -24,16 +25,19 @@ export default function RecentActivity({ className = "mt-4" }) {
   if (!data || data.recent.length < MIN_ROWS) return null;
   return (
     <div className={`${className} rounded-[10px] border border-brand-200 bg-white px-5 py-4`}>
-      <p className="text-[13px] font-medium">Translated here this week</p>
+      <p className="text-[13px] font-medium">Recently translated here</p>
       <ul className="mt-2 space-y-1.5">
-        {data.recent.map((r, i) => (
-          <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-3 text-xs">
-            <span>
-              {r.from} → {r.to.join(", ")} · {r.words.toLocaleString("en-US")} words
-            </span>
-            <span className="text-brand-500">{ago(r.at)}</span>
-          </li>
-        ))}
+        {data.recent.map((r, i) => {
+          const fresh = when(r.at);
+          return (
+            <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-3 text-xs">
+              <span>
+                {r.from} → {r.to.join(", ")} · {r.words.toLocaleString("en-US")} words
+              </span>
+              {fresh && <span className="text-brand-500">{fresh}</span>}
+            </li>
+          );
+        })}
       </ul>
       {data.last30.documents >= 10 && (
         <p className="mt-2.5 text-[11px] text-brand-500">

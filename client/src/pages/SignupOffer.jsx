@@ -1,22 +1,22 @@
 import { useEffect, useState } from "react";
 import { api, track } from "../api";
-import { SIGNUP_CREDIT, wordsAndPages } from "../pricing";
 
-// The sign-up credit, on a guest's file over the free limit (Rodrigo, 2026-11-09; 2026-11-21: say
-// what they get). When the credit covers the file, the offer is the file itself: "Translate this
-// whole file free". An email field: the link it sends makes the account, adds the sign-up credit
-// (server/services/signupCredit.js) and brings them back to `next`, this file. The address is
-// also kept for this file's one reminder (services/reminders.js).
-// words: the credits the file needs, to say whether the credit covers all of it.
-export default function SignupOffer({ jobId, words, next }) {
+// The one action on a guest's file over the free limit: an email, which sends the sign-in link
+// that makes the account, adds the sign-up credit (server/services/signupCredit.js) and brings
+// them back to `next`, this file, where it translates (Rodrigo, 2026-11-21: "give a straight line
+// to the visitor"; versions 3 and 4 of https://claude.ai/artifact/DJecEvPSpxZbwscREcUUKG). The
+// address is also kept for this file's one reminder (services/reminders.js). The inline form and,
+// on a phone, the sticky sheet share one state, so the email typed in one is the one sent.
+
+export function useSignupOffer({ jobId, next, words, enabled = true }) {
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState(null);
-  const credit = SIGNUP_CREDIT.words;
-  const covers = words == null || words <= credit;
 
-  useEffect(() => track("offer_shown", "signup", { jobId, words: words ?? undefined }), [jobId, words]);
+  useEffect(() => {
+    if (enabled) track("offer_shown", "signup", { jobId, words: words ?? undefined });
+  }, [jobId, words, enabled]);
 
   async function submit(e) {
     e.preventDefault();
@@ -32,52 +32,84 @@ export default function SignupOffer({ jobId, words, next }) {
     }
   }
 
+  return { email, setEmail, busy, sent, error, submit };
+}
+
+export function Sent({ offer }) {
   return (
-    <div className="mt-5 rounded-[7px] bg-[#e7f5ec] px-5 py-4">
-      <p className="text-[15px] font-medium text-[#176b45]">
-        {covers ? "Translate this whole file free" : `Translate the first ${wordsAndPages(credit)} free`}
+    <div className="rounded-lg border border-[#c8e8d4] bg-[#e7f5ec] px-5 py-4" role="status">
+      <p className="text-[15px] font-medium text-[#176b45]">Check your inbox</p>
+      <p className="mt-1 text-[13px] leading-relaxed text-[#24543a]">
+        We sent a link to {offer.email}. Click it within 15 minutes and you come back here, signed in, to translate the whole file.
       </p>
-      {sent ? (
-        <>
-          <p className="mt-1.5 text-[13px] leading-relaxed text-[#24543a]">
-            We sent a link to {email}. It works for 15 minutes. Click it and your account starts with{" "}
-            {wordsAndPages(credit)}, ${SIGNUP_CREDIT.dollars} in credits.
-          </p>
-          <p className="mt-2 text-xs text-[#24543a]">The link brings you back to this file.</p>
-        </>
-      ) : (
-        <>
-          <p className="mt-1.5 text-[13px] leading-relaxed text-[#24543a]">
-            {covers
-              ? `Sign up with your email and your account starts with ${wordsAndPages(credit)} ($${SIGNUP_CREDIT.dollars} in credits): enough for all of it. No card, no password: we email you a link.`
-              : `Sign up with your email and your account starts with ${wordsAndPages(credit)} ($${SIGNUP_CREDIT.dollars} in credits) toward this file. For the other ${wordsAndPages(words - credit)}, add a pack once you're in.`}
-          </p>
-          <form onSubmit={submit} className="mt-3.5 flex flex-wrap items-end gap-2">
-            <label className="flex min-w-[220px] flex-1 flex-col gap-1 text-xs font-medium text-[#24543a]">
-              Email
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@company.com"
-                autoComplete="email"
-                className="h-[38px] rounded-md border border-[#757d88] bg-white px-2.5 text-[13px] font-normal text-[#252a31]"
-              />
-            </label>
-            <button type="submit" disabled={busy} className="wx-button wx-button--primary" style={{ minHeight: 38 }}>
-              {busy ? "Sending…" : "Email me the link"}
-            </button>
-          </form>
-          {error && <p className="wx-error mt-2 text-xs">{error}</p>}
-          {covers && words != null && (
-            <p className="mt-2.5 text-[11px] leading-relaxed text-[#24543a]">
-              Once you click the link, this file translates from your credits: {words.toLocaleString("en-US")} used,{" "}
-              {wordsAndPages(credit - words)} left.
-            </p>
-          )}
-        </>
-      )}
+    </div>
+  );
+}
+
+// The inline form, under the headline.
+export default function OfferForm({ offer, cta, id = "offer-email", formRef }) {
+  if (offer.sent) return <Sent offer={offer} />;
+  return (
+    <form ref={formRef} onSubmit={offer.submit} className="flex flex-col gap-2">
+      <label htmlFor={id} className="text-[13px] font-medium">
+        Your email
+      </label>
+      <div className="flex flex-wrap gap-2.5">
+        <input
+          id={id}
+          type="email"
+          required
+          value={offer.email}
+          onChange={(e) => offer.setEmail(e.target.value)}
+          placeholder="you@company.com"
+          autoComplete="email"
+          className="h-[50px] min-w-[220px] flex-1 rounded-lg border border-[#757d88] bg-white px-3.5 text-[15px]"
+        />
+        <button type="submit" disabled={offer.busy} className="wx-button wx-button--primary w-full px-6 text-[15px] font-medium sm:w-auto" style={{ minHeight: 50 }}>
+          {offer.busy ? "Sending…" : cta}
+        </button>
+      </div>
+      <p className="text-xs text-brand-500">No card, no password. We email you a link.</p>
+      {offer.error && <p className="wx-error text-xs">{offer.error}</p>}
+    </form>
+  );
+}
+
+// On a phone, the offer stays at the bottom while the inline form is out of sight (scrolled to
+// the sample). Hidden on a computer, once sent, and while the inline form is on screen.
+export function StickyOffer({ offer, title, note, cta, watchRef }) {
+  const [inView, setInView] = useState(true);
+  useEffect(() => {
+    const el = watchRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return undefined;
+    const io = new IntersectionObserver(([entry]) => setInView(entry.isIntersecting), { threshold: 0 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [watchRef, offer.sent]);
+  if (offer.sent || inView) return null;
+  return (
+    <div className="wx-sticky-offer" role="region" aria-label="Translate the whole file">
+      <p className="text-[17px] font-semibold leading-6">{title}</p>
+      <p className="mt-0.5 text-[13px] leading-[19px] text-brand-500">{note}</p>
+      <form onSubmit={offer.submit} className="mt-3 flex flex-col gap-2">
+        <label htmlFor="sticky-email" className="sr-only">
+          Your email
+        </label>
+        <input
+          id="sticky-email"
+          type="email"
+          required
+          value={offer.email}
+          onChange={(e) => offer.setEmail(e.target.value)}
+          placeholder="you@company.com"
+          autoComplete="email"
+          className="h-12 rounded-lg border border-[#757d88] bg-white px-3 text-base"
+        />
+        <button type="submit" disabled={offer.busy} className="wx-button wx-button--primary text-[15px] font-medium" style={{ minHeight: 48 }}>
+          {offer.busy ? "Sending…" : cta}
+        </button>
+        {offer.error && <p className="wx-error text-xs">{offer.error}</p>}
+      </form>
     </div>
   );
 }

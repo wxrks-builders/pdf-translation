@@ -128,6 +128,7 @@ async function sendFilesIfRequested(job) {
       jobUrl: `${base}/jobs/${job.id}?k=${k}`,
       confidence: scored ? { ...scored, language: job.target_locales.length > 1 ? language : null } : null,
       reviewers,
+      free: job.tier === "free",
     });
     await store.appendJobEvent(job.id, "files_emailed");
   } catch (err) {

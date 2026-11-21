@@ -113,7 +113,7 @@ ${rows.join("\n")}
 }
 
 // groups: [{ language, files: [{ filename, url }] }]; confidence and reviewers are optional.
-function renderFilesEmail({ documentName, groups, jobUrl, confidence, reviewers }) {
+function renderFilesEmail({ documentName, groups, jobUrl, confidence, reviewers, free = true }) {
   const sections = groups
     .filter((g) => g.files.length)
     .map(
@@ -127,7 +127,7 @@ function renderFilesEmail({ documentName, groups, jobUrl, confidence, reviewers 
 ${renderScore(confidence)}
 ${sections}
 ${renderReviewers(reviewers)}
-            <p style="Margin:24px 0 0;font-size:14px;line-height:21px;color:#57616d;">You can also <a href="${jobUrl}" style="color:#252a31;">open the translation page</a> on any device. Tomorrow you can translate another document for free.</p>
+            <p style="Margin:24px 0 0;font-size:14px;line-height:21px;color:#57616d;">You can also <a href="${jobUrl}" style="color:#252a31;">open the translation page</a> on any device.${free ? " Tomorrow you can translate another document for free." : ""}</p>
             <p style="Margin:24px 0 0;font-size:14px;line-height:21px;color:#57616d;">Translating for a team? In <a href="https://wxrks.com/?utm_source=translate.wxrks.com&amp;utm_medium=email&amp;utm_campaign=free-translator&amp;utm_content=files-email" style="color:#252a31;">wxrks</a>, your glossary and reviewers shape every file.</p>
             <p style="Margin:28px 0 0;font-size:12px;line-height:18px;color:#57616d;">We sent this because you asked for these files on translate.wxrks.com. Reply if something looks wrong; a person reads it.</p>`);
 }

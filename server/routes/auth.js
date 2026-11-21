@@ -32,10 +32,11 @@ router.post("/request-link", requestLinkLimiter, optionalSession, freeTier.anonC
   let next = safeNext(req.body?.next);
   // Back to a guest's own file: with its key, so the link opens it on any device (the email
   // may be read on a phone), and only for a job this browser can already see.
-  const jobId = next?.match(/^\/jobs\/([A-Za-z0-9_-]+)$/)?.[1];
+  // ?finish=1 (the offer on a file over the free limit): back on the file, it starts on its own.
+  const [, jobId, finish] = next?.match(/^\/jobs\/([A-Za-z0-9_-]+)(\?finish=1)?$/) || [];
   if (jobId) {
     const job = await store.getJob(jobId);
-    next = job && canSeeJob(req, job) ? `/jobs/${job.id}?k=${accessKey(job.id)}` : null;
+    next = job && canSeeJob(req, job) ? `/jobs/${job.id}?k=${accessKey(job.id)}${finish ? "&finish=1" : ""}` : null;
     // Typed on that file's sign-up offer: its one reminder goes here (services/reminders.js).
     if (next && ["over_free_limit", "needs_credits"].includes(job.status)) await store.updateJob(job.id, { reminder_email: address });
   }

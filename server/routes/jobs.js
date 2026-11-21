@@ -326,6 +326,8 @@ router.post("/:id/rerun", optionalSession, freeTier.anonCookie, async (req, res)
     orgUnitUuid: orgUnitFor("paid"),
     tone: job.tone,
   });
+  // The offer promised the complete file by email: the files email goes to the account's address.
+  if (req.user.email) await store.updateJob(paid.id, { unlocked_email: req.user.email });
   for (const [i, f] of files.entries()) {
     await store.createJobFile({
       jobId: paid.id,

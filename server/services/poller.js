@@ -15,6 +15,7 @@ const leads = require("./leads");
 const tone = require("./tone");
 const crm = require("./crm");
 const confidence = require("./confidence");
+const docx = require("./docx");
 const { matchJobFile } = require("./filenames");
 const { normalize } = require("./locales");
 
@@ -22,13 +23,43 @@ const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS || "60000", 10);
 const RETENTION_DAYS = parseInt(process.env.RETENTION_DAYS || "30", 10);
 const APPROVING_RETRY_AGE_MS = 2 * 60 * 1000;
 const TRANSLATING_TIMEOUT_MS = 24 * 60 * 60 * 1000;
-// A design-kept PDF never holds the DOCX hostage: past this age the job delivers without it.
+// A design-kept PDF never holds the DOCX hostage: past this age the job delivers without it
+// (unless it is a reader_only file's only translation).
 const LAYOUT_WAIT_MS = 20 * 60 * 1000;
+// Ticks in a row a download may fail the same permanent way before the job fails. Live
+// 2026-11-12: a 422 "Invalid work units" was retried every minute for 24 hours.
+const PERMANENT_TRIES = 3;
 
 let timer = null;
 let running = false;
 const pokedProjects = new Set();
+const permanentErrors = new Map(); // "project|filename|locale" → permanent failures in a row
 let lastSweepDay = null;
+
+// An answer no retry changes: a 4xx other than wxrks's "not ready yet" (422 BWX-002, 423, and
+// the auth codes request() already retries), and "Invalid work units" under any code.
+function isPermanent(err) {
+  const info = err.response ? wxrks.errInfo(err) : String(err.message || "");
+  if (/invalid work units?/i.test(info)) return true;
+  if (err.retryLater) return false;
+  return [400, 404, 410, 422].includes(err.response?.status);
+}
+
+// Counts a failed (file × locale); true once it has failed the same permanent way
+// PERMANENT_TRIES ticks in a row. A transient error or a success starts the count over.
+function givesUp(key, err) {
+  if (!err || !isPermanent(err)) {
+    permanentErrors.delete(key);
+    return false;
+  }
+  const n = (permanentErrors.get(key) || 0) + 1;
+  if (n < PERMANENT_TRIES) {
+    permanentErrors.set(key, n);
+    return false;
+  }
+  permanentErrors.delete(key);
+  return true;
+}
 
 // wxrks's translated-file container formats disagree with entry names at
 // times; trust the magic bytes over the claimed extension.
@@ -50,6 +81,8 @@ async function fetchDeliverable(job, jobFiles, wu) {
     console.warn(`[poller] job ${job.id}: no job file matches work-unit filename "${wu.filename}"`);
     return;
   }
+  // wxrks counted no words in it: its translation comes from the design-kept path (processLayout).
+  if (file.reader_only) return;
   const locale = wu.targetLanguage;
   if (await store.isProcessed(job.wxrks_project_uuid, wu.filename, normalize(locale))) return;
 
@@ -82,22 +115,29 @@ async function fetchDeliverable(job, jobFiles, wu) {
 }
 
 async function processTranslatingJob(job) {
-  const page = await wxrks.listWorkUnits(job.wxrks_project_uuid);
-  const wus = page.content || [];
-  if (!wus.length) return;
-
   const jobFiles = await store.listJobFiles(job.id);
+  // A job whose files are all reader_only has no work units here: its project was cancelled
+  // and the design-kept project translates everything.
+  const wus = (await wxrks.listWorkUnits(job.wxrks_project_uuid)).content || [];
+  if (!wus.length && !jobFiles.some((f) => f.reader_only)) return;
+
   for (const wu of wus) {
     if (wu.workStatus !== "DELIVERED") continue;
+    const key = `${job.wxrks_project_uuid}|${wu.filename}|${wu.targetLanguage}`;
     try {
       await fetchDeliverable(job, jobFiles, wu);
+      givesUp(key, null);
     } catch (err) {
+      if (givesUp(key, err)) {
+        await pipeline.markJobFailed(job.id, new Error(`wxrks can't deliver ${wu.filename} → ${wu.targetLanguage}: ${wxrks.errInfo(err)}`));
+        return;
+      }
       if (err.retryLater) continue; // not ready yet — next tick
       console.error(`[poller] job ${job.id} (${wu.filename} → ${wu.targetLanguage}): ${wxrks.errInfo(err)}`);
     }
   }
 
-  await processLayout(job, jobFiles);
+  if (!(await processLayout(job, jobFiles))) return; // the job failed
 
   // Job is done when every (file × target locale) has its translation, and the design-kept
   // PDFs have either arrived or given up.
@@ -118,16 +158,22 @@ async function processTranslatingJob(job) {
 }
 
 // Design-kept PDFs: each DELIVERED (file × locale) of the layout project is a JSON of
-// translated segments; rebuild the PDF from it and store both PDF variants.
+// translated segments; rebuild the PDF from it and store both PDF variants. A reader_only file's
+// Word file is built from the same JSON (services/docx.js), and stands as its translation even
+// when no PDF can be drawn. → false when the job failed.
 async function processLayout(job, jobFiles) {
   const files = jobFiles.filter((f) => f.layout_status === "translating");
-  if (!job.layout_project_uuid || !files.length) return;
+  if (!job.layout_project_uuid || !files.length) return true;
   const wus = (await wxrks.listWorkUnits(job.layout_project_uuid)).content || [];
   for (const wu of wus) {
     if (wu.workStatus !== "DELIVERED") continue;
     const file = files.find((f) => f.layout_filename === wu.filename);
     const locale = normalize(wu.targetLanguage);
     if (!file || (await store.isProcessed(job.layout_project_uuid, wu.filename, locale))) continue;
+    const base = path.basename(file.original_filename, path.extname(file.original_filename));
+    const key = `${job.layout_project_uuid}|${wu.filename}|${locale}`;
+    let translated = null;
+    let units = null;
     try {
       const entries = await wxrks.downloadZipSync(job.layout_project_uuid, {
         resources: [file.layout_resource_uuid],
@@ -135,13 +181,9 @@ async function processLayout(job, jobFiles) {
       });
       const entry = entries.find((e) => !e.entryName.endsWith("/"));
       if (!entry) throw new wxrks.RetryLaterError("empty ZIP");
-      const translated = JSON.parse(entry.buffer.toString("utf8"));
-      const { design, images } = await layout.rebuild(
-        await store.getJobFileContent(file.id),
-        await store.getJobFileLayoutUnits(file.id),
-        translated
-      );
-      const base = path.basename(file.original_filename, path.extname(file.original_filename));
+      translated = JSON.parse(entry.buffer.toString("utf8"));
+      units = await store.getJobFileLayoutUnits(file.id);
+      const { design, images } = await layout.rebuild(await store.getJobFileContent(file.id), units, translated);
       const stored = await store.storeDeliverable({
         jobId: job.id,
         jobFileId: file.id,
@@ -149,29 +191,51 @@ async function processLayout(job, jobFiles) {
         projectUuid: job.layout_project_uuid,
         wxrksFilename: wu.filename,
         files: [
+          file.reader_only && { variant: "translation", filename: `${base}.docx`, content: docx.build(units, translated, locale) },
           { variant: "pdf-design", filename: `${base} (design kept).pdf`, content: design },
-          { variant: "pdf-images", filename: `${base} (page images).pdf`, content: images },
-        ],
+          images && { variant: "pdf-images", filename: `${base} (page images).pdf`, content: images },
+        ].filter(Boolean),
       });
+      givesUp(key, null);
       if (stored) await store.appendJobEvent(job.id, "layout_pdf_stored", { file: file.original_filename, locale });
     } catch (err) {
       // Download hiccups retry next tick; a rebuild that can't succeed (a script the bundled
-      // fonts don't cover, a crash) or a garbled JSON ends this file × locale without a PDF.
-      if (err.retryLater || !(err instanceof layout.LayoutError || err instanceof SyntaxError)) {
+      // fonts don't cover, a crash), a garbled JSON, or the same permanent wxrks answer
+      // PERMANENT_TRIES times ends this file × locale without a PDF.
+      const final = err instanceof layout.LayoutError || err instanceof SyntaxError || givesUp(key, err);
+      if (!final) {
         if (!err.retryLater) console.error(`[poller] job ${job.id} layout ${wu.filename} → ${locale}: ${wxrks.errInfo(err)}`);
         continue;
       }
       console.warn(`[poller] job ${job.id}: no design-kept PDF for ${file.original_filename} → ${locale}: ${err.message}`);
-      await store.markProcessed(job.layout_project_uuid, wu.filename, locale);
+      if (file.reader_only) {
+        // Its only translation: the Word file alone if the text arrived, or the job fails now.
+        if (!translated) {
+          await pipeline.markJobFailed(job.id, new Error(`no translation for ${file.original_filename} → ${locale}: ${err.message}`));
+          return false;
+        }
+        await store.storeDeliverable({
+          jobId: job.id,
+          jobFileId: file.id,
+          locale,
+          projectUuid: job.layout_project_uuid,
+          wxrksFilename: wu.filename,
+          files: [{ variant: "translation", filename: `${base}.docx`, content: docx.build(units || (await store.getJobFileLayoutUnits(file.id)), translated, locale) }],
+        });
+      } else {
+        await store.markProcessed(job.layout_project_uuid, wu.filename, locale);
+      }
       await store.appendJobEvent(job.id, "layout_pdf_skipped", { file: file.original_filename, locale, reason: err.message.slice(0, 160) });
     }
   }
+  return true;
 }
 
 async function layoutSettled(job, jobFiles) {
   const waiting = jobFiles.filter((f) => ["pending", "translating"].includes(f.layout_status));
   if (!waiting.length) return true;
-  if (Date.now() - new Date(job.created_at).getTime() > LAYOUT_WAIT_MS) {
+  // A reader_only file's PDF path is its translation: it waits as long as any translation does.
+  if (Date.now() - new Date(job.created_at).getTime() > LAYOUT_WAIT_MS && !waiting.some((f) => f.reader_only)) {
     await store.appendJobEvent(job.id, "layout_timeout");
     return true;
   }

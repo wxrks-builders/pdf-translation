@@ -46,6 +46,9 @@ async function runPipeline(jobId) {
   // follows the rename so the poller's filename matching sees what wxrks will
   // echo back. Work units must wait for it, or they'd target the raw PDF.
   const files = await store.listJobFiles(jobId);
+  // PDFs wxrks didn't convert: it can't read them, so the design-kept path's own reader
+  // translates them instead (job_files.reader_only), at any length up to READER_MAX_PAGES.
+  const unreadable = new Set();
   for (const file of files) {
     const resource = await wxrks.createResource(project.uuid, file.wxrks_filename);
     let content = await store.getJobFileContent(file.id);
@@ -61,7 +64,8 @@ async function runPipeline(jobId) {
         await store.updateJobFile(file.id, { wxrksFilename: convertedName });
         await store.appendJobEvent(jobId, "pdf_converted", { file: file.original_filename });
       } else {
-        console.warn(`[pipeline] wxrks did not convert ${file.original_filename} to DOCX — translating it as a raw PDF (text-only output)`);
+        console.warn(`[pipeline] wxrks did not convert ${file.original_filename} to DOCX — reading it with the design-kept path`);
+        unreadable.add(file.id);
         await store.appendJobEvent(jobId, "pdf_conversion_skipped", { file: file.original_filename });
       }
     }
@@ -70,37 +74,63 @@ async function runPipeline(jobId) {
 
   // 2b. Design-kept PDFs (beta): read each PDF's text and layout now, so the poller knows from
   // the start which files also get a rebuilt PDF. Soft — a PDF that can't be read just goes
-  // without one; the DOCX never depends on it. Returns the words those PDFs will send to
-  // wxrks, which the gate charges for when wxrks counts fewer.
-  const layoutWords = await prepareLayout(jobId, files);
+  // without one; the DOCX never depends on it. A PDF wxrks didn't convert is read at any length
+  // and becomes reader_only. Returns each file's words, which the gate charges for.
+  const words = await prepareLayout(jobId, files, unreadable);
 
-  // 3. Work units (must exist before pre-analysis returns real numbers)
-  const uploaded = await store.listJobFiles(jobId);
-  await whileConverting(() =>
-    wxrks.createWorkUnitsBulk(
-      project.uuid,
-      uploaded.map((f) => ({ projectResourceUuid: f.resource_uuid, workflows: ["TRANSLATION"], targetLocales: targets }))
-    )
-  );
-
-  // 4. Analyze. A zero-word summary can come back while a PDF is still being
-  // converted, so retry with backoff before trusting a zero.
+  // 3. Work units (must exist before pre-analysis returns real numbers), for the files wxrks
+  // reads. A reader_only file gets none: wxrks answers 422 "PDF to DOCX conversion failed" for
+  // it (live 2026-11-17, a 375-page PDF), or counts it as zero words.
+  const viaWxrks = (await store.listJobFiles(jobId)).filter((f) => !f.reader_only);
   await setStatus(jobId, "analyzing");
-  let summary;
-  for (let attempt = 1; ; attempt++) {
-    summary = await whileConverting(() => wxrks.runPreAnalysis(project.uuid));
-    if (summary.some((r) => r.totalWords > 0) || attempt >= 5) break;
-    await store.appendJobEvent(jobId, "analysis_empty_retry", { attempt });
-    await new Promise((r) => setTimeout(r, attempt * 15000));
+  let summary = [];
+  // PDFs neither wxrks nor the design-kept reader can read: wxrks refuses their work units, and
+  // the job is one with no text in it (step 4b), not a failure.
+  const nobodyReads = viaWxrks.length > 0 && viaWxrks.every((f) => unreadable.has(f.id));
+  let refused = false;
+  if (viaWxrks.length) {
+    try {
+      await whileConverting(() =>
+        wxrks.createWorkUnitsBulk(
+          project.uuid,
+          viaWxrks.map((f) => ({ projectResourceUuid: f.resource_uuid, workflows: ["TRANSLATION"], targetLocales: targets }))
+        )
+      );
+    } catch (err) {
+      if (!(nobodyReads && /conversion failed/i.test(String(err.response?.data?.message)))) throw err;
+      refused = true;
+      await store.appendJobEvent(jobId, "pdf_conversion_failed");
+    }
   }
-  // One row per target language, each with the full source word count. The
-  // design-kept project translates every word layoutWords counted, so the job
-  // pays for whichever count is higher.
+  if (viaWxrks.length && !refused) {
+    // 4. Analyze. A zero-word summary can come back while a PDF is still being
+    // converted, so retry with backoff before trusting a zero.
+    for (let attempt = 1; ; attempt++) {
+      summary = await whileConverting(() => wxrks.runPreAnalysis(project.uuid));
+      if (summary.some((r) => r.totalWords > 0) || attempt >= 5) break;
+      await store.appendJobEvent(jobId, "analysis_empty_retry", { attempt });
+      await new Promise((r) => setTimeout(r, attempt * 15000));
+    }
+  }
   const wxrksWords = Math.max(0, ...summary.map((r) => r.totalWords || 0));
-  const analyzedWords = Math.max(wxrksWords, layoutWords);
-  const charge = Math.max(summary.reduce((sum, r) => sum + (r.totalWords || 0), 0), layoutWords * targets.length);
+  // wxrks converted its PDFs and still found no words (live 2026-11-21, a 537-page catalog, told
+  // "no text"): the design-kept reader looks again before the job is called empty.
+  // (A file wxrks didn't convert was already offered to that reader, at the same length.)
+  const secondLook = viaWxrks.filter((f) => !unreadable.has(f.id));
+  if (secondLook.length && wxrksWords === 0) await readWhatWxrksCouldNot(jobId, secondLook, words);
+
+  // One row per target language, each with the full source word count of the files wxrks reads.
+  // The design-kept project translates every word its PDFs hold, so those pay for whichever
+  // count is higher; a reader_only file is in the design-kept count alone.
+  const all = await store.listJobFiles(jobId);
+  const count = (list) => list.reduce((sum, f) => sum + (words[f.id] || 0), 0);
+  const readerWords = count(all.filter((f) => f.reader_only));
+  const layoutWords = count(all.filter((f) => !f.reader_only && f.layout_status === "pending"));
+  const analyzedWords = Math.max(wxrksWords, layoutWords) + readerWords;
+  const charge =
+    Math.max(summary.reduce((sum, r) => sum + (r.totalWords || 0), 0), layoutWords * targets.length) + readerWords * targets.length;
   await store.updateJob(jobId, { analyzed_words: analyzedWords });
-  await store.appendJobEvent(jobId, "analyzed", { words: analyzedWords, wxrksWords, layoutWords, charge, targets: targets.length });
+  await store.appendJobEvent(jobId, "analyzed", { words: analyzedWords, wxrksWords, layoutWords, readerWords, charge, targets: targets.length });
 
   // Still zero: a scan OCR couldn't read (or in a language it has no model for), or a
   // conversion that never finished. Approving would translate whatever wxrks reads later
@@ -138,10 +168,15 @@ async function runPipeline(jobId) {
   }
 
   // 6. Approve — anything failing from here on refunds (markJobFailed). The tone's agent goes
-  // on first: AI pre-translation starts with approval.
-  await tone.apply(jobId, project);
-  await setStatus(jobId, "approving");
-  await wxrks.approveProject(project.uuid);
+  // on first: AI pre-translation starts with approval. When every file is reader_only, this
+  // project has nothing to translate: the design-kept project does it all.
+  if (all.some((f) => !f.reader_only)) {
+    await tone.apply(jobId, project);
+    await setStatus(jobId, "approving");
+    await wxrks.approveProject(project.uuid);
+  } else {
+    await wxrks.cancelProject(project.uuid, "translated through the design-kept path");
+  }
   await setStatus(jobId, "translating", "approved");
 
   // 7. The design-kept PDFs' text goes through its own wxrks project, created only once the
@@ -150,14 +185,16 @@ async function runPipeline(jobId) {
 }
 
 // wxrks answers 422 BWX-002 ("still being converted from PDF to DOCX") while a big PDF converts:
-// wait and ask again, for up to 20 minutes, instead of failing the job.
+// wait and ask again, for up to 20 minutes, instead of failing the job. The same code also says
+// "PDF to DOCX conversion failed", which no wait fixes (live 2026-11-17: 20 minutes lost).
 async function whileConverting(fn) {
   const deadline = Date.now() + 20 * 60 * 1000;
   for (;;) {
     try {
       return await fn();
     } catch (err) {
-      const converting = err.response?.status === 422 && err.response?.data?.code === "BWX-002";
+      const data = err.response?.data;
+      const converting = err.response?.status === 422 && data?.code === "BWX-002" && !/conversion failed/i.test(String(data?.message));
       if (!converting || Date.now() > deadline) throw err;
       await new Promise((r) => setTimeout(r, 15000));
     }
@@ -187,19 +224,30 @@ async function readScannedPages(job, file, content) {
   }
 }
 
-async function prepareLayout(jobId, files) {
-  let words = 0;
+// → {file id: words the design-kept path will translate}
+async function prepareLayout(jobId, files, unreadable) {
+  const words = {};
   const pdfs = files.filter((f) => /\.pdf$/i.test(f.original_filename));
   if (!pdfs.length || !(await layout.isAvailable())) return words;
   for (const [i, file] of pdfs.entries()) {
+    const readerOnly = unreadable.has(file.id);
     try {
-      const extracted = await layout.extract(await store.getJobFileContent(file.id));
+      const maxPages = readerOnly ? layout.READER_MAX_PAGES : layout.LAYOUT_MAX_PAGES;
+      const extracted = await layout.extract(await store.getJobFileContent(file.id), { maxPages });
       if (!Object.keys(extracted.segments).length) {
         await store.updateJobFile(file.id, { layoutStatus: "skipped" });
         continue;
       }
-      await store.updateJobFile(file.id, { layoutStatus: "pending", layoutFilename: `${jobId}-${i + 1}.layout.json`, layoutUnits: extracted.units });
-      words += extracted.words;
+      await store.updateJobFile(file.id, {
+        layoutStatus: "pending",
+        layoutFilename: `${jobId}-${i + 1}.layout.json`,
+        layoutUnits: extracted.units,
+        readerOnly,
+      });
+      words[file.id] = extracted.words;
+      if (readerOnly) {
+        await store.appendJobEvent(jobId, "reader_only", { file: file.original_filename, why: "not converted", pages: extracted.pages, words: extracted.words });
+      }
     } catch (err) {
       console.warn(`[pipeline] job ${jobId}: no design-kept PDF for ${file.original_filename}: ${err.message}`);
       await store.updateJobFile(file.id, { layoutStatus: err.soft ? "skipped" : "failed" });
@@ -207,6 +255,34 @@ async function prepareLayout(jobId, files) {
     }
   }
   return words;
+}
+
+// wxrks converted these PDFs and counted no words in them. The design-kept reader looks again,
+// at any length: a file it can read becomes reader_only, and one it had already read for its
+// design-kept PDF moves over as it is. Adds to `words`.
+async function readWhatWxrksCouldNot(jobId, files, words) {
+  if (!(await layout.isAvailable())) return;
+  const pdfs = files.filter((f) => /\.pdf$/i.test(f.original_filename));
+  for (const [i, file] of pdfs.entries()) {
+    try {
+      if (file.layout_status === "pending") {
+        await store.updateJobFile(file.id, { readerOnly: true });
+      } else {
+        const extracted = await layout.extract(await store.getJobFileContent(file.id), { maxPages: layout.READER_MAX_PAGES });
+        if (!Object.keys(extracted.segments).length) continue;
+        await store.updateJobFile(file.id, {
+          layoutStatus: "pending",
+          layoutFilename: `${jobId}-r${i + 1}.layout.json`,
+          layoutUnits: extracted.units,
+          readerOnly: true,
+        });
+        words[file.id] = extracted.words;
+      }
+      await store.appendJobEvent(jobId, "reader_only", { file: file.original_filename, why: "no words from wxrks", words: words[file.id] });
+    } catch (err) {
+      console.warn(`[pipeline] job ${jobId}: the design-kept reader couldn't read ${file.original_filename} either: ${err.message}`);
+    }
+  }
 }
 
 async function startLayout(jobId) {
@@ -244,6 +320,8 @@ async function startLayout(jobId) {
     await store.appendJobEvent(jobId, "layout_failed", { error: wxrks.errInfo(err).slice(0, 200) });
     const current = await store.getJob(jobId);
     if (current.layout_project_uuid) await wxrks.cancelProject(current.layout_project_uuid, "design-kept PDFs failed");
+    // A reader_only file has no other translation: fail (and refund) now, not after 24 hours.
+    if (files.some((f) => f.reader_only)) throw err;
   }
 }
 
@@ -263,6 +341,9 @@ async function markJobFailed(jobId, err) {
     await store.appendJobEvent(jobId, "failed", { error: message.slice(0, 200) });
     const refunded = await store.refundForJob(jobId);
     if (refunded) await store.appendJobEvent(jobId, "credits_refunded");
+    // Nothing reached them, so a guest's free document for the day is theirs again (store.js
+    // caps how many released tries a day gets).
+    if (job?.tier === "free") await store.releaseFreeTierUsage(jobId);
     if (job?.wxrks_project_uuid) await wxrks.cancelProject(job.wxrks_project_uuid, "job failed");
     if (job?.layout_project_uuid) await wxrks.cancelProject(job.layout_project_uuid, "job failed");
     await tone.release(jobId);

@@ -42,6 +42,16 @@ function noTextReason(job) {
 
 // Over the free limit, a sample of a PDF is translated as a preview (server/services/excerpt.js);
 // keep asking while it runs, and for a moment before it has started.
+// A file just stopped at the free limit whose sample is still being cut (services/excerpt.js
+// picks its pages before the sample's job exists): a few seconds the page treats as the sample
+// being made, so the form doesn't show alone and then jump. A PDF only; given up after 30 s.
+function pickingSample(j) {
+  if (j.status !== "over_free_limit" || j.excerpt || !/\.pdf$/i.test(j.files?.[0]?.name || "")) return false;
+  if (j.timeline?.some((e) => e.event === "excerpt_skipped")) return false;
+  return Date.now() - new Date(j.updatedAt).getTime() < 30000;
+}
+const PICKING = { status: "created", timeline: [] };
+
 function stillWorking(j) {
   if (ACTIVE.includes(j.status)) return true;
   if (j.status === "delivered") return j.confidence?.status === "pending"; // Smells is still reading it
@@ -98,39 +108,15 @@ export default function Job() {
   const bar = (
     <>
       <span className="min-w-0 truncate">{job.files.length > 1 ? `${job.files.length} files` : fileName}</span>
-      <StatusBadge status={job.status} excerpt={job.excerpt} />
+      <StatusBadge status={job.status} excerpt={job.excerpt} job={job} />
     </>
   );
 
-  // Over the free limit while its sample is made: the same progress page goes on, the sample's
-  // steps after the file's, until the sample is ready (Rodrigo, 2026-11-22).
-  const sampling = job.status === "over_free_limit" && job.excerpt && ACTIVE.includes(job.excerpt.status);
-  if (ACTIVE.includes(job.status) || sampling) {
-    // Every step stays on screen once done, with what it found (pages/ProgressSteps.jsx).
-    const progress = progressSteps(job, nameOf, tone ? `${tone}, by Sous-Chef` : null, { sample: sampling ? job.excerpt : null });
-    const pct = progress.pct;
+  if (ACTIVE.includes(job.status)) {
     return (
       <Screen bar={bar}>
-        <h1 className="text-[22px] font-medium tracking-[-0.3px]">{progress.title}</h1>
-        {progress.sub && <p className="mt-1 text-[13px] text-brand-500">{progress.sub}</p>}
-        <div className="mt-5">
-          <div className="mb-1.5 flex justify-between text-xs">
-            <span className="font-medium">
-              {progress.done} of {progress.total} steps done
-            </span>
-            <span className="text-brand-500">{pct}%</span>
-          </div>
-          <div className="wx-progress" role="progressbar" aria-label="Translation progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow={pct}>
-            <span style={{ width: `${pct}%` }} />
-          </div>
-        </div>
-        <ProgressChecklist steps={progress.steps} />
-        {sampling ? (
-          <p className="mt-3 text-xs text-brand-500">
-            Next: your sample, page by page, and how to get all of the file. Your file stays private and is deleted after 30 days.
-          </p>
-        ) : null}
-        {!sampling && job.analyzedWords != null && !job.timeline.some((e) => e.event === "credits_charged") && (
+        <ProgressPanel job={job} nameOf={nameOf} tone={tone} />
+        {job.analyzedWords != null && !job.timeline.some((e) => e.event === "credits_charged") && (
           <p className={`mt-3 text-xs ${job.tier === "free" ? "text-[#176b45]" : "text-brand-500"}`}>
             {job.timeline.some((e) => e.event === "first_document_free")
               ? "Free: your first document." // jobs from the first-document-free days (2026-11-09)
@@ -139,9 +125,9 @@ export default function Job() {
                 : `Uses ${(job.creditsCharged ?? job.analyzedWords * job.targetLocales.length).toLocaleString()} credits.`}
           </p>
         )}
-        {!sampling && <p className="mt-4 text-[11px] text-brand-500">Your file stays private and is deleted after 30 days.</p>}
+        <p className="mt-4 text-[11px] text-brand-500">Your file stays private and is deleted after 30 days.</p>
 
-        {!sampling && (job.tier === "free" || job.unlockedEmail) && job.emailDelivery && (
+        {(job.tier === "free" || job.unlockedEmail) && job.emailDelivery && (
           <div className="mt-6 rounded-md border border-brand-200 bg-[#f7f8fa] p-4">
             {job.unlockedEmail ? (
               <p className="text-[13px]">We'll email the files to {job.unlockedEmail} when they're ready. You can close this tab.</p>
@@ -158,11 +144,9 @@ export default function Job() {
           </div>
         )}
 
-        {!sampling && (
-          <button onClick={async () => setJob(await api.cancelJob(job.id))} className="mt-5 text-xs text-brand-500 underline hover:text-brand-600">
-            Cancel
-          </button>
-        )}
+        <button onClick={async () => setJob(await api.cancelJob(job.id))} className="mt-5 text-xs text-brand-500 underline hover:text-brand-600">
+          Cancel
+        </button>
       </Screen>
     );
   }
@@ -364,6 +348,33 @@ function NextFile({ freeLimit }) {
   );
 }
 
+// Every step stays on screen once done, with what it found (pages/ProgressSteps.jsx). Over the
+// free limit while its sample is made, the sample's steps follow the file's (sample: job.excerpt),
+// beside the email card (OverLimit), and the title is a heading under the card's.
+function ProgressPanel({ job, nameOf, tone, sample = null }) {
+  const progress = progressSteps(job, nameOf, tone ? `${tone}, by Sous-Chef` : null, { sample });
+  const pct = progress.pct;
+  const Title = sample ? "h2" : "h1";
+  return (
+    <>
+      <Title className="text-[22px] font-medium tracking-[-0.3px]">{progress.title}</Title>
+      {progress.sub && <p className="mt-1 text-[13px] text-brand-500">{progress.sub}</p>}
+      <div className="mt-5">
+        <div className="mb-1.5 flex justify-between text-xs">
+          <span className="font-medium">
+            {progress.done} of {progress.total} steps done
+          </span>
+          <span className="text-brand-500">{pct}%</span>
+        </div>
+        <div className="wx-progress" role="progressbar" aria-label="Translation progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow={pct}>
+          <span style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+      <ProgressChecklist steps={progress.steps} />
+    </>
+  );
+}
+
 function Screen({ bar, children, wide }) {
   return (
     <section className={`mx-auto ${wide ? "max-w-6xl" : "max-w-xl"}`}>
@@ -375,13 +386,13 @@ function Screen({ bar, children, wide }) {
   );
 }
 
-function StatusBadge({ status, excerpt }) {
+function StatusBadge({ status, excerpt, job }) {
   if (status === "delivered") return <span className="wx-badge wx-badge--success">Done</span>;
   if (ACTIVE.includes(status)) return <span className="wx-badge wx-badge--pending">In progress</span>;
   // Not "Over the free limit": on a first visit that reads as a refusal (Rodrigo, 2026-11-21).
   if (status === "over_free_limit") {
     if (excerpt?.status === "delivered") return <span className="wx-badge wx-badge--success">Sample ready</span>;
-    if (excerpt && ACTIVE.includes(excerpt.status)) return <span className="wx-badge wx-badge--pending">In progress</span>;
+    if ((excerpt && ACTIVE.includes(excerpt.status)) || pickingSample(job)) return <span className="wx-badge wx-badge--pending">In progress</span>;
     return <span className="wx-badge wx-badge--info">Ready to translate</span>;
   }
   return <span className="wx-badge">{status === "cancelled" ? "Cancelled" : "Stopped"}</span>;
@@ -927,7 +938,8 @@ function OverLimit({ job, bar, nameOf, tone }) {
   // Pages: the PDF's own count when the sample read it, else from the words (250 a page).
   const total = excerpt?.totalPages || (words != null ? pagesFor(words) : null);
   const sampled = excerpt?.status === "delivered" ? excerpt.pages || 1 : 0;
-  const sampling = excerpt && ACTIVE.includes(excerpt.status);
+  const picking = pickingSample(job);
+  const sampling = Boolean(excerpt && ACTIVE.includes(excerpt.status)) || picking;
   const left = total != null ? Math.max(0, total - sampled) : null;
   const all = total != null ? `all ${pg(total)}` : "the whole file";
 
@@ -951,7 +963,15 @@ function OverLimit({ job, bar, nameOf, tone }) {
       </a>
     </p>
   );
-  const sample = (
+  // While the sample is made, its steps stand where it will be, so the email card is beside them
+  // from the first minute (Rodrigo, 2026-11-22: "this page would have to have the form on the side").
+  const steps = sampling ? (
+    <div>
+      <ProgressPanel job={job} nameOf={nameOf} tone={tone} sample={excerpt || PICKING} />
+      <p className="mt-3 text-xs text-brand-500">Next: your sample, page by page.</p>
+    </div>
+  ) : null;
+  const sample = steps || (
     <div id="sample">
       <ExcerptPreview excerpt={excerpt} nameOf={nameOf} tone={tone} />
     </div>
@@ -1018,7 +1038,7 @@ function OverLimit({ job, bar, nameOf, tone }) {
         restPack ? `, and a $${restPack.price} pack covers the other ${n(rest)}` : ""
       }.`;
   const cta = covers ? "Get the complete file" : "Sign up free";
-  const hasSample = Boolean(excerpt);
+  const hasSample = Boolean(excerpt) || picking;
   // Back from a link that had expired or was used (routes/auth.js verify): ask again here.
   const expired = new URLSearchParams(window.location.search).get("expired") === "1";
   const card = (
@@ -1037,7 +1057,9 @@ function OverLimit({ job, bar, nameOf, tone }) {
         </div>
       )}
       {sampling && (
-        <p className="text-[13px] text-brand-500">Translating {pg(excerpt.pages || 1)} of it so you can see the result…</p>
+        <p className="text-[13px] text-brand-500">
+          {excerpt?.pages ? `Translating ${pg(excerpt.pages)} of it so you can see the result…` : "Picking pages to translate so you can see the result…"}
+        </p>
       )}
       <h1 className="mt-3 text-[26px] font-bold leading-8 tracking-[-0.4px]">{headline}</h1>
       <p className="mt-2 text-[14px] leading-[21px] text-[#3d4650]">{sub}</p>
@@ -1080,9 +1102,11 @@ function OverLimit({ job, bar, nameOf, tone }) {
       {hasSample ? (
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
           <div className="order-2 min-w-0 lg:order-1">
-            <div id="sample" className="-mt-5">
-              <ExcerptPreview excerpt={excerpt} nameOf={nameOf} tone={tone} defaultOnly />
-            </div>
+            {steps || (
+              <div id="sample" className="-mt-5">
+                <ExcerptPreview excerpt={excerpt} nameOf={nameOf} tone={tone} defaultOnly />
+              </div>
+            )}
           </div>
           <div className="order-1 lg:sticky lg:top-6 lg:order-2">{card}</div>
         </div>

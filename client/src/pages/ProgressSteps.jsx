@@ -95,7 +95,8 @@ export function progressSteps(job, nameOf, tone, { sample = null } = {}) {
     const st = sample.timeline || [];
     const first = sample.firstPage || 1;
     const last = first + (sample.pages || 1) - 1;
-    const range = last > first ? `pages ${first} to ${last}` : `page ${first}`;
+    // Before its pages are picked (no sample job yet), the steps say "the sample's pages".
+    const range = !sample.pages ? "the sample's pages" : last > first ? `pages ${first} to ${last}` : `page ${first}`;
     const picked = find("excerpt_started");
     steps.push({
       key: "sample-pick",

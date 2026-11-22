@@ -315,6 +315,32 @@ async function appendJobEvent(id, event, detail) {
   );
 }
 
+// Events another job already lived through (a paid job taking over a kept project), with their
+// own times: the progress page shows them as done "earlier".
+async function appendJobEvents(id, entries) {
+  const add = db.prepare(`UPDATE jobs SET timeline = json_insert(timeline, '$[#]', json(?)) WHERE id = ?`);
+  for (const e of entries) add.run(JSON.stringify(e), id);
+}
+
+// Files stopped at a price whose kept wxrks project no one came back for (pipeline.keepOrCancel).
+async function listKeptProjects(beforeIso) {
+  return db
+    .prepare(
+      `SELECT * FROM jobs WHERE created_at < ? AND wxrks_project_uuid IS NOT NULL
+         AND timeline LIKE '%"project_kept"%' AND timeline NOT LIKE '%"project_released"%' AND timeline NOT LIKE '%"rerun_paid"%'`
+    )
+    .all(beforeIso)
+    .map(parseJob);
+}
+
+// Delivered jobs since sinceIso, for how long a step usually takes (routes/jobs.js estimates).
+async function listDeliveredForTiming(sinceIso) {
+  return db
+    .prepare(`SELECT analyzed_words, timeline FROM jobs WHERE status = 'delivered' AND created_at >= ? ORDER BY created_at DESC LIMIT 300`)
+    .all(sinceIso)
+    .map((r) => ({ words: r.analyzed_words || 0, timeline: JSON.parse(r.timeline || "[]") }));
+}
+
 // --- job files ---
 
 async function createJobFile({ jobId, originalFilename, wxrksFilename, sizeBytes, contentType, content }) {
@@ -775,6 +801,9 @@ module.exports = {
   recordLead,
   claimFilesEmail,
   countFilesEmailsSince,
+  appendJobEvents,
+  listKeptProjects,
+  listDeliveredForTiming,
   listReminderCandidates,
   claimReminder,
   countRemindersSince,

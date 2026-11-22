@@ -48,6 +48,49 @@ function previewsOf(deliverables) {
   return previews;
 }
 
+// How long a step usually takes, from the last 60 days of delivered jobs: the translation
+// (approved → its first file) and the design-kept PDF (layout started → its last PDF). Jobs of a
+// similar size (half to twice the words) when there are three, else a per-word rate. The progress
+// page says "usually about N min" beside the step at work, so a long step doesn't read as stuck.
+let timing = null;
+async function timingSamples() {
+  if (timing && Date.now() - timing.at < 10 * 60 * 1000) return timing.samples;
+  const rows = await store.listDeliveredForTiming(new Date(Date.now() - 60 * 24 * 3600 * 1000).toISOString());
+  const samples = rows.map((r) => {
+    const times = (name) => r.timeline.filter((e) => e.event === name).map((e) => new Date(e.at).getTime());
+    const approved = times("approved")[0];
+    const firstFile = times("deliverable_stored")[0];
+    const layoutStart = times("layout_started")[0];
+    const lastPdf = times("layout_pdf_stored").pop();
+    return {
+      words: r.words,
+      translate: approved && firstFile > approved ? (firstFile - approved) / 1000 : null,
+      layout: layoutStart && lastPdf > layoutStart ? (lastPdf - layoutStart) / 1000 : null,
+    };
+  });
+  timing = { at: Date.now(), samples };
+  return samples;
+}
+
+function median(xs) {
+  const sorted = [...xs].sort((a, b) => a - b);
+  return sorted.length ? sorted[Math.floor(sorted.length / 2)] : null;
+}
+
+async function estimateFor(words) {
+  if (!words) return null;
+  const samples = await timingSamples();
+  const pick = (key) => {
+    const near = samples.filter((x) => x[key] != null && x.words >= words / 2 && x.words <= words * 2).map((x) => x[key]);
+    if (near.length >= 3) return Math.round(median(near));
+    const rates = samples.filter((x) => x[key] != null && x.words > 0).map((x) => x[key] / x.words);
+    return rates.length >= 3 ? Math.max(20, Math.round(median(rates) * words)) : null;
+  };
+  return { translate: pick("translate"), layout: pick("layout") };
+}
+
+const WORKING = ["created", "uploading", "analyzing", "approving", "translating"];
+
 // The sample of a file stopped at a price (services/excerpt.js), if one was started.
 // Without a design-kept page to show (a scan, a script the fonts lack), the page asks for the
 // text of both sides instead (preview-text below).
@@ -64,6 +107,12 @@ async function excerptOf(job) {
     firstPage: child.excerpt_first_page || 1,
     previews: previewsOf(deliverables),
     textPreview: child.status === "delivered" && deliverables.some((d) => d.variant === "translation"),
+    // While it works, its steps continue the file's own on the progress page.
+    words: child.analyzed_words,
+    timeline: WORKING.includes(child.status)
+      ? child.timeline.map((e) => ({ at: e.at, event: e.event, ...(e.detail?.locale ? { detail: { locale: e.detail.locale } } : {}) }))
+      : [],
+    estimate: WORKING.includes(child.status) ? await estimateFor(child.analyzed_words) : null,
   };
 }
 
@@ -115,6 +164,7 @@ async function serializeJob(job, req) {
     // The free words this job was measured against.
     freeLimit: [...job.timeline].reverse().find((e) => e.event === "over_free_limit")?.detail?.limit || pipeline.FREE_TIER_MAX_WORDS,
     excerpt: await excerptOf(job),
+    estimate: WORKING.includes(job.status) ? await estimateFor(job.analyzed_words) : null,
     rerunJobId: (await rerunOf(job))?.id || null,
     createdAt: job.created_at,
     updatedAt: job.updated_at,
@@ -311,6 +361,10 @@ router.post("/:id/rerun", optionalSession, freeTier.anonCookie, async (req, res)
   }
   const earlier = await rerunOf(job); // a second click goes to the same paid job
   if (earlier) return res.status(200).json({ jobId: earlier.id });
+  // The file's own wxrks project, kept at the price (pipeline.keepOrCancel): already uploaded,
+  // converted and counted, so the paid job continues from there instead of starting again.
+  const kept = [...job.timeline].reverse().find((e) => e.event === "project_kept");
+  const adopt = Boolean(kept && job.wxrks_project_uuid && kept.detail?.project === job.wxrks_project_uuid);
   const files = await store.listJobFiles(job.id);
   const contents = [];
   for (const f of files) {
@@ -329,17 +383,41 @@ router.post("/:id/rerun", optionalSession, freeTier.anonCookie, async (req, res)
   // The offer promised the complete file by email: the files email goes to the account's address.
   if (req.user.email) await store.updateJob(paid.id, { unlocked_email: req.user.email });
   for (const [i, f] of files.entries()) {
-    await store.createJobFile({
+    const copy = await store.createJobFile({
       jobId: paid.id,
       originalFilename: f.original_filename,
-      wxrksFilename: buildWxrksFilename(paid.id, f.original_filename),
+      wxrksFilename: adopt ? f.wxrks_filename : buildWxrksFilename(paid.id, f.original_filename),
       sizeBytes: f.size_bytes,
       contentType: f.content_type,
       content: contents[i],
     });
+    if (adopt) {
+      // The same resource in the same project, its design-kept read too.
+      if (f.ocr_pages) await store.replaceScannedFileContent(copy.id, contents[i], f.ocr_pages);
+      const units = f.layout_status === "pending" ? await store.getJobFileLayoutUnits(f.id) : null;
+      await store.updateJobFile(copy.id, {
+        resourceUuid: f.resource_uuid,
+        status: f.status,
+        layoutStatus: f.layout_status,
+        layoutFilename: units ? `${paid.id}-${i + 1}.layout.json` : null,
+        layoutUnits: units,
+        readerOnly: Boolean(f.reader_only),
+      });
+    }
   }
-  await store.appendJobEvent(job.id, "rerun_paid", { job: paid.id });
-  pipeline.startPipeline(paid.id);
+  await store.appendJobEvent(job.id, "rerun_paid", { job: paid.id, continued: adopt });
+  if (adopt) {
+    // The steps already done show as done "earlier" on the paid job's progress page.
+    const CARRY = ["project_created", "ocr_done", "pdf_converted", "pdf_conversion_skipped", "reader_only", "files_uploaded", "analyzed"];
+    await store.appendJobEvents(paid.id, job.timeline.filter((e) => CARRY.includes(e.event)));
+    await store.updateJob(paid.id, { wxrks_project_uuid: job.wxrks_project_uuid, analyzed_words: job.analyzed_words });
+    await store.appendJobEvent(paid.id, "continued", { from: job.id });
+    const analyzed = [...job.timeline].reverse().find((e) => e.event === "analyzed");
+    const charge = analyzed?.detail?.charge ?? (job.analyzed_words || 0) * job.target_locales.length;
+    pipeline.startResume(paid.id, { charge, account: kept.detail?.account });
+  } else {
+    pipeline.startPipeline(paid.id);
+  }
   res.status(202).json({ jobId: paid.id });
 });
 

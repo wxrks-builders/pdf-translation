@@ -274,6 +274,13 @@ async function tick() {
       lastSweepDay = today;
       const swept = await store.sweepOldBlobs(RETENTION_DAYS);
       if (swept.deliverables || swept.jobFiles) console.log(`[poller] retention sweep:`, swept);
+      // A file stopped at a price keeps its unapproved wxrks project for a sign-up to continue
+      // (pipeline.keepOrCancel); its file is gone now, so the project goes too.
+      const before = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+      for (const job of await store.listKeptProjects(before)) {
+        await wxrks.cancelProject(job.wxrks_project_uuid, "file stopped at a price, not continued").catch(() => {});
+        await store.appendJobEvent(job.id, "project_released");
+      }
     }
   } catch (err) {
     console.error("[poller] tick failed:", err.message);

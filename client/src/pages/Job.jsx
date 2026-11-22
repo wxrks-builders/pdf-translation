@@ -102,9 +102,12 @@ export default function Job() {
     </>
   );
 
-  if (ACTIVE.includes(job.status)) {
+  // Over the free limit while its sample is made: the same progress page goes on, the sample's
+  // steps after the file's, until the sample is ready (Rodrigo, 2026-11-22).
+  const sampling = job.status === "over_free_limit" && job.excerpt && ACTIVE.includes(job.excerpt.status);
+  if (ACTIVE.includes(job.status) || sampling) {
     // Every step stays on screen once done, with what it found (pages/ProgressSteps.jsx).
-    const progress = progressSteps(job, nameOf, tone ? `${tone}, by Sous-Chef` : null);
+    const progress = progressSteps(job, nameOf, tone ? `${tone}, by Sous-Chef` : null, { sample: sampling ? job.excerpt : null });
     const pct = progress.pct;
     return (
       <Screen bar={bar}>
@@ -122,7 +125,12 @@ export default function Job() {
           </div>
         </div>
         <ProgressChecklist steps={progress.steps} />
-        {job.analyzedWords != null && (
+        {sampling ? (
+          <p className="mt-3 text-xs text-brand-500">
+            Next: your sample, page by page, and how to get all of the file. Your file stays private and is deleted after 30 days.
+          </p>
+        ) : null}
+        {!sampling && job.analyzedWords != null && !job.timeline.some((e) => e.event === "credits_charged") && (
           <p className={`mt-3 text-xs ${job.tier === "free" ? "text-[#176b45]" : "text-brand-500"}`}>
             {job.timeline.some((e) => e.event === "first_document_free")
               ? "Free: your first document." // jobs from the first-document-free days (2026-11-09)
@@ -131,9 +139,9 @@ export default function Job() {
                 : `Uses ${(job.creditsCharged ?? job.analyzedWords * job.targetLocales.length).toLocaleString()} credits.`}
           </p>
         )}
-        <p className="mt-4 text-[11px] text-brand-500">Your file stays private and is deleted after 30 days.</p>
+        {!sampling && <p className="mt-4 text-[11px] text-brand-500">Your file stays private and is deleted after 30 days.</p>}
 
-        {(job.tier === "free" || job.unlockedEmail) && job.emailDelivery && (
+        {!sampling && (job.tier === "free" || job.unlockedEmail) && job.emailDelivery && (
           <div className="mt-6 rounded-md border border-brand-200 bg-[#f7f8fa] p-4">
             {job.unlockedEmail ? (
               <p className="text-[13px]">We'll email the files to {job.unlockedEmail} when they're ready. You can close this tab.</p>
@@ -150,9 +158,11 @@ export default function Job() {
           </div>
         )}
 
-        <button onClick={async () => setJob(await api.cancelJob(job.id))} className="mt-5 text-xs text-brand-500 underline hover:text-brand-600">
-          Cancel
-        </button>
+        {!sampling && (
+          <button onClick={async () => setJob(await api.cancelJob(job.id))} className="mt-5 text-xs text-brand-500 underline hover:text-brand-600">
+            Cancel
+          </button>
+        )}
       </Screen>
     );
   }
@@ -370,7 +380,9 @@ function StatusBadge({ status, excerpt }) {
   if (ACTIVE.includes(status)) return <span className="wx-badge wx-badge--pending">In progress</span>;
   // Not "Over the free limit": on a first visit that reads as a refusal (Rodrigo, 2026-11-21).
   if (status === "over_free_limit") {
-    return excerpt?.status === "delivered" ? <span className="wx-badge wx-badge--success">Sample ready</span> : <span className="wx-badge wx-badge--info">Ready to translate</span>;
+    if (excerpt?.status === "delivered") return <span className="wx-badge wx-badge--success">Sample ready</span>;
+    if (excerpt && ACTIVE.includes(excerpt.status)) return <span className="wx-badge wx-badge--pending">In progress</span>;
+    return <span className="wx-badge wx-badge--info">Ready to translate</span>;
   }
   return <span className="wx-badge">{status === "cancelled" ? "Cancelled" : "Stopped"}</span>;
 }

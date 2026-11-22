@@ -152,7 +152,7 @@ async function runPipeline(jobId) {
     if (analyzedWords > limit) {
       // Nothing gets translated, so the day's free document is still theirs (store.js caps this).
       await store.releaseFreeTierUsage(jobId);
-      await wxrks.cancelProject(project.uuid, "free tier word limit exceeded");
+      await keepOrCancel(job, project, "free tier word limit exceeded");
       await setStatus(jobId, "over_free_limit", "over_free_limit", { words: analyzedWords, limit: FREE_TIER_MAX_WORDS });
       // A sample of what the whole file would get (a sample never gets one of its own).
       if (!job.excerpt_of) await require("./excerpt").start(jobId, FREE_TIER_MAX_WORDS);
@@ -161,7 +161,7 @@ async function runPipeline(jobId) {
   } else if (charge > 0) {
     const result = await store.chargeForJob(job.user_id, jobId, charge);
     if (!result.ok) {
-      await wxrks.cancelProject(project.uuid, "insufficient credits");
+      await keepOrCancel(job, project, "insufficient credits");
       await setStatus(jobId, "needs_credits", "needs_credits", { required: charge, balance: result.balance });
       // A sample, as for a free file over the limit.
       await require("./excerpt").start(jobId, FREE_TIER_MAX_WORDS);
@@ -185,6 +185,46 @@ async function runPipeline(jobId) {
   // 7. The design-kept PDFs' text goes through its own wxrks project, created only once the
   // job is paid for and not metered again (the charge above already covers its words).
   await startLayout(jobId);
+}
+
+// A file stopped at a price keeps its wxrks project as it is: uploaded, converted, counted, never
+// approved, so it costs nothing. When the visitor comes back with credits (routes/jobs.js rerun),
+// the paid job takes this project over and starts from approval, not from the upload again
+// (Rodrigo, 2026-11-22: "why it just started from where it stopped?"). The poller releases a kept
+// project no one came back for after RETENTION_DAYS. A sample's own project is never kept.
+async function keepOrCancel(job, project, reason) {
+  if (job.excerpt_of) return wxrks.cancelProject(project.uuid, reason);
+  await store.appendJobEvent(job.id, "project_kept", { project: project.uuid, account: project.accountUuid || null });
+}
+
+// The paid job that took over a kept project: charge, then on from approval (step 6). `charge` is
+// the gate's own figure for this file; `account` the project's, which the tone's agent needs.
+async function resumeFromProject(jobId, { charge, account }) {
+  const job = await store.getJob(jobId);
+  const project = { uuid: job.wxrks_project_uuid, accountUuid: account || undefined };
+  if (charge > 0) {
+    const result = await store.chargeForJob(job.user_id, jobId, charge);
+    if (!result.ok) {
+      await store.appendJobEvent(jobId, "project_kept", { project: project.uuid, account: account || null });
+      await setStatus(jobId, "needs_credits", "needs_credits", { required: charge, balance: result.balance });
+      return;
+    }
+    await store.appendJobEvent(jobId, "credits_charged", { amount: charge });
+  }
+  const files = await store.listJobFiles(jobId);
+  if (files.some((f) => !f.reader_only)) {
+    await tone.apply(jobId, project);
+    await setStatus(jobId, "approving");
+    await wxrks.approveProject(project.uuid);
+  } else {
+    await wxrks.cancelProject(project.uuid, "translated through the design-kept path");
+  }
+  await setStatus(jobId, "translating", "approved");
+  await startLayout(jobId);
+}
+
+function startResume(jobId, opts) {
+  resumeFromProject(jobId, opts).catch((err) => markJobFailed(jobId, err));
 }
 
 // wxrks answers 422 BWX-002 ("still being converted from PDF to DOCX") while a big PDF converts:
@@ -373,4 +413,4 @@ function startPipeline(jobId) {
   runPipeline(jobId).catch((err) => markJobFailed(jobId, err));
 }
 
-module.exports = { runPipeline, startPipeline, resumeApproval, markJobFailed, cancelJob, FREE_TIER_MAX_WORDS };
+module.exports = { runPipeline, startPipeline, startResume, resumeApproval, markJobFailed, cancelJob, FREE_TIER_MAX_WORDS };

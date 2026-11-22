@@ -121,40 +121,23 @@ export default function Job() {
   );
 
   if (ACTIVE.includes(job.status)) {
+    // The steps on the left and a card beside them from the first second, the same layout as a
+    // file over the free limit (Rodrigo, 2026-11-22: "where is the lateral form here?").
+    const asks = !job.unlockedEmail && job.emailDelivery;
     return (
-      <Screen bar={bar}>
-        <ProgressPanel job={job} nameOf={nameOf} tone={tone} />
-        {job.analyzedWords != null && !job.timeline.some((e) => e.event === "credits_charged") && (
-          <p className={`mt-3 text-xs ${job.tier === "free" ? "text-[#176b45]" : "text-brand-500"}`}>
-            {job.timeline.some((e) => e.event === "first_document_free")
-              ? "Free: your first document." // jobs from the first-document-free days (2026-11-09)
-              : job.tier === "free"
-                ? `Free: your document for today, up to ${wordsAndPages(job.freeLimit || FREE_WORDS)}.`
-                : `Uses ${(job.creditsCharged ?? job.analyzedWords * job.targetLocales.length).toLocaleString()} credits.`}
-          </p>
-        )}
-        <p className="mt-4 text-[11px] text-brand-500">Your file stays private and is deleted after 30 days.</p>
-
-        {(job.tier === "free" || job.unlockedEmail) && job.emailDelivery && (
-          <div className="mt-6 rounded-md border border-brand-200 bg-[#f7f8fa] p-4">
-            {job.unlockedEmail ? (
-              <p className="text-[13px]">We'll email the files to {job.unlockedEmail} when they're ready. You can close this tab.</p>
-            ) : (
-              <EmailForm
-                job={job}
-                k={k}
-                onDone={setJob}
-                intro="Don't want to wait? Leave your email and close the tab. We'll send the files when they're ready."
-                cta="Email me the files"
-                compact
-              />
-            )}
+      <Screen bar={bar} wide>
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+          <div className={`${asks ? "order-2" : "order-1"} min-w-0 lg:order-1`}>
+            <ProgressPanel job={job} nameOf={nameOf} tone={tone} />
+            <p className="mt-4 text-[11px] text-brand-500">Your file stays private and is deleted after 30 days.</p>
+            <button onClick={async () => setJob(await api.cancelJob(job.id))} className="mt-4 text-xs text-brand-500 underline hover:text-brand-600">
+              Cancel
+            </button>
           </div>
-        )}
-
-        <button onClick={async () => setJob(await api.cancelJob(job.id))} className="mt-5 text-xs text-brand-500 underline hover:text-brand-600">
-          Cancel
-        </button>
+          <div className={`${asks ? "order-1" : "order-2"} lg:sticky lg:top-6 lg:order-2`}>
+            <WorkingCard job={job} k={k} onDone={setJob} />
+          </div>
+        </div>
       </Screen>
     );
   }
@@ -237,15 +220,20 @@ function Delivered({ job, bar, byLocale, preview, nameOf, tone, q, k }) {
   const shown = job.previews?.find((p) => p.locale === loc) || preview;
   return (
     <Screen bar={bar} wide>
-      <h1 className="text-[22px] font-medium tracking-[-0.3px]">Your translation is ready</h1>
-      <p className="mt-1 text-[13px] text-brand-500">
-        {job.files.length > 1 ? `${job.files.length} files` : job.files[0]?.name} · {job.targetLocales.map(nameOf).join(", ")}
-        {job.analyzedWords != null ? ` · ${job.analyzedWords.toLocaleString("en-US")} words` : ""}
-        {tone ? ` · Tone: ${tone}` : ""}
-      </p>
-      {job.tier === "free" && job.unlockedEmail && job.emailDelivery && (
-        <p className="mt-1 text-[13px] text-brand-500">We also sent the links to {job.unlockedEmail}.</p>
-      )}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-[22px] font-medium tracking-[-0.3px]">Your translation is ready</h1>
+          <p className="mt-1 text-[13px] text-brand-500">
+            {job.files.length > 1 ? `${job.files.length} files` : job.files[0]?.name} · {job.targetLocales.map(nameOf).join(", ")}
+            {job.analyzedWords != null ? ` · ${job.analyzedWords.toLocaleString("en-US")} words` : ""}
+            {tone ? ` · Tone: ${tone}` : ""}
+          </p>
+          {job.tier === "free" && job.unlockedEmail && job.emailDelivery && (
+            <p className="mt-1 text-[13px] text-brand-500">We also sent the links to {job.unlockedEmail}.</p>
+          )}
+        </div>
+        <DownloadAll job={job} q={q} />
+      </div>
       {scanned > 0 && (
         <div className="wx-alert mt-4">
           <span>
@@ -353,6 +341,61 @@ function NextFile({ freeLimit }) {
         </a>
       </div>
     </div>
+  );
+}
+
+// The card beside the steps while a file is translated: where the files go (or an email field to
+// send them, for a guest), and what pays for it.
+function WorkingCard({ job, k, onDone }) {
+  const { creditBalance } = useAuth();
+  const charged = job.timeline.find((e) => e.event === "credits_charged");
+  const isPdf = /\.pdf$/i.test(job.files[0]?.name || "");
+  const ticks = [
+    job.timeline.some((e) => e.event === "first_document_free")
+      ? "Free: your first document" // jobs from the first-document-free days (2026-11-09)
+      : job.tier === "free"
+        ? `Free: your document for today, up to ${wordsAndPages(job.freeLimit || FREE_WORDS)}`
+        : charged
+          ? `Paid from your credits: ${(job.creditsCharged ?? charged.detail?.amount ?? 0).toLocaleString("en-US")}`
+          : "Paid from your credits once the words are counted",
+    job.tier !== "free" && creditBalance != null ? `${wordsAndPages(creditBalance)} in your account` : null,
+    isPdf ? "A Word file and a PDF that looks like your original" : null,
+    "Deleted after 30 days",
+  ].filter(Boolean);
+  return (
+    <aside className="wx-offer-card">
+      {job.unlockedEmail ? (
+        <>
+          <h2 className="text-[22px] font-bold leading-7 tracking-[-0.3px]">Your files come by email</h2>
+          <p className="mt-2 text-[14px] leading-[21px] text-[#3d4650]">
+            We'll send them to {job.unlockedEmail} when they're ready. You can close this tab.
+          </p>
+        </>
+      ) : job.emailDelivery ? (
+        <>
+          <h2 className="text-[22px] font-bold leading-7 tracking-[-0.3px]">Get the files by email</h2>
+          <p className="mt-2 text-[14px] leading-[21px] text-[#3d4650]">Leave your email and close the tab. We send the files when they're ready.</p>
+          <div className="mt-4">
+            <EmailForm job={job} k={k} onDone={onDone} cta="Email me the files" />
+          </div>
+        </>
+      ) : (
+        <>
+          <h2 className="text-[22px] font-bold leading-7 tracking-[-0.3px]">Your files show here</h2>
+          <p className="mt-2 text-[14px] leading-[21px] text-[#3d4650]">Keep this tab open: they appear on this page when they're ready.</p>
+        </>
+      )}
+      <ul className="mt-4 space-y-2 text-[13px] text-[#3d4650]">
+        {ticks.map((t) => (
+          <li key={t} className="flex items-center gap-2">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#176b45" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M5 12.5l4.5 4.5L19 7.5" />
+            </svg>
+            {t}
+          </li>
+        ))}
+      </ul>
+    </aside>
   );
 }
 
@@ -659,6 +702,31 @@ function Reviewers({ language, entry, loading, flagged }) {
         </a>
       </p>
     </section>
+  );
+}
+
+// Every file at once, at the top (Rodrigo, 2026-11-22): one ZIP, a folder per language
+// (routes/downloads.js); a single file downloads as itself.
+function DownloadAll({ job, q }) {
+  const files = job.deliverables || [];
+  if (!files.length) return null;
+  const several = job.targetLocales.length > 1;
+  return (
+    <div className="shrink-0 sm:text-right">
+      <a
+        href={files.length > 1 ? `/api/jobs/${job.id}/download${q}` : `/api/jobs/${job.id}/files/${files[0].id}${q}`}
+        className="wx-button wx-button--primary w-full gap-2 px-5 text-[15px] font-medium no-underline sm:w-auto"
+        style={{ minHeight: 46 }}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M12 15V3" />
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <path d="m7 10 5 5 5-5" />
+        </svg>
+        {files.length > 1 ? `Download all ${files.length} files` : "Download the file"}
+      </a>
+      {files.length > 1 && <p className="mt-1.5 text-[11px] text-brand-500">One ZIP{several ? ", a folder for each language" : ""}</p>}
+    </div>
   );
 }
 

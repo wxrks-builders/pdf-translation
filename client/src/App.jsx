@@ -66,6 +66,7 @@ function Header() {
 // says so with ?credit= (server/routes/auth.js). Shown once, then taken off the address.
 function CreditAdded() {
   const location = useLocation();
+  const { creditBalance } = useAuth();
   const [words, setWords] = useState(null);
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -84,7 +85,7 @@ function CreditAdded() {
           <path d="M3 8.5l3.2 3L13 4.5" />
         </svg>
         <span>
-          <strong className="inline font-medium">${SIGNUP_CREDIT.dollars} in credits added for signing up.</strong> You have {wordsAndPages(words)}.
+          <strong className="inline font-medium">${SIGNUP_CREDIT.dollars} in credits added for signing up.</strong> You have {wordsAndPages(creditBalance ?? words)}.
         </span>
         <button type="button" onClick={() => setWords(null)} className="ml-auto text-xs underline">
           Close

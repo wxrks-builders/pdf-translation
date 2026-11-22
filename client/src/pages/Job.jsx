@@ -92,6 +92,14 @@ export default function Job() {
     return () => clearTimeout(timer);
   }, [id, k]);
 
+  // The header's balance is read at sign-in; the charge lands seconds later (a file continued
+  // after the email link is paid once its project is taken over), so read it again then.
+  const { refresh } = useAuth();
+  const charged = Boolean(job?.timeline?.some((e) => e.event === "credits_charged"));
+  useEffect(() => {
+    if (charged) refresh();
+  }, [charged, refresh]);
+
   if (error) return <Screen><p className="text-[15px]">{error}</p></Screen>;
   if (!job) return <Screen><p className="text-brand-500">Loading…</p></Screen>;
 
@@ -359,6 +367,13 @@ function ProgressPanel({ job, nameOf, tone, sample = null }) {
     <>
       <Title className="text-[22px] font-medium tracking-[-0.3px]">{progress.title}</Title>
       {progress.sub && <p className="mt-1 text-[13px] text-brand-500">{progress.sub}</p>}
+      {job.timeline.some((e) => e.event === "continued") && (
+        // After the email link: the steps marked "earlier" were not done again (routes/jobs.js rerun).
+        <p className="mt-3 rounded-md bg-[#f3faf6] px-3 py-2 text-[13px] leading-5 text-[#24543a]">
+          Picked up where your file stopped: received, converted and counted earlier, so nothing was uploaded again. Now all of
+          its pages are translated, each with the whole file as context.
+        </p>
+      )}
       <div className="mt-5">
         <div className="mb-1.5 flex justify-between text-xs">
           <span className="font-medium">

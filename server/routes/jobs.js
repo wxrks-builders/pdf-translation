@@ -192,6 +192,9 @@ router.post("/", optionalSession, freeTier.anonCookie, upload.array("files"), as
     tone: tone.parse(req.body),
     clientIp: req.ip,
   });
+  // Signed in: the files go to the account's address when ready (services/leads.js), and the
+  // progress page's card says so, as for a file continued after the email link (rerun below).
+  if (req.user?.email) await store.updateJob(job.id, { unlocked_email: req.user.email });
 
   const wxrksNames = files.map((f) => buildWxrksFilename(job.id, f.originalname));
   const collision = findTruncationCollision(wxrksNames);

@@ -1019,8 +1019,15 @@ function OverLimit({ job, bar, nameOf, tone }) {
       }.`;
   const cta = covers ? "Get the complete file" : "Sign up free";
   const hasSample = Boolean(excerpt);
+  // Back from a link that had expired or was used (routes/auth.js verify): ask again here.
+  const expired = new URLSearchParams(window.location.search).get("expired") === "1";
   const card = (
     <aside className="wx-offer-card">
+      {expired && !offer.sent && (
+        <p className="mb-4 rounded-md bg-[#fff2d1] px-3 py-2 text-[13px] leading-[19px] text-[#785000]">
+          That link expired. Type your email again, and we'll send you a new one.
+        </p>
+      )}
       {sampled > 0 && total != null && (
         <div className="flex items-center gap-3.5">
           <PagesRing done={sampled} total={total} />

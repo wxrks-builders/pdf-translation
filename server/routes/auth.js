@@ -4,6 +4,9 @@ const email = require("../services/email");
 const crm = require("../services/crm");
 const signupCredit = require("../services/signupCredit");
 const freeTier = require("../services/freeTier");
+const leads = require("../services/leads");
+const locales = require("../services/locales");
+const { estimateFor } = require("../services/estimate");
 const { canSeeJob, accessKey } = require("../services/access");
 const { createRateLimiter } = require("../middleware/rateLimit");
 const { setSessionCookie, clearSessionCookie, deleteSessionFromRequestCookie, optionalSession } = require("../middleware/auth");
@@ -18,6 +21,32 @@ const safeNext = (value) => {
   const s = String(value || "");
   return s.length <= 200 && /^\/(?![/\\])[A-Za-z0-9\-._~/?=&%]*$/.test(s) ? s : null;
 };
+
+// What the link email says about the file it finishes (email.renderFileLinkEmail): its name,
+// pages and languages, what pays for it once signed in (the sign-up credit for a new account, as
+// auth/verify grants it; else the account's credits), and how soon the files usually come.
+async function linkEmailFile(job, address, signupWords) {
+  const [files, names, sample, estimate, user] = await Promise.all([
+    store.listJobFiles(job.id),
+    leads.languageNames(),
+    store.getExcerptFor(job.id),
+    estimateFor(job.analyzed_words),
+    store.getUserByEmail(address),
+  ]);
+  const documentName = files[0]?.original_filename || "your document";
+  // The design-kept PDF is made beside the translation, so the slower of the two.
+  const seconds = /\.pdf$/i.test(documentName) ? Math.max(estimate?.translate || 0, estimate?.layout || 0) : estimate?.translate || 0;
+  return {
+    documentName,
+    pages: sample?.excerpt_total_pages || Math.max(1, Math.round(job.analyzed_words / 250)),
+    languages: job.target_locales.map((l) => names[locales.normalize(l)] || l),
+    credits: job.analyzed_words * job.target_locales.length, // what the page charges (client/src/pages/Job.jsx)
+    balance: user ? await store.getCreditBalance(user.id) : signupWords,
+    newAccount: !user,
+    signupWords,
+    minutes: seconds ? Math.max(1, Math.round(seconds / 60)) : null,
+  };
+}
 
 // Magic link request. Response is deliberately generic — it never reveals
 // whether the address has an account. The email itself, which only that address reads, says
@@ -34,19 +63,31 @@ router.post("/request-link", requestLinkLimiter, optionalSession, freeTier.anonC
   // may be read on a phone), and only for a job this browser can already see.
   // ?finish=1 (the offer on a file over the free limit): back on the file, it starts on its own.
   const [, jobId, finish] = next?.match(/^\/jobs\/([A-Za-z0-9_-]+)(\?finish=1)?$/) || [];
+  let fileJob = null;
   if (jobId) {
     const job = await store.getJob(jobId);
     next = job && canSeeJob(req, job) ? `/jobs/${job.id}?k=${accessKey(job.id)}${finish ? "&finish=1" : ""}` : null;
     // Typed on that file's sign-up offer: its one reminder goes here (services/reminders.js).
-    if (next && ["over_free_limit", "needs_credits"].includes(job.status)) await store.updateJob(job.id, { reminder_email: address });
+    if (next && ["over_free_limit", "needs_credits"].includes(job.status)) {
+      await store.updateJob(job.id, { reminder_email: address });
+      if (finish && job.analyzed_words) fileJob = job;
+    }
   }
   const loginUrl =
     `${process.env.APP_BASE_URL || `http://localhost:${process.env.PORT || 3000}`}/api/auth/verify?token=${token}` +
     (next ? `&next=${encodeURIComponent(next)}` : "");
   const signupWords = !(await store.getUserByEmail(address)) && (await signupCredit.available()) ? signupCredit.WORDS : 0;
 
+  // The email names the file and the files it brings; if that can't be read, the plain one.
+  const file = fileJob
+    ? await linkEmailFile(fileJob, address, signupWords).catch((err) => {
+        console.warn(`[auth] link email for job ${fileJob.id} without the file: ${err.message}`);
+        return null;
+      })
+    : null;
+
   try {
-    await email.sendLoginEmail(address, loginUrl, { signupWords });
+    await email.sendLoginEmail(address, loginUrl, { signupWords, file });
     return res.json({ ok: true });
   } catch (err) {
     if (err.code === "EMAIL_NOT_CONFIGURED" && process.env.NODE_ENV !== "production") {
@@ -61,7 +102,10 @@ router.post("/request-link", requestLinkLimiter, optionalSession, freeTier.anonC
 router.get("/verify", async (req, res) => {
   const address = await store.consumeLoginToken(String(req.query.token || ""));
   if (!address) {
-    return res.redirect("/login?error=expired");
+    // A link from a file's offer (its key in next) goes back to that file, which asks for a new
+    // link, not to a sign-in page that has lost it.
+    const [, id, k] = safeNext(req.query.next)?.match(/^\/jobs\/([A-Za-z0-9_-]+)\?k=([^&]+)/) || [];
+    return res.redirect(id ? `/jobs/${id}?k=${k}&expired=1` : "/login?error=expired");
   }
   const existed = await store.getUserByEmail(address);
   const user = await store.upsertUserByEmail(address);

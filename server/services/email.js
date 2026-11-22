@@ -28,17 +28,20 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
 
-function layoutEmail(inner) {
+// preheader: the line an inbox shows after the subject.
+function layoutEmail(inner, preheader = "") {
   return `<!doctype html>
 <html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<style>@media (max-width:480px){.wx-card{padding:28px 20px 24px !important}}</style></head>
 <body style="margin:0;padding:0;background-color:#f3f5f7;">
+${preheader ? `<div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;color:#f3f5f7;">${escapeHtml(preheader)}</div>` : ""}
 <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;background-color:#f3f5f7;">
   <tr>
     <td align="center" style="padding:32px 16px;">
-      <table role="presentation" cellpadding="0" cellspacing="0" width="600" style="border-collapse:collapse;width:600px;max-width:600px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" width="600" style="border-collapse:collapse;width:100%;max-width:600px;">
         <tr>
-          <td bgcolor="#ffffff" style="background-color:#ffffff;border:1px solid #dfe3e8;border-radius:10px;padding:40px 40px 36px;font-family:helvetica,'helvetica neue',arial,sans-serif;">
+          <td class="wx-card" bgcolor="#ffffff" style="background-color:#ffffff;border:1px solid #dfe3e8;border-radius:10px;padding:40px 40px 36px;font-family:helvetica,'helvetica neue',arial,sans-serif;">
 ${inner}
           </td>
         </tr>
@@ -182,9 +185,110 @@ function renderLoginEmail(loginUrl, { signupWords = 0 } = {}) {
 </html>`;
 }
 
-async function sendLoginEmail(to, loginUrl, { signupWords = 0 } = {}) {
+const n = (x) => Number(x).toLocaleString("en-US");
+const andList = (xs) => (xs.length <= 2 ? xs.join(" and ") : `${xs.slice(0, -1).join(", ")}, and ${xs[xs.length - 1]}`);
+
+// The files a translation brings, one row each, as services/poller.js stores them: a PDF gives
+// a Word file and a PDF that keeps its design, per language; any other file comes back in its
+// own format.
+const FILE_KINDS = {
+  docx: ["Word", "#eaf2f8", "#315b7c"],
+  doc: ["Word", "#eaf2f8", "#315b7c"],
+  pptx: ["PowerPoint", "#fff2d1", "#785000"],
+  ppt: ["PowerPoint", "#fff2d1", "#785000"],
+  xlsx: ["Excel", "#e7f5ec", "#176b45"],
+  xls: ["Excel", "#e7f5ec", "#176b45"],
+};
+function linkEmailRows(documentName, languages) {
+  const ext = (documentName.match(/\.([A-Za-z0-9]+)$/)?.[1] || "").toLowerCase();
+  if (ext === "pdf") {
+    return {
+      summary: "Word and PDF",
+      rows: languages.flatMap((l) => [
+        { badge: "DOCX", tint: "#eaf2f8", ink: "#315b7c", title: `${l}, Word file`, note: "Edit it in Word or Google Docs" },
+        { badge: "PDF", tint: "#fdedef", ink: "#a52b36", title: `${l}, PDF`, note: "Looks like your original" },
+      ]),
+    };
+  }
+  const [kind, tint, ink] = FILE_KINDS[ext] || [ext ? ext.toUpperCase() : "Translated", "#f3f5f7", "#57616d"];
+  return {
+    summary: kind,
+    rows: languages.map((l) => ({ badge: (ext || "file").toUpperCase().slice(0, 4), tint, ink, title: `${l}, ${kind} file`, note: "Keeps the formatting of your original" })),
+  };
+}
+
+const duration = (minutes) =>
+  minutes < 90 ? `${minutes} ${minutes === 1 ? "minute" : "minutes"}` : `${Math.round(minutes / 60)} hours`;
+
+// The sign-in link from the offer on a file over the free limit (version 2 of
+// https://claude.ai/artifact/Gu9nTk1CmB6V4h7wCT17Sn, Rodrigo, 2026-11-22): it names the file and
+// lists the files it brings, says what pays for them, and says the click starts the whole file
+// (true: ?finish=1, client/src/pages/Job.jsx) and the files come by email (services/leads.js).
+// file: { documentName, pages, languages, credits, balance, newAccount, signupWords, minutes }
+// (routes/auth.js). balance: what the account has after the click (a new one: the sign-up credit).
+function renderFileLinkEmail(loginUrl, file) {
+  const { summary, rows } = linkEmailRows(file.documentName, file.languages);
+  const count = rows.length;
+  const files = count === 1 ? "file" : "files";
+  const covers = file.credits <= file.balance;
+  const langs = andList(file.languages);
+  const pageCell = `${n(file.pages)} ${file.pages === 1 ? "page" : "pages"}`;
+  const headline = covers
+    ? count === 1 ? "Your file, one click away" : `Your ${count} files, one click away`
+    : count === 1 ? "Get your file" : `Get your ${count} files`;
+  const intro = `${file.pages > 1 ? `All ${n(file.pages)} pages of ` : ""}${escapeHtml(file.documentName)}, in ${escapeHtml(langs)}:`;
+  const pay = covers
+    ? file.newAccount
+      ? `Free: your new account starts with ${n(file.signupWords)} words. No card.`
+      : `Uses ${n(file.credits)} of your ${n(file.balance)} credits.`
+    : file.newAccount && file.signupWords
+      ? `Your new account starts with ${n(file.signupWords)} words free. This file needs ${n(file.credits)}, and a word pack covers the rest, from $9.`
+      : file.newAccount
+        ? `This file needs ${n(file.credits)} words. A word pack covers it, from $9.`
+        : `Your account has ${n(file.balance)} credits. This file needs ${n(file.credits)}, and a word pack covers the rest, from $9.`;
+  const soon = file.minutes ? `, usually in about ${duration(file.minutes)}` : "";
+  const note = covers
+    ? `One click signs you in and starts ${file.pages > 1 ? `all ${n(file.pages)} pages` : "the whole file"}. The ${files} come to this inbox when they're ready${soon}.`
+    : `One click signs you in and brings you back to your file. Add the words it needs, and it translates from there; the ${files} come to this inbox.`;
+  const list = rows
+    .map(
+      (r) => `            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin:0 0 8px;"><tr>
+              <td width="46" bgcolor="#f7f8fa" style="background-color:#f7f8fa;border-radius:8px 0 0 8px;padding:10px 0 10px 12px;width:34px;min-width:34px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr><td width="34" height="40" align="center" valign="bottom" bgcolor="${r.tint}" style="width:34px;min-width:34px;background-color:${r.tint};border-radius:3px;padding:0 0 5px;font-size:9px;line-height:11px;font-weight:700;color:${r.ink};">${r.badge}</td></tr></table>
+              </td>
+              <td width="100%" bgcolor="#f7f8fa" style="background-color:#f7f8fa;padding:10px 12px;">
+                <p style="Margin:0;font-size:14px;line-height:20px;color:#252a31;font-weight:600;">${escapeHtml(r.title)}</p>
+                <p style="Margin:2px 0 0;font-size:12px;line-height:17px;color:#57616d;">${escapeHtml(r.note)}</p>
+              </td>
+              <td align="right" bgcolor="#f7f8fa" style="background-color:#f7f8fa;border-radius:0 8px 8px 0;padding:10px 14px 10px 0;font-size:12px;line-height:17px;color:#57616d;white-space:nowrap;">${pageCell}</td>
+            </tr></table>`
+    )
+    .join("\n");
+  const html = layoutEmail(
+    `            <p style="Margin:0 0 22px;font-size:15px;line-height:20px;color:#252a31;font-weight:600;">wxrks <span style="color:#57616d;font-weight:400;">Translate</span></p>
+            <h1 style="Margin:0;font-size:26px;line-height:32px;color:#252a31;font-weight:700;letter-spacing:-0.4px;">${headline}</h1>
+            <p style="Margin:12px 0 18px;font-size:15px;line-height:23px;color:#57616d;">${intro}</p>
+${list}
+            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin:12px 0 0;"><tr>
+              <td align="center" bgcolor="#252a31" style="background-color:#252a31;border-radius:8px;">
+                <a href="${loginUrl}" target="_blank" style="display:block;padding:18px 20px;font-family:helvetica,'helvetica neue',arial,sans-serif;font-size:17px;line-height:22px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">${covers ? `Translate and send me my ${files}` : "Finish my translation"}</a>
+              </td>
+            </tr></table>
+            <p style="Margin:10px 0 0;text-align:center;font-size:13px;line-height:19px;color:${covers ? "#176b45" : "#57616d"};">${pay}</p>
+            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin:24px 0 0;"><tr>
+              <td bgcolor="#f3faf6" style="background-color:#f3faf6;border:1px solid #c8e8d4;border-radius:8px;padding:14px 16px;font-size:13px;line-height:20px;color:#24543a;">${note}</td>
+            </tr></table>
+            <p style="Margin:26px 0 0;padding-top:18px;border-top:1px solid #e7ebef;font-size:12px;line-height:18px;color:#57616d;">The button works for 15 minutes, once. After that, it takes you back to your file, where you can ask for a new one. Didn't ask for this? Ignore it; nothing happens.</p>`,
+    `${summary}, in ${langs}`
+  );
+  return { subject: `${count} ${files} to download: your translation, complete`, html };
+}
+
+// file: the file this link finishes (renderFileLinkEmail); without one, the plain sign-in email.
+async function sendLoginEmail(to, loginUrl, { signupWords = 0, file = null } = {}) {
+  if (file) return sendEmail({ to, ...renderFileLinkEmail(loginUrl, file) });
   const subject = signupWords ? `Your sign-in link, and $${creditDollars(signupWords)} in credits` : "Sign in to wxrks Translate";
   await sendEmail({ to, subject, html: renderLoginEmail(loginUrl, { signupWords }) });
 }
 
-module.exports = { isConfigured, sendEmail, sendLoginEmail, sendFilesEmail, renderFilesEmail, renderLoginEmail };
+module.exports = { isConfigured, sendEmail, sendLoginEmail, sendFilesEmail, renderFilesEmail, renderLoginEmail, renderFileLinkEmail };

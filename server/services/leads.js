@@ -146,4 +146,4 @@ async function languageNames() {
   }
 }
 
-module.exports = { normalizeEmail, unlock, sendFilesIfRequested };
+module.exports = { normalizeEmail, unlock, sendFilesIfRequested, languageNames };

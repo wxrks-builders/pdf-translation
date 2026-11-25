@@ -6,7 +6,9 @@
  * goes as a DM with that token instead. When neither works, it goes by email to ADMIN_EMAILS.
  * Every version opens with the new people: each email that reached us for the first time,
  * flagged work, school or personal, with the file it came with, so a business stands out. Each
- * line links to the job, which an admin can open when signed in.
+ * line links to the job, which an admin can open when signed in. It also lists the files the
+ * retention sweep deleted (store.sweepOldBlobs), and whether their owner had the warning email
+ * first (services/retention.js).
  *
  * The digest goes at DIGEST_HOUR (8) in DIGEST_TZ (America/Toronto), once a day, covering
  * everything since the last one (the first covers a week). The settings table remembers when
@@ -22,6 +24,7 @@ const payments = require("./payments");
 const TZ = process.env.DIGEST_TZ || "America/Toronto";
 const HOUR = parseInt(process.env.DIGEST_HOUR || "8", 10);
 const CHECK_MS = 10 * 60 * 1000;
+const RETENTION_DAYS = parseInt(process.env.RETENTION_DAYS || "30", 10);
 const base = () => process.env.APP_BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
 
 const STATUS = {
@@ -109,6 +112,11 @@ async function activity(sinceIso) {
   let checkouts = null;
   if (payments.isConfigured()) checkouts = await payments.listSessions(sinceIso).catch(() => null);
   const funnel = events.funnel(await store.listEventsSince(sinceIso));
+  // The uploads whose files the retention sweep deleted, and whether their owner was told first.
+  const deleted = [];
+  for (const job of await store.listDeletedSince(sinceIso)) {
+    deleted.push({ ...(await jobRow(job, name)), warned: Boolean(job.deletion_warned_at), reminded: Boolean(job.reminder_sent_at), deletedAt: job.files_deleted_at });
+  }
   return {
     since: sinceIso,
     jobs,
@@ -118,6 +126,7 @@ async function activity(sinceIso) {
     emails: await store.emailStatsSince(sinceIso),
     feedback: feedbackRows.map((f) => ({ jobId: f.job_id, file: files[f.job_id] || null, source: f.source, rating: f.rating, comment: f.comment, at: f.created_at })),
     checkouts,
+    deleted,
     totals: {
       uploads: jobs.length,
       delivered: count("Delivered"),
@@ -130,6 +139,7 @@ async function activity(sinceIso) {
       signupCredits: funnel.signupCredits,
       thumbsUp: feedbackRows.filter((f) => f.rating === "up").length,
       thumbsDown: feedbackRows.filter((f) => f.rating === "down").length,
+      deleted: deleted.length,
     },
   };
 }
@@ -165,6 +175,24 @@ function feedbackLine(a) {
   const notes = f.filter((x) => x.comment).slice(0, 5).map((x) => `${x.rating === "up" ? "+" : "−"} “${x.comment.slice(0, 140)}”`);
   return [`Feedback: ${a.totals.thumbsUp} thumbs up · ${a.totals.thumbsDown} thumbs down`, ...notes].join("\n");
 }
+
+// "Deleted after 30 days: 4 files, 2 delivered (2 got the warning email), 2 stopped at a price
+// (0 got the reminder)"; null on a day nothing was deleted.
+function deletedLine(a) {
+  const d = a.deleted;
+  if (!d.length) return null;
+  const delivered = d.filter((j) => j.status === STATUS.delivered);
+  const stopped = d.filter((j) => j.status === STATUS.over_free_limit || j.status === STATUS.needs_credits);
+  const other = d.length - delivered.length - stopped.length;
+  const parts = [
+    delivered.length ? `${delivered.length} delivered (${delivered.filter((j) => j.warned).length} got the warning email)` : null,
+    stopped.length ? `${stopped.length} stopped at a price (${stopped.filter((j) => j.reminded).length} got the reminder)` : null,
+    other ? `${other} failed or had no text` : null,
+  ].filter(Boolean);
+  return `Deleted after ${RETENTION_DAYS} days: ${d.length} ${d.length === 1 ? "file" : "files"}, ${parts.join(", ")}`;
+}
+const deletedFile = (j) => [j.file, j.status, j.status === STATUS.delivered ? (j.warned ? "warned" : "not warned") : null].filter(Boolean).join(" · ");
+const DELETED_MAX = 20;
 
 function line(j) {
   const scores = j.scores.map((s) => `${Math.round(s.score * 100)}%${j.scores.length > 1 ? ` ${s.language}` : ""}`).join(", ");
@@ -203,7 +231,7 @@ function peopleHead(a) {
 
 function slackText(a, label) {
   const t = a.totals;
-  const clean = (s) => String(s).replace(/[<>|]/g, "");
+  const clean = (s) => String(s).replace(/[<>|]/g, "").replace(/[\u0000-\u001f\u007f]+/g, " ");
   const people = a.people.slice(0, 40).map((p) => `• ${clean(personLine(p))}${p.job ? ` · <${p.job.url}|${clean(personJob(p))}>` : ""}`);
   const head = [
     `*Translator, ${label}*`,
@@ -214,6 +242,7 @@ function slackText(a, label) {
     funnelLine(a),
     emailLine(a),
     feedbackLine(a),
+    ...(deletedLine(a) ? [deletedLine(a), ...a.deleted.slice(0, DELETED_MAX).map((j) => `• <${j.url}|${clean(deletedFile(j))}>`)] : []),
   ].join("\n");
   const jobs = a.jobs.slice(0, 40).map((j) => `• <${j.url}|${clean(line(j))}>`);
   const more = a.jobs.length > 40 ? [`…and ${a.jobs.length - 40} more`] : [];
@@ -235,6 +264,7 @@ function emailHtml(a, label) {
 ${people.length ? `<ul style="padding-left:18px;">${people.join("")}</ul>` : ""}
 <p>${t.uploads} uploads · ${t.delivered} delivered · ${t.overLimit} stopped at a price · ${t.failed} failed</p>
 <p>${esc(funnelLine(a))}<br>${esc(emailLine(a))}<br>${esc(feedbackLine(a)).replace(/\n/g, "<br>")}</p>
+${deletedLine(a) ? `<p>${esc(deletedLine(a))}</p><ul style="padding-left:18px;">${a.deleted.map((j) => `<li><a href="${j.url}" style="color:#252a31;">${esc(deletedFile(j))}</a></li>`).join("")}</ul>` : ""}
 <ul style="padding-left:18px;">${rows.join("")}${buys.join("")}</ul>
 <p><a href="${base()}/admin" style="color:#252a31;">Everything on /admin</a> (sign in with your @wxrks.com email).</p></div>`;
 }
@@ -242,19 +272,24 @@ ${people.length ? `<ul style="padding-left:18px;">${people.join("")}</ul>` : ""}
 // The n8n workflow that DMs Rodrigo through n8n's own Slack connection, the way the CRM's
 // morning DMs reach him (marketing-writing-style/ops/n8n/translator-people.workflow.json), so
 // this app holds no Slack token. The webhook only runs for a title and a link back to this app.
-// It gets the new people only, and nothing on a day without any. DIGEST_RELAY_URL=off stops it.
+// It gets the new people and what the retention sweep deleted, and nothing on a day with neither.
+// DIGEST_RELAY_URL=off stops it.
 const RELAY_URL = process.env.DIGEST_RELAY_URL ?? "https://bureauworks.app.n8n.cloud/webhook/translator-people";
 const RELAY_MAX = 25;
 
 function relayMessage(a, label) {
   const t = a.totals;
-  const clean = (s) => String(s).replace(/[<>|]/g, "");
+  const clean = (s) => String(s).replace(/[<>|]/g, "").replace(/[\u0000-\u001f\u007f]+/g, " ");
   const people = a.people.slice(0, RELAY_MAX).map((p) => `• ${clean(personLine(p))}${p.job ? ` · <${p.job.url}|${clean(personJob(p))}>` : ""}`);
   const more = a.people.length > RELAY_MAX ? [`…and ${a.people.length - RELAY_MAX} more`] : [];
+  const gone = deletedLine(a) ? [deletedLine(a), ...a.deleted.slice(0, 10).map((j) => `• <${j.url}|${clean(deletedFile(j))}>`)] : [];
+  const title = t.newPeople
+    ? `Translator · ${t.newPeople} new ${t.newPeople === 1 ? "person" : "people"} in ${label}${t.workEmails ? ` (${t.workEmails} with a work email)` : ""}`
+    : `Translator · ${t.deleted} ${t.deleted === 1 ? "file" : "files"} deleted in ${label}`;
   return {
     source: "translator-digest",
-    title: `Translator · ${t.newPeople} new ${t.newPeople === 1 ? "person" : "people"} in ${label}${t.workEmails ? ` (${t.workEmails} with a work email)` : ""}`,
-    lines: [...people, ...more, `${t.uploads} uploads · ${t.delivered} delivered · ${t.overLimit} stopped at a price · ${t.purchases} ${t.purchases === 1 ? "purchase" : "purchases"}`],
+    title,
+    lines: [...people, ...more, ...gone, `${t.uploads} uploads · ${t.delivered} delivered · ${t.overLimit} stopped at a price · ${t.purchases} ${t.purchases === 1 ? "purchase" : "purchases"}`],
     url: `${base()}/admin`,
   };
 }
@@ -293,9 +328,11 @@ async function send(sinceIso, label, { logDetails = true } = {}) {
     console.log(`[digest] ${peopleHead(a)}`);
     for (const c of a.checkouts || []) console.log(`[digest]   checkout ${c.created} ${c.status}${c.paid ? " paid" : ""} ${c.words} words place=${c.place || "-"} job=${c.jobId || "-"}`);
     for (const j of a.jobs) console.log(`[digest]   ${j.id} ${line({ ...j, email: j.email ? "(email)" : null })}`);
+    if (deletedLine(a)) console.log(`[digest] ${deletedLine(a)}`);
+    for (const j of a.deleted) console.log(`[digest]   deleted ${j.id} ${deletedFile(j)}`);
   }
   if (await slackDm(slackText(a, label))) return "slack";
-  if (!a.people.length && RELAY_URL && RELAY_URL !== "off") return "nobody new";
+  if (!a.people.length && !a.deleted.length && RELAY_URL && RELAY_URL !== "off") return "nobody new";
   if (await relay(a, label)) return "relay";
   const to = String(process.env.ADMIN_EMAILS || "").split(",").map((e) => e.trim()).filter(Boolean);
   if (to.length && email.isConfigured()) {

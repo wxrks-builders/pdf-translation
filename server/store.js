@@ -716,18 +716,83 @@ async function claimPurchase(sessionId) {
   );
 }
 
-async function sweepOldBlobs(retentionDays) {
-  const cutoff = isoIn(-retentionDays * 24 * 60 * 60 * 1000);
-  const d = db
-    .prepare(`UPDATE deliverables SET content = zeroblob(0) WHERE created_at < ? AND length(content) > 0`)
-    .run(cutoff);
-  const f = db
+// The last UTC day a file uploaded at createdAt is kept: everything uploaded on day D stays
+// through D + retentionDays and goes in the first sweep after it. The warning email and the
+// reminder name this day, so the sweep counts from midnight: a restart in the middle of a day
+// never deletes earlier than the date they promised.
+function keptUntil(createdAt, retentionDays) {
+  const d = new Date(createdAt);
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) + retentionDays * 24 * 60 * 60 * 1000);
+}
+
+// → { deliverables, jobFiles, jobs }; each job whose files went gets files_deleted_at, which the
+// digest reads.
+async function sweepOldBlobs(retentionDays, now = new Date()) {
+  const midnight = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const cutoff = new Date(midnight - retentionDays * 24 * 60 * 60 * 1000).toISOString();
+  return db.transaction(() => {
+    const ids = db
+      .prepare(
+        `SELECT job_id FROM deliverables WHERE created_at < ? AND length(content) > 0
+         UNION
+         SELECT job_id FROM job_files WHERE source_content IS NOT NULL AND job_id IN (SELECT id FROM jobs WHERE created_at < ?)`
+      )
+      .all(cutoff, cutoff)
+      .map((r) => r.job_id);
+    const d = db
+      .prepare(`UPDATE deliverables SET content = zeroblob(0) WHERE created_at < ? AND length(content) > 0`)
+      .run(cutoff);
+    const f = db
+      .prepare(
+        `UPDATE job_files SET source_content = NULL
+         WHERE source_content IS NOT NULL AND job_id IN (SELECT id FROM jobs WHERE created_at < ?)`
+      )
+      .run(cutoff);
+    const mark = db.prepare(`UPDATE jobs SET files_deleted_at = ? WHERE id = ? AND files_deleted_at IS NULL`);
+    const at = nowIso();
+    for (const id of ids) mark.run(at, id);
+    return { deliverables: d.changes, jobFiles: f.changes, jobs: ids.length };
+  })();
+}
+
+// --- deletion warnings (services/retention.js) ---
+
+// Delivered files uploaded between afterIso and beforeIso whose translations are still stored,
+// with no warning yet, with the account's address beside the others.
+async function listDeletionWarningCandidates(beforeIso, afterIso) {
+  return db
     .prepare(
-      `UPDATE job_files SET source_content = NULL
-       WHERE source_content IS NOT NULL AND job_id IN (SELECT id FROM jobs WHERE created_at < ?)`
+      `SELECT jobs.*, users.email AS user_email FROM jobs LEFT JOIN users ON users.id = jobs.user_id
+       WHERE jobs.status = 'delivered' AND jobs.excerpt_of IS NULL
+         AND jobs.deletion_warned_at IS NULL AND jobs.files_deleted_at IS NULL
+         AND jobs.created_at <= ? AND jobs.created_at >= ?
+         AND EXISTS (SELECT 1 FROM deliverables d WHERE d.job_id = jobs.id AND length(d.content) > 0)
+       ORDER BY jobs.created_at`
     )
-    .run(cutoff);
-  return { deliverables: d.changes, jobFiles: f.changes };
+    .all(beforeIso, afterIso)
+    .map(parseJob);
+}
+
+// One warning per job: whoever sets deletion_warned_at first sends it.
+async function claimDeletionWarning(jobId) {
+  return Boolean(
+    db.prepare(`UPDATE jobs SET deletion_warned_at = ? WHERE id = ? AND deletion_warned_at IS NULL RETURNING id`).get(nowIso(), jobId)
+  );
+}
+
+async function countDeletionWarningsSince(sinceIso) {
+  return db.prepare(`SELECT COUNT(*) AS n FROM jobs WHERE deletion_warned_at >= ?`).get(sinceIso).n;
+}
+
+// The uploads whose files the sweep deleted since a moment (samples are part of their parent).
+async function listDeletedSince(sinceIso) {
+  return db
+    .prepare(
+      `SELECT jobs.*, users.email AS user_email FROM jobs LEFT JOIN users ON users.id = jobs.user_id
+       WHERE jobs.files_deleted_at >= ? AND jobs.excerpt_of IS NULL ORDER BY jobs.created_at`
+    )
+    .all(sinceIso)
+    .map(parseJob);
 }
 
 module.exports = {
@@ -809,4 +874,9 @@ module.exports = {
   countRemindersSince,
   listRecentDeliveries,
   sweepOldBlobs,
+  keptUntil,
+  listDeletionWarningCandidates,
+  claimDeletionWarning,
+  countDeletionWarningsSince,
+  listDeletedSince,
 };

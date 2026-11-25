@@ -5,6 +5,7 @@
 const express = require("express");
 const digest = require("../services/digest");
 const reminders = require("../services/reminders");
+const retention = require("../services/retention");
 const { isAdmin } = require("../services/access");
 const { optionalSession } = require("../middleware/auth");
 
@@ -35,6 +36,26 @@ router.get("/reminders/:id", async (req, res) => {
   if (!job) return res.status(404).json({ error: "not_due" });
   const message = await reminders.render(job);
   res.type("html").send(message.html);
+});
+
+// The deletion warnings due now (services/retention.js), one per address, sent or not:
+// DELETION_WARNINGS says.
+router.get("/deletion-warnings", async (req, res) => {
+  const groups = await retention.due();
+  res.json({
+    sending: retention.isEnabled(),
+    days: retention.WARN_DAYS,
+    due: await Promise.all(
+      groups.map(async (g) => ({ to: g.to, jobs: g.jobs.map((j) => ({ id: j.id, at: j.created_at })), subject: (await retention.render(g)).subject }))
+    ),
+  });
+});
+
+// One warning exactly as it would go out: the email for the address of job :id.
+router.get("/deletion-warnings/:id", async (req, res) => {
+  const group = (await retention.due()).find((g) => g.jobs.some((j) => j.id === req.params.id));
+  if (!group) return res.status(404).json({ error: "not_due" });
+  res.type("html").send((await retention.render(group)).html);
 });
 
 // Sends the last day's digest now, wherever the daily one goes.

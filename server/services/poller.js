@@ -17,6 +17,7 @@ const crm = require("./crm");
 const confidence = require("./confidence");
 const docx = require("./docx");
 const reminders = require("./reminders");
+const retention = require("./retention");
 const { matchJobFile } = require("./filenames");
 const { normalize } = require("./locales");
 
@@ -269,9 +270,12 @@ async function tick() {
     await confidence.sweep(leads.sendFilesIfRequested); // scores lost to a restart
     await crm.flush(); // whatever didn't reach the CRM when it happened
     await reminders.sweep().catch((err) => console.error("[reminders] sweep failed:", err.message));
+    await retention.sweep().catch((err) => console.error("[retention] sweep failed:", err.message));
     const today = new Date().toISOString().slice(0, 10);
     if (lastSweepDay !== today) {
       lastSweepDay = today;
+      // Counted from midnight UTC (store.keptUntil), so a file goes the day after the one its
+      // warning and reminder name, whatever time the server restarts. The digest lists them.
       const swept = await store.sweepOldBlobs(RETENTION_DAYS);
       if (swept.deliverables || swept.jobFiles) console.log(`[poller] retention sweep:`, swept);
       // A file stopped at a price keeps its unapproved wxrks project for a sign-up to continue

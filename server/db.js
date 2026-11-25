@@ -265,6 +265,10 @@ async function migrate() {
     );
   `);
   addColumn("jobs", "feedback_email_sent_at", "TEXT");
+  // The one warning a week before a delivered file is deleted (services/retention.js), and when
+  // the poller's sweep deleted the job's files (store.sweepOldBlobs), for the digest.
+  addColumn("jobs", "deletion_warned_at", "TEXT");
+  addColumn("jobs", "files_deleted_at", "TEXT");
   // How a session began: "link" (a sign-in link, so the email is proven) or "purchase" (the
   // account a Checkout created; Stripe never checks the email). Admin needs "link".
   addColumn("sessions", "via", "TEXT");

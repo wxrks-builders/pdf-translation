@@ -48,9 +48,9 @@ async function due(now = Date.now()) {
   return rows.filter((job) => addressOf(job) && !job.timeline.some((e) => e.event === "rerun_paid"));
 }
 
+// The last day the file is kept (the sweep deletes it the day after).
 function deletionDate(job) {
-  const d = new Date(new Date(job.created_at).getTime() + RETENTION_DAYS * 24 * 60 * 60 * 1000);
-  return d.toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" });
+  return store.keptUntil(job.created_at, RETENTION_DAYS).toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" });
 }
 
 // → { to, subject, html } for a job (also what the admin preview shows).

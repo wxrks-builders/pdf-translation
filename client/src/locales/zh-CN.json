@@ -1,0 +1,557 @@
+{
+  "seo": {
+    "home": {
+      "title": "免费在线文档翻译 | wxrks",
+      "description": "上传 PDF、Word、PowerPoint 或 Excel 文件，下载译成 100 多种语言的版本。每天免费翻译最多 2,000 字（约 8 页）。",
+      "heading": "翻译文档",
+      "intro": "支持 PDF、Word、PowerPoint、Excel 等格式，可译成 100 多种语言。"
+    },
+    "pdf": {
+      "title": "保留原设计的免费 PDF 翻译 | wxrks",
+      "description": "将 PDF 译成 100 多种语言，保留版式、字体和图片，提供 Word 和 PDF 两种格式。每天免费翻译最多 2,000 字（约 8 页）。",
+      "heading": "翻译 PDF，保留原设计",
+      "intro": "获得可编辑的 Word 文件，以及与原件外观一致的 PDF。"
+    },
+    "documents": {
+      "title": "Word、PowerPoint 和 Excel 文档翻译 | wxrks",
+      "description": "将 Word、PowerPoint、Excel、PDF、CSV 和文本文件译成 100 多种语言，格式保持不变。每天免费翻译最多 2,000 字（约 8 页）。",
+      "heading": "翻译 Word、PowerPoint、Excel 等文件",
+      "intro": "以您上传时的格式，下载翻译好的文件。"
+    }
+  },
+  "nav": {
+    "homeLabel": "wxrks Translate，首页",
+    "myJobs": "我的翻译",
+    "account": "账户",
+    "signOut": "退出登录",
+    "signIn": "登录"
+  },
+  "common": {
+    "loading": "正在加载…",
+    "buyWords": "购买字数",
+    "getCredits": "领取价值 {amount} 的额度",
+    "newHere": "第一次使用？注册即可获得价值 {amount} 的额度",
+    "openingCheckout": "正在打开结账页面…",
+    "checkoutFailed": "结账页面未能打开，请稍后重试。",
+    "translateAnother": "翻译另一份文档",
+    "starting": "正在开始…",
+    "sending": "正在发送…",
+    "oneMoment": "请稍候…",
+    "send": "发送",
+    "emailLabel": "电子邮箱",
+    "emailPlaceholder": "zhangsan@company.com",
+    "pdfFiles": "一个 Word 文件，以及与原件外观一致的 PDF"
+  },
+  "creditAdded": {
+    "text": "<strong>注册赠送的价值 {amount} 的额度已到账。</strong>您现有 {balance}。",
+    "close": "关闭"
+  },
+  "suggest": {
+    "label": "语言",
+    "text": "本页面也提供简体中文版。",
+    "accept": "切换到简体中文",
+    "dismiss": "继续使用英文"
+  },
+  "footer": {
+    "pdf": "PDF 翻译",
+    "documents": "文档翻译",
+    "credits": "翻译由 <company>wxrks</company> 提供。wxrks Translate 依据 AGPL-3.0 许可开源：<repo>源代码</repo>。",
+    "languages": "语言"
+  },
+  "units": {
+    "words": "{words, plural, other {# 字}}",
+    "aboutPages": "约 {pages, plural, other {# 页}}",
+    "wordsAndPages": "{words, plural, other {# 字}}（约 {pages, plural, other {# 页}}）",
+    "packLabel": "{price} 购买 {amount}",
+    "perThousand": "每 {words, number} 字 {price}"
+  },
+  "errors": {
+    "generic": "出了点问题，请稍后重试。",
+    "invalid_email": "请检查电子邮箱地址。",
+    "email_send_failed": "邮件未能发出，请稍后重试。",
+    "checkout_unavailable": "目前无法在线结账。",
+    "unknown_pack": "该字数包不可用。",
+    "checkout_failed": "结账页面未能打开，请稍后重试。",
+    "not_found": "找不到该内容。链接可能有误或已过期。",
+    "no_files": "请先添加文档。",
+    "invalid_target_locale": "其中一种目标语言不可用，请另选一种。",
+    "invalid_source_locale": "该文档的语言不可用，请另选一种。",
+    "no_target_locales": "请选择要译成的语言。",
+    "too_many_languages": "每份文档最多可译成 {max, plural, other {# 种语言}}。如需更多，请使用 wxrks 平台。",
+    "target_equals_source": "请选择与文档不同的语言。",
+    "unsupported_file_type": "此类文件无法在这里翻译。请尝试 PDF、Word、PowerPoint 或 Excel 文件。",
+    "free_tier_one_file": "免费翻译一次只能处理一个文件。",
+    "free_limit_reached": "免费翻译每天只能处理一份文档。",
+    "filename_collision": "有两个文件名过于相似，上传后无法区分。请重命名其中一个后重试。",
+    "not_authenticated": "请先登录。",
+    "preview_failed": "无法生成预览。",
+    "preview_only": "这只是预览，没有可下载的文件。",
+    "expired": "此文件已在 30 天后删除，请重新上传。",
+    "rate_limited": "尝试次数过多，请稍后再试。",
+    "file_too_large": "文件过大，上限为 {maxMb, number} MB。",
+    "languages_unavailable": "语言列表未能加载，请稍后重试。",
+    "internal_error": "我们这边出了点问题，请稍后重试。"
+  },
+  "upload": {
+    "landing": {
+      "home": "下载前，先看看第一页译成您所需语言后的效果。",
+      "pdf": "获得可编辑的 Word 文件，以及与原件外观一致的 PDF。下载前可先查看第 1 页。",
+      "documents": "译好的文件将保持您上传时的格式。下载前可先查看。"
+    },
+    "errors": {
+      "languages": "无法加载语言列表。",
+      "noFile": "请先添加文档。",
+      "noTarget": "请选择要译成的语言。"
+    },
+    "drop": {
+      "title": "将文档拖放到此处，或选择文件",
+      "hint": "支持 PDF、Word、PowerPoint、Excel 等格式，最大 {size}。",
+      "hintSignedIn": "支持 PDF、Word、PowerPoint、Excel 等格式。单个文件最大 {size}，每个任务最多 {files, plural, other {# 个文件}}。"
+    },
+    "file": {
+      "remove": "移除",
+      "change": "更换"
+    },
+    "onlyFirstFile": "免费翻译一次只能处理一个文件，因此我们保留了 <file/>。<a>登录</a>后可一次发送最多 {count, plural, other {# 个文件}}。",
+    "from": "源语言",
+    "fromPlaceholder": "输入语言名称",
+    "into": "译成",
+    "intoPlaceholder": "输入语言，例如英语",
+    "submit": "翻译",
+    "submitting": "正在上传…",
+    "scanNote": "扫描版 PDF（页面为图片）将以 Word 文件形式返回。",
+    "moreLanguages": "需要超过 {max, plural, other {# 种语言}}？wxrks 平台可在一个项目中译成所有语言。<a>免费开始使用 wxrks</a>"
+  },
+  "freeUsed": {
+    "title": "您今天的免费文档已用完",
+    "body": "{when, select, hours {再过 {hours, plural, other {# 小时}}，即可再免费翻译一份文档，最多 {amount}。} other {明天可再免费翻译一份文档。}}想现在就翻译这个文件？{offer, select, signup {注册即可获得价值 {credit} 的额度：{creditAmount}。} other {{packAmount}售价 {price}，一次性付款。}}",
+    "buyPack": "以 {price} 购买 {words, number} 字",
+    "allPacks": "查看所有字数包"
+  },
+  "platform": {
+    "memory": {
+      "label": "记忆库",
+      "title": "翻译记忆库",
+      "note": "逐句重复利用您以往的翻译。wxrks 平台自带此功能。"
+    },
+    "glossary": {
+      "label": "术语表",
+      "title": "术语表",
+      "note": "让您的术语在每个文件中保持一致。wxrks 平台自带此功能。"
+    },
+    "history": {
+      "label": "历史文件",
+      "title": "历史翻译",
+      "note": "您翻译过的所有文件，集中在一处。wxrks 平台自带此功能。"
+    },
+    "cta": "免费开始使用 wxrks"
+  },
+  "tone": {
+    "preset": {
+      "auto": {
+        "label": "自动",
+        "hint": "Sous-Chef 会阅读您的文档，并贴合其语气。"
+      },
+      "formal": {
+        "label": "正式",
+        "hint": "正式、严谨；如果译文语言有敬称（如“您”），则使用敬称。"
+      },
+      "friendly": {
+        "label": "亲切",
+        "hint": "温和、平实；如果译文语言有非敬称（如“你”），则使用非敬称。"
+      },
+      "marketing": {
+        "label": "营销",
+        "hint": "读起来像用该语言撰写的文案。宣传说法和数字保持准确。"
+      },
+      "legal": {
+        "label": "法律",
+        "hint": "忠实、直译。已定义的术语始终保持一致。"
+      },
+      "technical": {
+        "label": "技术",
+        "hint": "清晰、准确。产品名称、单位和代码保持原样。"
+      }
+    },
+    "withNote": "{label} · “{note}”",
+    "pill": "语气：<b>{label}</b>{note, select, yes { + 备注} other {}}",
+    "dialogLabel": "语气",
+    "question": "希望译文听起来是什么样的？",
+    "byline": "Sous-Chef，wxrks 的语气智能体",
+    "noteLabel": "还有什么需要 Sous-Chef 知道的",
+    "notePlaceholder": "还有其他要求吗？例如：“面向青少年”",
+    "done": "完成"
+  },
+  "trust": {
+    "g2Alt": "G2 Leader，2026 年秋季",
+    "madeBy": "由 <a>wxrks</a> 打造",
+    "about": "从事翻译行业 20 年。我们的翻译平台是 G2 Leader，并通过了 SOC 2 Type 2 审计。",
+    "security": "我们如何保护您的文件"
+  },
+  "picker": {
+    "count": "{count, number}/{max, number}",
+    "upTo": "最多 {max, number} 种",
+    "full": "{max, plural, other {# 种语言（单个文件的上限）}}",
+    "addAnother": "再添加一种语言",
+    "remove": "移除{language}"
+  },
+  "progress": {
+    "received": {
+      "label": "{files, plural, other {已收到 # 个文件}}",
+      "active": "正在接收您的文件"
+    },
+    "ocr": {
+      "label": "已读取扫描页面中的文字",
+      "detail": "{pages, plural, other {已读取 # 页}}"
+    },
+    "convert": {
+      "label": "已生成可编辑的 Word 版本",
+      "reader": "由我们自己的识别工具读取",
+      "active": "正在为您的 PDF 生成 Word 版本",
+      "todo": "PDF 的 Word 版本",
+      "sub": "可在 Word 中编辑的版本。",
+      "pages": "{pages, plural, other {# 页}}",
+      "converted": "由 PDF 转换而来"
+    },
+    "count": {
+      "label": "已统计字数",
+      "active": "正在统计字数",
+      "todo": "字数统计",
+      "sub": "短文档通常不到一分钟。"
+    },
+    "sample": {
+      "picked": "{range, select, span {已选定第 {first, number}–{last, number} 页作为免费样本} single {已选定第 {first, number} 页作为免费样本} other {已选定免费样本的页面}}",
+      "picking": "正在选取免费样本的页面",
+      "pickedDetail": "此文件超出了免费的 {amount}，因此先为您展示这些页面",
+      "prepared": "{range, select, span {第 {first, number}–{last, number} 页已准备就绪} single {第 {first, number} 页已准备就绪} other {样本页面已准备就绪}}",
+      "preparing": "{range, select, span {正在准备第 {first, number}–{last, number} 页} single {正在准备第 {first, number} 页} other {正在准备样本页面}}",
+      "prepSub": "正在读取样本的文字和版式。",
+      "translated": "{range, select, span {第 {first, number}–{last, number} 页已译成{language}} single {第 {first, number} 页已译成{language}} other {样本页面已译成{language}}}",
+      "translating": "{range, select, span {正在将第 {first, number}–{last, number} 页译成{language}} single {正在将第 {first, number} 页译成{language}} other {正在将样本页面译成{language}}}",
+      "translateSub": "以整个样本为上下文。",
+      "layoutLabel": "已排回原页面",
+      "layoutTodo": "换成新语言的页面",
+      "readyLabel": "您的样本",
+      "readyActive": "正在打开您的样本",
+      "readyTodo": "逐页查看您的样本"
+    },
+    "credits": {
+      "label": "已从您的额度中支付",
+      "detail": "{credits, plural, other {# 额度}}"
+    },
+    "tone": {
+      "label": "已设置语气",
+      "active": "正在设置语气",
+      "todo": "您的语气"
+    },
+    "translate": {
+      "label": "已译成{language}",
+      "active": "正在译成{language}",
+      "todo": "译成{language}",
+      "sub": "这是耗时最长的一步。您可以关闭此标签页，文件会通过电子邮件发送给您。",
+      "detail": "以整份文档为上下文"
+    },
+    "layout": {
+      "label": "译文已排回原页面",
+      "wordOnly": "此文件仅提供 Word 文件",
+      "active": "正在将译文排回原页面",
+      "todo": "与原件外观一致的 PDF",
+      "sub": "正在将译文绘制到原始页面上。",
+      "failed": "无法重建其设计"
+    },
+    "ready": {
+      "label": "文件已就绪",
+      "active": "正在准备您的文件",
+      "todo": "可供下载的文件"
+    },
+    "earlier": "此前",
+    "almostDone": "即将完成",
+    "usuallyUnderMinute": "通常不到一分钟",
+    "usuallyMinutes": "通常约 {minutes, plural, other {# 分钟}}",
+    "listLabel": "已完成的步骤",
+    "srDone": "（已完成）",
+    "srActive": "（进行中）"
+  },
+  "job": {
+    "notFound": "找不到此翻译。",
+    "yourDocument": "您的文档",
+    "fileCount": "{count, plural, other {# 个文件}}",
+    "privacy": "您的文件将保密存放，并在 30 天后删除。",
+    "cancel": "取消",
+    "toneBySousChef": "{tone}，由 Sous-Chef 设置",
+    "noText": {
+      "language": "此 PDF 为扫描版，我们暂时无法读取该语言的扫描页面。请尝试使用可以选中文字的文件。",
+      "scanned": "此 PDF 为扫描版，我们无法从其页面读取任何文字。请尝试更清晰的扫描件，或可以选中文字的文件。",
+      "generic": "我们在此文件中找不到文字。请尝试使用可以选中文字的文件。"
+    },
+    "stopped": {
+      "noTextTitle": "找不到可翻译的文字",
+      "cancelledTitle": "已取消",
+      "failedTitle": "出了点问题",
+      "noTextBody": "{reason}这次不计入您的免费文档。",
+      "cancelledBody": "此任务不会再翻译任何内容。",
+      "failedBody": "翻译未能完成。请重试，或回复我们的任意一封邮件，会有专人查看。"
+    },
+    "gated": {
+      "titlePreview": "第 1 页已完成。文件要发送到哪里？",
+      "title": "您的翻译已完成。要发送到哪里？",
+      "bodyEmail": "您可以立即下载，我们还会通过电子邮件把链接发给您，方便日后查找。",
+      "body": "您可以立即下载。",
+      "footnote": "免费：每天一份文档。无需信用卡，无需订阅。wxrks 已通过 SOC 2 Type 2 审计，您的文件将在 30 天后删除。"
+    },
+    "email": {
+      "sendFiles": "把文件发给我",
+      "news": "同时向我发送 wxrks 产品资讯，大约每月一次。",
+      "privacy": "我们会使用您的电子邮箱发送这些文件。只有勾选此框，才会向您发送产品资讯。"
+    },
+    "delivered": {
+      "title": "您的翻译已完成",
+      "tone": "语气：{tone}",
+      "alsoSent": "我们也已将链接发送至 {email}。",
+      "scanned": "{pages, plural, other {此 PDF 为扫描版，因此我们先读取了其 # 页上的文字。您将获得 Word 文件；扫描件暂时无法生成保留原设计的 PDF。}}",
+      "languagesTabs": "语言",
+      "useNow": "立即使用",
+      "nothing": "此语言没有返回任何内容。",
+      "downloadLanguage": "全部下载（{language}，ZIP）",
+      "hideFlags": "隐藏",
+      "showFlags": "{count, plural, other {查看需要检查的 # 个句子}}",
+      "beta": "测试版：保留原设计的 PDF 会用相似的字体将译文重新绘制到原始页面中。分享前请先检查；如需编辑，请使用 Word 文件。"
+    },
+    "variant": {
+      "design": "外观与原件一致",
+      "images": "每页一张图片，在任何地方打印效果都相同",
+      "word": "在 Word 中编辑",
+      "same": "与上传时的格式相同"
+    },
+    "next": {
+      "title": "下一个文件？",
+      "body": "{account, select, user {明天可再免费翻译一份文档，最多 {amount}。如果今天想继续，可以购买字数，一次性付款。} other {明天可再免费翻译一份文档，最多 {amount}。如果今天想继续，注册即可获得价值 {credit} 的额度：{creditAmount}。}}",
+      "teams": "了解 wxrks 能为团队做什么"
+    },
+    "card": {
+      "firstFree": "免费：您的第一份文档",
+      "freeToday": "免费：您今天的文档，最多 {amount}",
+      "paid": "从您的额度中支付：{credits, number}",
+      "paidLater": "字数统计完成后从您的额度中支付",
+      "balance": "账户余额：{amount}",
+      "deleted": "30 天后删除",
+      "byEmailTitle": "文件将通过电子邮件发送",
+      "byEmailBody": "文件准备好后，我们会发送至 {email}。您可以关闭此标签页。",
+      "askTitle": "通过电子邮件接收文件",
+      "askBody": "留下您的电子邮箱，然后关闭此标签页即可。文件准备好后我们会发给您。",
+      "askCta": "用邮件发给我",
+      "hereTitle": "文件将显示在这里",
+      "hereBody": "请保持此标签页打开：文件准备好后会显示在此页面上。"
+    },
+    "progress": {
+      "continued": "已从文件中断处继续：文件此前已接收、转换并统计字数，因此无需重新上传。现在正在翻译所有页面，每一页都以整个文件为上下文。",
+      "steps": "{total, plural, other {已完成 {done, number}/# 个步骤}}",
+      "label": "翻译进度"
+    },
+    "status": {
+      "done": "已完成",
+      "inProgress": "进行中",
+      "sampleReady": "样本已就绪",
+      "ready": "可开始翻译",
+      "cancelled": "已取消",
+      "stopped": "已停止"
+    },
+    "severity": {
+      "critical": "严重",
+      "major": "主要",
+      "minor": "次要"
+    },
+    "score": {
+      "name": "Confidence Score",
+      "checking": "正在检查译文…",
+      "reading": "Smells（wxrks 的语义问题检查）正在逐句阅读。",
+      "summary": "Smells（wxrks 的语义问题检查）{sentences, plural, other {已读完全部 # 个句子}}。{flagged, plural, =0 {没有发现需要检查的内容。} other {其中 # 个值得再看一下。}}",
+      "part": {
+        "clean": "{count, plural, other {# 个无问题}}",
+        "minor": "{count, plural, other {# 个次要}}",
+        "major": "{count, plural, other {# 个主要}}",
+        "critical": "{count, plural, other {# 个严重}}"
+      },
+      "line": "Confidence Score {score}",
+      "lineFlagged": "{count, plural, =0 {没有需要检查的内容} other {# 个句子值得再看一下}}"
+    },
+    "flagged": {
+      "original": "原文：<text/>",
+      "showing": "显示 {count, number} 个中的 {shown, number} 个，最严重的排在前面。",
+      "disclaimer": "高分并不代表万无一失：合同、医疗或要发布的文本，请找专人检查。"
+    },
+    "thumbs": {
+      "question": "这次翻译符合您的需要吗？",
+      "yes": "是",
+      "no": "不太满意",
+      "upLabel": "谢谢！还有什么想告诉我们的吗？（选填）",
+      "downLabel": "抱歉。哪里出了问题？（选填）",
+      "thanks": "谢谢。每条留言都会有专人阅读。"
+    },
+    "review": {
+      "eyebrow": "人工审校",
+      "title": "{count, plural, =0 {由译员审校整个文件} other {由译员审校这 # 个句子，或整个文件}}",
+      "intro": "{partners, select, yes {最适合合同、医疗文本以及任何要发布的内容。以下合作伙伴在 wxrks 上提供译成{language}的服务。} other {最适合合同、医疗文本以及任何要发布的内容。}}",
+      "finding": "正在查找{language}译员…",
+      "ask": "申请审校",
+      "find": "查找{language}译员",
+      "footer": "合作伙伴自行定价，并通过电子邮件回复。Premium Partner 排在最前，其余每次重新随机排列。<a>查看所有合作伙伴</a>"
+    },
+    "download": {
+      "all": "{count, plural, other {下载 # 个文件}}",
+      "one": "下载文件",
+      "zip": "{several, select, yes {一个 ZIP，每种语言一个文件夹} other {一个 ZIP}}"
+    },
+    "preview": {
+      "original": "原文",
+      "altOriginal": "原始文档第 {page, number} 页",
+      "altTranslated": "译成{language}的第 {page, number} 页",
+      "fullSize": "以原始大小打开"
+    },
+    "sample": {
+      "range": "{span, select, yes {{hasTotal, select, yes {第 {first, number}–{last, number} 页（共 {total, number} 页）} other {第 {first, number}–{last, number} 页}}} other {{hasTotal, select, yes {第 {first, number} 页（共 {total, number} 页）} other {第 {first, number} 页}}}}",
+      "translating": "{pages, plural, other {正在翻译其中 # 页，让您先看看效果…}}",
+      "progressLabel": "样本翻译",
+      "caption": "{hasTone, select, yes {{range}，已免费翻译（语气：{tone}）。翻译整个文件后即可下载。} other {{range}，已免费翻译。翻译整个文件后即可下载。}}",
+      "page": "{hasTotal, select, yes {第 {page, number} 页，共 {total, number} 页} other {第 {page, number} 页}}",
+      "viewLabel": "页面显示方式",
+      "sideBySide": "并排显示",
+      "only": "仅显示{language}，放大",
+      "previous": "上一页",
+      "next": "下一页"
+    },
+    "pages": {
+      "translated": "{total, plural, other {已翻译 {done, number}/# 页}}",
+      "toGo": "{count, plural, other {还剩 # 页}}",
+      "barLabel": "已翻译的页数"
+    },
+    "over": {
+      "notNow": "暂时不需要？",
+      "shorter": "免费翻译较短的文件",
+      "shorterShort": "较短的文件",
+      "buyFrom": "购买字数（{price} 起）",
+      "team": "团队账户",
+      "nextSample": "下一步：逐页查看您的样本。",
+      "inFull": "正在完整翻译此文件",
+      "seeWhole": "查看完整译文",
+      "readyAll": "{hasTotal, select, yes {可以翻译全部 {total, plural, other {# 页}}了} other {可以翻译整个文件了}}",
+      "translateAll": "{hasTotal, select, yes {翻译全部 {total, plural, other {# 页}}} other {翻译整个文件}}",
+      "translateAllFor": "{hasTotal, select, yes {以 {price} 翻译全部 {total, plural, other {# 页}}} other {以 {price} 翻译整个文件}}",
+      "needsCredits": "{credits, plural, other {此文件需要 # 额度}}",
+      "uses": "译成{languages}。将使用您 {balance, plural, other {# 额度}}中的 {credits, number}；{restWords, plural, other {剩余的 {rest}保留在您的账户中。}}",
+      "short": "{fits, select, yes {您的账户有 {amount}。只需 {pack}，即可覆盖此文件。付款后将从这里继续翻译，无需重新上传。} other {您的账户有 {amount}。付款后将从这里继续翻译，无需重新上传。}}",
+      "typeEmail": "输入电子邮箱，下载完整文件",
+      "allIn": "{hasTotal, select, yes {全部 {total, plural, other {# 页}}，译成{languages}。} other {整个文件，译成{languages}。}}",
+      "signupSub": "{restPack, select, yes {用电子邮箱免费注册：您的账户一开始就有 {amount}，再买一个 {price} 的字数包即可覆盖剩余的 {rest, number} 字。} other {用电子邮箱免费注册：您的账户一开始就有 {amount}。}}",
+      "getComplete": "获取完整文件",
+      "signupFree": "免费注册",
+      "expired": "该链接已过期。请重新输入您的电子邮箱，我们会给您发送新链接。",
+      "sampled": "{alsoFree, select, yes {{total, plural, other {共 # 页，已翻译 {sampled, number} 页。}}其余 {left, number} 页也免费。} other {{total, plural, other {共 # 页，已翻译 {sampled, number} 页。}}}}",
+      "picking": "正在选取要翻译的页面，让您先看看效果…",
+      "byEmail": "通过电子邮件接收译好的文件",
+      "free": "免费",
+      "freeLeft": "免费，还剩约 {pages, plural, other {# 页}}可用于之后的文件",
+      "payRest": "免费注册，只需为剩余部分付费",
+      "deleted": "您的文件将在 30 天后删除",
+      "allFree": "{hasTotal, select, yes {全部 {total, plural, other {# 页}}，免费} other {整个文件，免费}}",
+      "stickyNote": "{toGo, select, yes {还剩 {left, plural, other {# 页}}。无需信用卡，无需密码。} other {无需信用卡，无需密码。}}",
+      "stickyNoteRest": "免费注册，剩余部分用字数包即可。"
+    },
+    "needs": {
+      "title": "额度不足",
+      "body": "{known, select, yes {此任务需要 {credits, plural, other {# 额度}}（{pages}），而您的账户中有 {amount}。未产生任何扣费。} other {此任务所需额度超过您账户中的额度。未产生任何扣费。}}",
+      "see": "查看译文",
+      "translateNow": "立即翻译"
+    }
+  },
+  "offer": {
+    "sendFailed": "邮件未能发出，请稍后重试。",
+    "sentTitle": "请查收邮件",
+    "sentBody": "我们已向 {email} 发送了一个链接。请在 {minutes, plural, other {# 分钟}}内点击：整个文件将开始翻译，文件准备好后我们会通过电子邮件发给您。",
+    "emailLabel": "您的电子邮箱",
+    "noCard": "无需信用卡，无需密码。我们会通过电子邮件给您发送链接。",
+    "stickyLabel": "翻译整个文件"
+  },
+  "packs": {
+    "covers": "足够翻译此文件",
+    "pages": "（{about}）",
+    "opening": "正在打开…",
+    "buyFor": "以 {price} 购买",
+    "howCredits": "一次性付款，无需订阅。1 额度可将原文中的 1 个字译成 1 种语言，因此一个 {file, number} 字的文件译成 {languages, plural, other {# 种语言}}需使用 {credits, number} 额度。",
+    "byEmail": "在线结账即将推出。在此之前，选择字数包会打开一封发给 <a>{email}</a> 的邮件，我们会把字数添加到您的账户中。"
+  },
+  "pricing": {
+    "title": "购买字数",
+    "intro": "完整翻译整份文档，想译成多少种语言都可以。您依然可以获得保留原设计的 PDF、Word 文件，以及您选择的语气。",
+    "balance": "<b>您有 {words, plural, other {# 字}}</b>{hasPages, select, yes {<muted>（{about}）</muted>} other {}}。",
+    "newHereBody": "相当于 {amount}，无需购买任何东西。",
+    "signUp": "注册",
+    "freeDaily": "每天免费：一份最多 {amount}的文档。"
+  },
+  "thanks": {
+    "notFound": "找不到这笔付款。",
+    "lateTitle": "您的付款已成功",
+    "lateBody": "字数到账比平时慢。请回复收据邮件，会有专人为您添加。",
+    "adding": "正在添加字数…",
+    "paid": "已付款",
+    "inAccount": "{words, plural, other {{amount}已存入您的账户}}",
+    "signedInAs": "当前登录账户：{email}。",
+    "translateMine": "立即翻译我的文件",
+    "translateOne": "翻译文档",
+    "hasAccount": "{email} 已有账户，请用该邮箱登录以使用这些字数。",
+    "linkSent": "我们已向 {email} 发送登录链接。",
+    "sendLink": "通过电子邮件发送登录链接",
+    "uploadAgain": "请重新上传文件进行翻译。"
+  },
+  "login": {
+    "title": "登录或注册",
+    "intro": "无需密码。我们会通过电子邮件给您发送一个链接，点击即可登录或创建账户。",
+    "expired": "该链接已过期或已被使用。请重新申请。",
+    "newHereBody": "相当于 {words}，点击链接后立即存入您的账户。",
+    "sentBody": "我们已向 {email} 发送了一个链接，{minutes, plural, other {# 分钟}}内有效。",
+    "sentCredit": "新账户？点击链接后，价值 {amount} 的额度即可使用：{words}。",
+    "submit": "通过电子邮件发送链接"
+  },
+  "account": {
+    "signInFirst": "<a>登录</a>后即可查看您的账户。",
+    "title": "账户",
+    "balanceLabel": "账户中的字数",
+    "creditRule": "1 额度可将原文中的 1 个字译成 1 种语言。",
+    "history": "历史记录",
+    "kind": {
+      "purchase": "购买",
+      "charge": "翻译",
+      "refund": "退款",
+      "grant": "wxrks 添加",
+      "signup": "注册赠送额度"
+    }
+  },
+  "jobs": {
+    "signInFirst": "<a>登录</a>后即可查看您的翻译。",
+    "empty": "还没有翻译。<a>去翻译点什么吧</a>。",
+    "languages": "{source} → {targets}",
+    "status": {
+      "inProgress": "进行中",
+      "delivered": "已完成",
+      "failed": "已停止",
+      "cancelled": "已取消",
+      "over_free_limit": "可开始翻译",
+      "needs_credits": "需要额度",
+      "no_text": "未找到文字"
+    }
+  },
+  "feedback": {
+    "expired": "此链接已过期。",
+    "upTitle": "很高兴翻译效果不错。谢谢您。",
+    "downTitle": "很抱歉翻译效果不理想。感谢您告诉我们。",
+    "up": "效果不错",
+    "down": "有些问题",
+    "thanks": "收到。每条留言都会有专人阅读。",
+    "upLabel": "还有什么想告诉我们的吗？（选填）",
+    "downLabel": "哪里出了问题？（选填）"
+  },
+  "activity": {
+    "pill": "已将 <b>{words, plural, other {# 字}}</b>从{from}译成{to}{when, select, moments { · 刚刚} minutes { · 几分钟前} today { · 今天早些时候} other {}}",
+    "close": "关闭"
+  }
+}

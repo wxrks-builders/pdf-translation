@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams, Link, useSearchParams, useNavigate } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
+import { Trans, useTranslation } from "react-i18next";
 import { api, trackCancelledCheckout } from "../api";
 import { useAuth } from "../context/AuthContext";
 import { TrustStrip } from "./Upload";
@@ -9,16 +10,16 @@ import { progressSteps, ProgressChecklist } from "./ProgressSteps";
 import RecentActivity from "../RecentActivity";
 import { FREE_WORDS, PACKS, SIGNUP_CREDIT, packFor, packLabel, pagesFor, wordsAndPages, aboutPages } from "../pricing";
 import { toneLine } from "../tone";
+import { errorText } from "../i18n";
+import { formatList, formatMoney, formatNumber, formatPercent, isolate, languageLabel, languageName } from "../i18n/format";
+import { Link, useNavigate } from "../i18n/routing";
 
 const ACTIVE = ["created", "uploading", "analyzing", "approving", "translating"];
 
 // The sample's progress bar is honest about stages, not seconds: wxrks doesn't report a percentage.
 const PROGRESS = { created: 5, uploading: 15, analyzing: 35, approving: 50, translating: 75 };
 
-const VARIANT_NOTE = {
-  "pdf-design": "Looks like your original",
-  "pdf-images": "One picture per page, prints the same everywhere",
-};
+const VARIANT_NOTE = { "pdf-design": "job.variant.design", "pdf-images": "job.variant.images" };
 const VARIANT_ORDER = { "pdf-design": 0, translation: 1, "pdf-images": 2 };
 
 const DEMO_URL =
@@ -27,17 +28,16 @@ const TEAM_URL =
   "https://wxrks.com/?utm_source=translate.wxrks.com&utm_medium=referral&utm_campaign=free-translator&utm_content=delivered";
 
 const norm = (code) => String(code || "").toLowerCase().replace(/[-_]/g, "");
-// "Portuguese (Brazil) and Spanish", "French, German and Italian".
-const andList = (xs) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+
+// A sentence's separator between independent facts ("file · languages · words").
+const Dot = () => <span aria-hidden="true"> · </span>;
 
 // Why a job found nothing to translate, from the pipeline's OCR step (server/services/pipeline.js).
-function noTextReason(job) {
+function noTextReason(job, t) {
   const ocr = [...job.timeline].reverse().find((e) => e.event === "ocr_skipped" || e.event === "ocr_done");
-  if (ocr?.event === "ocr_skipped" && ocr.detail?.reason === "language") {
-    return "This PDF is scanned, and we can't read scanned pages in its language yet. Try a file where you can select the text.";
-  }
-  if (ocr) return "This PDF is scanned, and we couldn't read any text on its pages. Try a sharper scan, or a file where you can select the text.";
-  return "We couldn't find text in this file. Try a file where you can select the text.";
+  if (ocr?.event === "ocr_skipped" && ocr.detail?.reason === "language") return t("job.noText.language");
+  if (ocr) return t("job.noText.scanned");
+  return t("job.noText.generic");
 }
 
 // Over the free limit, a sample of a PDF is translated as a preview (server/services/excerpt.js);
@@ -59,7 +59,15 @@ function stillWorking(j) {
   return j.excerpt ? ACTIVE.includes(j.excerpt.status) : Date.now() - new Date(j.updatedAt).getTime() < 30000;
 }
 
+// The file's name, or how many files: in the bar and the headings' fine print.
+function FilesLabel({ job }) {
+  const { t } = useTranslation();
+  if (job.files.length > 1) return t("job.fileCount", { count: job.files.length });
+  return <bdi>{job.files[0]?.name || t("job.yourDocument")}</bdi>;
+}
+
 export default function Job() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const [params] = useSearchParams();
   const k = params.get("k"); // from the files email: works on any device
@@ -85,12 +93,12 @@ export default function Job() {
         setJob(j);
         if (stillWorking(j)) timer = setTimeout(load, 3000);
       } catch (err) {
-        setError(err.status === 404 ? "We couldn't find this translation." : err.message);
+        setError(err.status === 404 ? t("job.notFound") : errorText(err));
       }
     }
     load();
     return () => clearTimeout(timer);
-  }, [id, k]);
+  }, [id, k]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The header's balance is read at sign-in; the charge lands seconds later (a file continued
   // after the email link is paid once its project is taken over), so read it again then.
@@ -101,11 +109,14 @@ export default function Job() {
   }, [charged, refresh]);
 
   if (error) return <Screen><p className="text-[15px]">{error}</p></Screen>;
-  if (!job) return <Screen><p className="text-brand-500">Loading…</p></Screen>;
+  if (!job) return <Screen><p className="text-brand-500">{t("common.loading")}</p></Screen>;
 
-  const nameOf = (loc) => names[norm(loc)] || loc;
-  const languages = job.targetLocales.map(nameOf).join(", ");
-  const fileName = job.files[0]?.name || "Your document";
+  // Language names in the reader's language: inside a sentence, and standing alone (tabs, captions).
+  // Deliverables, previews and the tabs carry the normalized code ("ptbr", server/services/poller.js),
+  // which Intl can't read, so each code is named by the job's own spelling of it ("pt_br").
+  const codeOf = (loc) => job.targetLocales.find((c) => norm(c) === norm(loc)) || loc;
+  const nameOf = (loc) => languageName(codeOf(loc), names[norm(loc)]);
+  const labelOf = (loc) => languageLabel(codeOf(loc), names[norm(loc)]);
   const delivered = job.status === "delivered";
   const gated = job.tier === "free" && !job.unlocked;
   const byLocale = {};
@@ -115,7 +126,9 @@ export default function Job() {
   const tone = toneLine(job.tone);
   const bar = (
     <>
-      <span className="min-w-0 truncate">{job.files.length > 1 ? `${job.files.length} files` : fileName}</span>
+      <span className="min-w-0 truncate">
+        <FilesLabel job={job} />
+      </span>
       <StatusBadge status={job.status} excerpt={job.excerpt} job={job} />
     </>
   );
@@ -129,9 +142,9 @@ export default function Job() {
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
           <div className={`${asks ? "order-2" : "order-1"} min-w-0 lg:order-1`}>
             <ProgressPanel job={job} nameOf={nameOf} tone={tone} />
-            <p className="mt-4 text-[11px] text-brand-500">Your file stays private and is deleted after 30 days.</p>
+            <p className="mt-4 text-[11px] text-brand-500">{t("job.privacy")}</p>
             <button onClick={async () => setJob(await api.cancelJob(job.id))} className="mt-4 text-xs text-brand-500 underline hover:text-brand-600">
-              Cancel
+              {t("job.cancel")}
             </button>
           </div>
           <div className={`${asks ? "order-1" : "order-2"} lg:sticky lg:top-6 lg:order-2`}>
@@ -142,24 +155,24 @@ export default function Job() {
     );
   }
 
-  if (job.status === "over_free_limit") return <OverLimit job={job} bar={bar} nameOf={nameOf} tone={tone} />;
-  if (job.status === "needs_credits") return <NeedsCredits job={job} bar={bar} nameOf={nameOf} tone={tone} />;
+  if (job.status === "over_free_limit") return <OverLimit job={job} bar={bar} nameOf={nameOf} labelOf={labelOf} tone={tone} />;
+  if (job.status === "needs_credits") return <NeedsCredits job={job} bar={bar} nameOf={nameOf} labelOf={labelOf} tone={tone} />;
 
   if (!delivered) {
     return (
       <Screen bar={bar}>
         <h1 className="text-[22px] font-medium tracking-[-0.3px]">
-          {job.status === "no_text" ? "We couldn't find any text to translate" : job.status === "cancelled" ? "Cancelled" : "Something went wrong"}
+          {job.status === "no_text" ? t("job.stopped.noTextTitle") : job.status === "cancelled" ? t("job.stopped.cancelledTitle") : t("job.stopped.failedTitle")}
         </h1>
         <p className="mt-2 text-[13px] text-brand-500">
           {job.status === "no_text"
-            ? `${noTextReason(job)} This one doesn't count as your free document.`
+            ? t("job.stopped.noTextBody", { reason: noTextReason(job, t) })
             : job.status === "cancelled"
-              ? "Nothing more will be translated for this job."
-              : "The translation didn't finish. Try again, or reply to any of our emails and a person will look at it."}
+              ? t("job.stopped.cancelledBody")
+              : t("job.stopped.failedBody")}
         </p>
         <Link to="/" className="wx-button wx-button--primary mt-5" style={{ minHeight: 40 }}>
-          Translate another document
+          {t("common.translateAnother")}
         </Link>
       </Screen>
     );
@@ -169,42 +182,40 @@ export default function Job() {
   if (gated) {
     return (
       <Screen bar={bar} wide>
-        {preview && <Preview job={job} preview={preview} language={nameOf(preview.locale)} q={q} />}
+        {preview && <Preview job={job} preview={preview} language={nameOf(preview.locale)} label={labelOf(preview.locale)} q={q} />}
         <div className="max-w-2xl">
-        <h1 className={`${preview ? "mt-5" : ""} text-[22px] font-medium tracking-[-0.3px]`}>
-          {preview ? "Page 1 is done. Where should we send the files?" : "Your translation is ready. Where should we send it?"}
-        </h1>
-        <ScoreLine confidence={job.confidence} locale={norm(job.targetLocales[0])} />
-        <p className="mt-1 text-[13px] text-brand-500">
-          {job.emailDelivery
-            ? "Your downloads open right away, and we email you the links so you can find them later."
-            : "Your downloads open right away."}
-        </p>
-        <ul className="mt-3 space-y-1 text-xs text-brand-500">
-          {job.targetLocales.map((loc) => (
-            <li key={loc}>
-              <span className="font-medium text-brand-600">{nameOf(loc)}</span> ·{" "}
-              {(byLocale[norm(loc)] || []).map((d) => d.filename).join(", ")}
-            </li>
-          ))}
-        </ul>
-        <div className="mt-5">
-          <EmailForm job={job} k={k} onDone={setJob} cta="Send me the files" />
-        </div>
-        <p className="mt-4 flex items-center gap-2 text-[11px] text-brand-500">
-          <img src="/badges/soc2.svg" alt="" className="h-3.5 w-auto" />
-          <span>Free: one document a day. No card, no subscription. wxrks is SOC 2 Type 2 audited, and your file is deleted after 30 days.</span>
-        </p>
+          <h1 className={`${preview ? "mt-5" : ""} text-[22px] font-medium tracking-[-0.3px]`}>
+            {preview ? t("job.gated.titlePreview") : t("job.gated.title")}
+          </h1>
+          <ScoreLine confidence={job.confidence} locale={norm(job.targetLocales[0])} />
+          <p className="mt-1 text-[13px] text-brand-500">{job.emailDelivery ? t("job.gated.bodyEmail") : t("job.gated.body")}</p>
+          <ul className="mt-3 space-y-1 text-xs text-brand-500">
+            {job.targetLocales.map((loc) => (
+              <li key={loc}>
+                <span className="font-medium text-brand-600">{labelOf(loc)}</span>
+                <Dot />
+                <bdi>{formatList((byLocale[norm(loc)] || []).map((d) => d.filename))}</bdi>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-5">
+            <EmailForm job={job} k={k} onDone={setJob} cta={t("job.email.sendFiles")} />
+          </div>
+          <p className="mt-4 flex items-center gap-2 text-[11px] text-brand-500">
+            <img src="/badges/soc2.svg" alt="" className="h-3.5 w-auto" />
+            <span>{t("job.gated.footnote")}</span>
+          </p>
         </div>
       </Screen>
     );
   }
 
   // Delivered and open: use it now, or have a person check it.
-  return <Delivered job={job} bar={bar} byLocale={byLocale} preview={preview} nameOf={nameOf} tone={tone} q={q} k={k} />;
+  return <Delivered job={job} bar={bar} byLocale={byLocale} preview={preview} nameOf={nameOf} labelOf={labelOf} tone={tone} q={q} k={k} />;
 }
 
-function Delivered({ job, bar, byLocale, preview, nameOf, tone, q, k }) {
+function Delivered({ job, bar, byLocale, preview, nameOf, labelOf, tone, q, k }) {
+  const { t } = useTranslation();
   const [picked, setPicked] = useState(norm(job.targetLocales[0]));
   const [reviewers, setReviewers] = useState(null);
   const [showFlags, setShowFlags] = useState(false);
@@ -222,37 +233,46 @@ function Delivered({ job, bar, byLocale, preview, nameOf, tone, q, k }) {
     <Screen bar={bar} wide>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-[22px] font-medium tracking-[-0.3px]">Your translation is ready</h1>
+          <h1 className="text-[22px] font-medium tracking-[-0.3px]">{t("job.delivered.title")}</h1>
           <p className="mt-1 text-[13px] text-brand-500">
-            {job.files.length > 1 ? `${job.files.length} files` : job.files[0]?.name} · {job.targetLocales.map(nameOf).join(", ")}
-            {job.analyzedWords != null ? ` · ${job.analyzedWords.toLocaleString("en-US")} words` : ""}
-            {tone ? ` · Tone: ${tone}` : ""}
+            <FilesLabel job={job} />
+            <Dot />
+            {formatList(job.targetLocales.map(labelOf))}
+            {job.analyzedWords != null && (
+              <>
+                <Dot />
+                {t("units.words", { words: job.analyzedWords })}
+              </>
+            )}
+            {tone && (
+              <>
+                <Dot />
+                {t("job.delivered.tone", { tone })}
+              </>
+            )}
           </p>
           {job.tier === "free" && job.unlockedEmail && job.emailDelivery && (
-            <p className="mt-1 text-[13px] text-brand-500">We also sent the links to {job.unlockedEmail}.</p>
+            <p className="mt-1 text-[13px] text-brand-500">{t("job.delivered.alsoSent", { email: isolate(job.unlockedEmail) })}</p>
           )}
         </div>
         <DownloadAll job={job} q={q} />
       </div>
       {scanned > 0 && (
         <div className="wx-alert mt-4">
-          <span>
-            This PDF was scanned, so we read the text off its {scanned === 1 ? "page" : `${scanned} pages`} first. You get a
-            Word file; a PDF with the design kept isn't made from scans yet.
-          </span>
+          <span>{t("job.delivered.scanned", { pages: scanned })}</span>
         </div>
       )}
       {shown && (
         <div className="mt-5">
-          <Preview job={job} preview={shown} language={nameOf(shown.locale)} q={q} />
+          <Preview job={job} preview={shown} language={nameOf(shown.locale)} label={labelOf(shown.locale)} q={q} />
         </div>
       )}
 
       {locales.length > 1 && (
-        <div className="wx-tabs mt-6" role="tablist" aria-label="Languages">
+        <div className="wx-tabs mt-6" role="tablist" aria-label={t("job.delivered.languagesTabs")}>
           {locales.map((l) => (
             <button key={l} type="button" role="tab" aria-selected={l === loc} className="wx-tab" onClick={() => setPicked(l)}>
-              {nameOf(l)}
+              {labelOf(l)}
             </button>
           ))}
         </div>
@@ -260,7 +280,7 @@ function Delivered({ job, bar, byLocale, preview, nameOf, tone, q, k }) {
 
       <div className={`${locales.length > 1 ? "mt-4" : "mt-6"} grid grid-cols-1 items-stretch gap-4 md:grid-cols-2`}>
         <section className="flex min-w-0 flex-col gap-4 rounded-[10px] border border-brand-200 p-5">
-          <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-brand-500">Use it now</p>
+          <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-brand-500">{t("job.delivered.useNow")}</p>
           <Score confidence={job.confidence} entry={conf} />
           <div className="space-y-2">
             {items.length ? (
@@ -272,26 +292,28 @@ function Delivered({ job, bar, byLocale, preview, nameOf, tone, q, k }) {
                 >
                   <DownloadIcon />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] font-medium">{d.filename}</span>
+                    <span className="block truncate text-[13px] font-medium" title={d.filename}>
+                      <bdi>{d.filename}</bdi>
+                    </span>
                     <span className="block text-[11px] text-brand-500">
-                      {VARIANT_NOTE[d.variant] || (/\.docx$/i.test(d.filename) ? "Edit it in Word" : "Same format you uploaded")}
+                      {t(VARIANT_NOTE[d.variant] || (/\.docx$/i.test(d.filename) ? "job.variant.word" : "job.variant.same"))}
                     </span>
                   </span>
                 </a>
               ))
             ) : (
-              <p className="text-[13px] text-brand-500">Nothing came back for this language.</p>
+              <p className="text-[13px] text-brand-500">{t("job.delivered.nothing")}</p>
             )}
             {items.length > 1 && (
               <a href={`/api/jobs/${job.id}/download/${loc}${q}`} className="wx-button">
-                Download all ({language}, ZIP)
+                {t("job.delivered.downloadLanguage", { language: labelOf(loc) })}
               </a>
             )}
           </div>
           {conf?.top?.length > 0 && (
             <div>
               <button type="button" className="text-xs underline" aria-expanded={showFlags} onClick={() => setShowFlags(!showFlags)}>
-                {showFlags ? "Hide them" : `See the ${conf.flagged === 1 ? "sentence" : `${conf.flagged.toLocaleString("en-US")} sentences`} to check`}
+                {showFlags ? t("job.delivered.hideFlags") : t("job.delivered.showFlags", { count: conf.flagged })}
               </button>
               {showFlags && <Flagged entry={conf} />}
             </div>
@@ -304,10 +326,7 @@ function Delivered({ job, bar, byLocale, preview, nameOf, tone, q, k }) {
       <Thumbs job={job} k={k} />
 
       {job.deliverables.some((d) => d.variant?.startsWith("pdf-")) && (
-        <p className="mt-4 text-[11px] leading-relaxed text-brand-500">
-          Beta: the design-kept PDF redraws the translation into your original pages in a similar font. Check it before
-          you share; the Word file is the version to edit.
-        </p>
+        <p className="mt-4 text-[11px] leading-relaxed text-brand-500">{t("job.delivered.beta")}</p>
       )}
       {job.tier === "free" && <NextFile freeLimit={job.freeLimit || FREE_WORDS} />}
     </Screen>
@@ -316,82 +335,90 @@ function Delivered({ job, bar, byLocale, preview, nameOf, tone, q, k }) {
 
 // After a guest's free document: tomorrow's, or the sign-up credit to keep going today.
 function NextFile({ freeLimit }) {
+  const { t } = useTranslation();
   const { user } = useAuth();
   return (
     <div className="mt-6 rounded-md bg-[#f5f7f9] p-4">
-      <p className="text-[13px] font-medium">Next file?</p>
+      <p className="text-[13px] font-medium">{t("job.next.title")}</p>
       <p className="mt-1 text-[13px] leading-relaxed text-brand-500">
-        Your next free document, up to {wordsAndPages(freeLimit)}, is ready tomorrow.
-        {user
-          ? " To keep going today, buy words, paid once."
-          : ` To keep going today, sign up and get $${SIGNUP_CREDIT.dollars} in credits: ${wordsAndPages(SIGNUP_CREDIT.words)}.`}
+        {t("job.next.body", {
+          account: user ? "user" : "guest",
+          amount: wordsAndPages(freeLimit),
+          credit: formatMoney(SIGNUP_CREDIT.dollars),
+          creditAmount: wordsAndPages(SIGNUP_CREDIT.words),
+        })}
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
         {user ? (
           <Link to="/pricing" className="wx-button wx-button--primary wx-button--compact">
-            Buy words
+            {t("common.buyWords")}
           </Link>
         ) : (
           <Link to="/login" className="wx-button wx-button--primary wx-button--compact">
-            Get ${SIGNUP_CREDIT.dollars} in credits
+            {t("common.getCredits", { amount: formatMoney(SIGNUP_CREDIT.dollars) })}
           </Link>
         )}
         <a href={TEAM_URL} className="text-xs underline">
-          See what wxrks does for teams
+          {t("job.next.teams")}
         </a>
       </div>
     </div>
   );
 }
 
+function Tick() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#176b45" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 12.5l4.5 4.5L19 7.5" />
+    </svg>
+  );
+}
+
 // The card beside the steps while a file is translated: where the files go (or an email field to
 // send them, for a guest), and what pays for it.
 function WorkingCard({ job, k, onDone }) {
+  const { t } = useTranslation();
   const { creditBalance } = useAuth();
   const charged = job.timeline.find((e) => e.event === "credits_charged");
   const isPdf = /\.pdf$/i.test(job.files[0]?.name || "");
   const ticks = [
     job.timeline.some((e) => e.event === "first_document_free")
-      ? "Free: your first document" // jobs from the first-document-free days (2026-11-09)
+      ? t("job.card.firstFree") // jobs from the first-document-free days (2026-11-09)
       : job.tier === "free"
-        ? `Free: your document for today, up to ${wordsAndPages(job.freeLimit || FREE_WORDS)}`
+        ? t("job.card.freeToday", { amount: wordsAndPages(job.freeLimit || FREE_WORDS) })
         : charged
-          ? `Paid from your credits: ${(job.creditsCharged ?? charged.detail?.amount ?? 0).toLocaleString("en-US")}`
-          : "Paid from your credits once the words are counted",
-    job.tier !== "free" && creditBalance != null ? `${wordsAndPages(creditBalance)} in your account` : null,
-    isPdf ? "A Word file and a PDF that looks like your original" : null,
-    "Deleted after 30 days",
+          ? t("job.card.paid", { credits: job.creditsCharged ?? charged.detail?.amount ?? 0 })
+          : t("job.card.paidLater"),
+    job.tier !== "free" && creditBalance != null ? t("job.card.balance", { amount: wordsAndPages(creditBalance) }) : null,
+    isPdf ? t("common.pdfFiles") : null,
+    t("job.card.deleted"),
   ].filter(Boolean);
   return (
     <aside className="wx-offer-card">
       {job.unlockedEmail ? (
         <>
-          <h2 className="text-[22px] font-bold leading-7 tracking-[-0.3px]">Your files come by email</h2>
-          <p className="mt-2 text-[14px] leading-[21px] text-[#3d4650]">
-            We'll send them to {job.unlockedEmail} when they're ready. You can close this tab.
-          </p>
+          <h2 className="text-[22px] font-bold leading-7 tracking-[-0.3px]">{t("job.card.byEmailTitle")}</h2>
+          <p className="mt-2 text-[14px] leading-[21px] text-[#3d4650]">{t("job.card.byEmailBody", { email: isolate(job.unlockedEmail) })}</p>
         </>
       ) : job.emailDelivery ? (
         <>
-          <h2 className="text-[22px] font-bold leading-7 tracking-[-0.3px]">Get the files by email</h2>
-          <p className="mt-2 text-[14px] leading-[21px] text-[#3d4650]">Leave your email and close the tab. We send the files when they're ready.</p>
+          <h2 className="text-[22px] font-bold leading-7 tracking-[-0.3px]">{t("job.card.askTitle")}</h2>
+          <p className="mt-2 text-[14px] leading-[21px] text-[#3d4650]">{t("job.card.askBody")}</p>
           <div className="mt-4">
-            <EmailForm job={job} k={k} onDone={onDone} cta="Email me the files" />
+            <EmailForm job={job} k={k} onDone={onDone} cta={t("job.card.askCta")} />
           </div>
         </>
       ) : (
         <>
-          <h2 className="text-[22px] font-bold leading-7 tracking-[-0.3px]">Your files show here</h2>
-          <p className="mt-2 text-[14px] leading-[21px] text-[#3d4650]">Keep this tab open: they appear on this page when they're ready.</p>
+          <h2 className="text-[22px] font-bold leading-7 tracking-[-0.3px]">{t("job.card.hereTitle")}</h2>
+          <p className="mt-2 text-[14px] leading-[21px] text-[#3d4650]">{t("job.card.hereBody")}</p>
         </>
       )}
       <ul className="mt-4 space-y-2 text-[13px] text-[#3d4650]">
-        {ticks.map((t) => (
-          <li key={t} className="flex items-center gap-2">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#176b45" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M5 12.5l4.5 4.5L19 7.5" />
-            </svg>
-            {t}
+        {ticks.map((x) => (
+          <li key={x} className="flex items-center gap-2">
+            <Tick />
+            {x}
           </li>
         ))}
       </ul>
@@ -403,7 +430,8 @@ function WorkingCard({ job, k, onDone }) {
 // free limit while its sample is made, the sample's steps follow the file's (sample: job.excerpt),
 // beside the email card (OverLimit), and the title is a heading under the card's.
 function ProgressPanel({ job, nameOf, tone, sample = null }) {
-  const progress = progressSteps(job, nameOf, tone ? `${tone}, by Sous-Chef` : null, { sample });
+  const { t } = useTranslation();
+  const progress = progressSteps(job, nameOf, tone ? t("job.toneBySousChef", { tone }) : null, { sample });
   const pct = progress.pct;
   const Title = sample ? "h2" : "h1";
   return (
@@ -412,19 +440,14 @@ function ProgressPanel({ job, nameOf, tone, sample = null }) {
       {progress.sub && <p className="mt-1 text-[13px] text-brand-500">{progress.sub}</p>}
       {job.timeline.some((e) => e.event === "continued") && (
         // After the email link: the steps marked "earlier" were not done again (routes/jobs.js rerun).
-        <p className="mt-3 rounded-md bg-[#f3faf6] px-3 py-2 text-[13px] leading-5 text-[#24543a]">
-          Picked up where your file stopped: received, converted and counted earlier, so nothing was uploaded again. Now all of
-          its pages are translated, each with the whole file as context.
-        </p>
+        <p className="mt-3 rounded-md bg-[#f3faf6] px-3 py-2 text-[13px] leading-5 text-[#24543a]">{t("job.progress.continued")}</p>
       )}
       <div className="mt-5">
-        <div className="mb-1.5 flex justify-between text-xs">
-          <span className="font-medium">
-            {progress.done} of {progress.total} steps done
-          </span>
-          <span className="text-brand-500">{pct}%</span>
+        <div className="mb-1.5 flex justify-between gap-3 text-xs">
+          <span className="font-medium">{t("job.progress.steps", { done: progress.done, total: progress.total })}</span>
+          <span className="text-brand-500">{formatPercent(pct / 100)}</span>
         </div>
-        <div className="wx-progress" role="progressbar" aria-label="Translation progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow={pct}>
+        <div className="wx-progress" role="progressbar" aria-label={t("job.progress.label")} aria-valuemin="0" aria-valuemax="100" aria-valuenow={pct}>
           <span style={{ width: `${pct}%` }} />
         </div>
       </div>
@@ -437,7 +460,7 @@ function Screen({ bar, children, wide }) {
   return (
     <section className={`mx-auto ${wide ? "max-w-6xl" : "max-w-xl"}`}>
       <div className="overflow-hidden rounded-[10px] border border-brand-200 bg-white">
-        {bar && <div className="flex h-11 items-center justify-between gap-3 border-b border-brand-200 px-5 text-xs text-brand-500">{bar}</div>}
+        {bar && <div className="flex min-h-11 items-center justify-between gap-3 border-b border-brand-200 px-5 py-2 text-xs text-brand-500">{bar}</div>}
         <div className="p-6 sm:p-8">{children}</div>
       </div>
     </section>
@@ -445,34 +468,36 @@ function Screen({ bar, children, wide }) {
 }
 
 function StatusBadge({ status, excerpt, job }) {
-  if (status === "delivered") return <span className="wx-badge wx-badge--success">Done</span>;
-  if (ACTIVE.includes(status)) return <span className="wx-badge wx-badge--pending">In progress</span>;
+  const { t } = useTranslation();
+  if (status === "delivered") return <span className="wx-badge wx-badge--success">{t("job.status.done")}</span>;
+  if (ACTIVE.includes(status)) return <span className="wx-badge wx-badge--pending">{t("job.status.inProgress")}</span>;
   // Not "Over the free limit": on a first visit that reads as a refusal (Rodrigo, 2026-11-21).
   if (status === "over_free_limit") {
-    if (excerpt?.status === "delivered") return <span className="wx-badge wx-badge--success">Sample ready</span>;
-    if ((excerpt && ACTIVE.includes(excerpt.status)) || pickingSample(job)) return <span className="wx-badge wx-badge--pending">In progress</span>;
-    return <span className="wx-badge wx-badge--info">Ready to translate</span>;
+    if (excerpt?.status === "delivered") return <span className="wx-badge wx-badge--success">{t("job.status.sampleReady")}</span>;
+    if ((excerpt && ACTIVE.includes(excerpt.status)) || pickingSample(job)) return <span className="wx-badge wx-badge--pending">{t("job.status.inProgress")}</span>;
+    return <span className="wx-badge wx-badge--info">{t("job.status.ready")}</span>;
   }
-  return <span className="wx-badge">{status === "cancelled" ? "Cancelled" : "Stopped"}</span>;
+  return <span className="wx-badge">{status === "cancelled" ? t("job.status.cancelled") : t("job.status.stopped")}</span>;
 }
 
 // The Confidence Score: Smells, the wxrks check for meaning problems, scores every sentence by
 // the most serious problem it finds (server/services/confidence.js). Severities as wxrks names them.
 const SEVERITY = {
-  BLOCKER: { label: "Critical", badge: "wx-badge--danger", bar: "#a52b36" },
-  CRITICAL: { label: "Critical", badge: "wx-badge--danger", bar: "#a52b36" },
-  MAJOR: { label: "Major", badge: "wx-badge--pending", bar: "#d9a23a" },
-  MINOR: { label: "Minor", badge: "wx-badge--info", bar: "#6b9cc4" },
+  BLOCKER: { label: "job.severity.critical", badge: "wx-badge--danger", bar: "#a52b36" },
+  CRITICAL: { label: "job.severity.critical", badge: "wx-badge--danger", bar: "#a52b36" },
+  MAJOR: { label: "job.severity.major", badge: "wx-badge--pending", bar: "#d9a23a" },
+  MINOR: { label: "job.severity.minor", badge: "wx-badge--info", bar: "#6b9cc4" },
 };
 const pct = (score) => Math.round(score * 100);
 const scoreInk = (score) => (score >= 0.95 ? "#176b45" : score >= 0.85 ? "#785000" : "#a52b36");
 
 function Score({ confidence, entry }) {
+  const { t } = useTranslation();
   if (confidence?.status === "pending") {
     return (
       <div className="rounded-md bg-[#f5f7f9] px-4 py-3">
-        <p className="text-[13px] font-medium">Checking the translation…</p>
-        <p className="mt-0.5 text-xs text-brand-500">Smells, the wxrks check for meaning problems, is reading every sentence.</p>
+        <p className="text-[13px] font-medium">{t("job.score.checking")}</p>
+        <p className="mt-0.5 text-xs text-brand-500">{t("job.score.reading")}</p>
       </div>
     );
   }
@@ -480,41 +505,34 @@ function Score({ confidence, entry }) {
   const counts = entry.counts || {};
   const critical = (counts.BLOCKER || 0) + (counts.CRITICAL || 0);
   const parts = [
-    ["clean", entry.sentences - entry.flagged, "#2f8f5b", "no problems"],
-    ["MINOR", counts.MINOR || 0, SEVERITY.MINOR.bar, "minor"],
-    ["MAJOR", counts.MAJOR || 0, SEVERITY.MAJOR.bar, "major"],
-    ["CRITICAL", critical, SEVERITY.CRITICAL.bar, "critical"],
-  ].filter(([, n]) => n > 0);
+    ["clean", entry.sentences - entry.flagged, "#2f8f5b"],
+    ["minor", counts.MINOR || 0, SEVERITY.MINOR.bar],
+    ["major", counts.MAJOR || 0, SEVERITY.MAJOR.bar],
+    ["critical", critical, SEVERITY.CRITICAL.bar],
+  ]
+    .filter(([, n]) => n > 0)
+    .map(([key, n, color]) => [key, n, color, t(`job.score.part.${key}`, { count: n })]);
   return (
     <div>
-      <div className="flex items-baseline gap-2.5">
+      <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
         <span className="text-[44px] font-medium leading-none tracking-[-1px]" style={{ color: scoreInk(entry.score) }}>
-          {pct(entry.score)}%
+          {formatPercent(pct(entry.score) / 100)}
         </span>
-        <span className="text-[15px] font-medium">Confidence Score</span>
+        <span className="text-[15px] font-medium">{t("job.score.name")}</span>
       </div>
-      <p className="mt-2 text-xs text-brand-500">
-        Smells, the wxrks check for meaning problems, read all {entry.sentences.toLocaleString("en-US")} sentences.{" "}
-        {entry.flagged
-          ? `${entry.flagged.toLocaleString("en-US")} ${entry.flagged === 1 ? "is" : "are"} worth a second look.`
-          : "It found nothing to check."}
-      </p>
+      <p className="mt-2 text-xs text-brand-500">{t("job.score.summary", { sentences: entry.sentences, flagged: entry.flagged || 0 })}</p>
       {entry.sentences > 0 && (
         <>
-          <div
-            className="mt-3 flex h-2.5 gap-0.5 overflow-hidden rounded-full"
-            role="img"
-            aria-label={parts.map(([, n, , label]) => `${n} ${label}`).join(", ")}
-          >
+          <div className="mt-3 flex h-2.5 gap-0.5 overflow-hidden rounded-full" role="img" aria-label={formatList(parts.map(([, , , label]) => label))}>
             {parts.map(([key, n, color]) => (
               <span key={key} style={{ width: `${(n / entry.sentences) * 100}%`, background: color }} />
             ))}
           </div>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-brand-500">
-            {parts.map(([key, n, color, label]) => (
+            {parts.map(([key, , color, label]) => (
               <span key={key} className="inline-flex items-center gap-1.5">
                 <span className="size-2 rounded-sm" style={{ background: color }} />
-                {n.toLocaleString("en-US")} {label}
+                {label}
               </span>
             ))}
           </div>
@@ -526,21 +544,24 @@ function Score({ confidence, entry }) {
 
 // One line under the heading before the email step.
 function ScoreLine({ confidence, locale }) {
+  const { t } = useTranslation();
   const entry = confidence?.byLocale?.[locale];
   if (!entry) return null;
   return (
     <p className="mt-1 text-[13px]">
       <span className="font-medium" style={{ color: scoreInk(entry.score) }}>
-        Confidence Score {pct(entry.score)}%
+        {t("job.score.line", { score: formatPercent(pct(entry.score) / 100) })}
       </span>
       <span className="text-brand-500">
-        {entry.flagged ? ` · ${entry.flagged.toLocaleString("en-US")} sentences worth a second look` : " · nothing to check"}
+        <Dot />
+        {t("job.score.lineFlagged", { count: entry.flagged || 0 })}
       </span>
     </p>
   );
 }
 
 function Flagged({ entry }) {
+  const { t } = useTranslation();
   return (
     <div className="mt-3 space-y-2">
       {entry.top.map((f, i) => {
@@ -548,21 +569,34 @@ function Flagged({ entry }) {
         return (
           <div key={i} className="space-y-1 rounded-md border border-brand-200 px-3 py-2.5">
             <span className={`wx-badge ${sev.badge}`}>
-              {sev.label}
-              {f.type ? ` · ${f.type}` : ""}
+              {t(sev.label)}
+              {f.type && (
+                <>
+                  <Dot />
+                  <bdi>{f.type}</bdi>
+                </>
+              )}
             </span>
-            {f.target && <p className="text-[13px]">{f.target}</p>}
-            {f.source && <p className="text-xs text-brand-500">Original: {f.source}</p>}
-            {f.note && <p className="text-xs">{f.note}</p>}
+            {f.target && (
+              <p className="text-[13px]" dir="auto">
+                {f.target}
+              </p>
+            )}
+            {f.source && (
+              <p className="text-xs text-brand-500">
+                <Trans i18nKey="job.flagged.original" components={{ text: <bdi>{f.source}</bdi> }} />
+              </p>
+            )}
+            {f.note && (
+              <p className="text-xs" dir="auto">
+                {f.note}
+              </p>
+            )}
           </div>
         );
       })}
-      {entry.flagged > entry.top.length && (
-        <p className="text-[11px] text-brand-500">
-          Showing {entry.top.length} of {entry.flagged.toLocaleString("en-US")}, the most serious first.
-        </p>
-      )}
-      <p className="text-[11px] text-brand-500">A high score is not a guarantee: for contracts, medical or published text, have a person check it.</p>
+      {entry.flagged > entry.top.length && <p className="text-[11px] text-brand-500">{t("job.flagged.showing", { shown: entry.top.length, count: entry.flagged })}</p>}
+      <p className="text-[11px] text-brand-500">{t("job.flagged.disclaimer")}</p>
     </div>
   );
 }
@@ -578,6 +612,7 @@ export function ThumbIcon({ down }) {
 }
 
 function Thumbs({ job, k }) {
+  const { t } = useTranslation();
   const [rating, setRating] = useState(job.feedback);
   const [comment, setComment] = useState("");
   const [sent, setSent] = useState(false);
@@ -589,7 +624,7 @@ function Thumbs({ job, k }) {
     try {
       await api.jobFeedback(job.id, { rating: r }, k);
     } catch (err) {
-      setError(err.message);
+      setError(errorText(err));
     }
   }
 
@@ -599,7 +634,7 @@ function Thumbs({ job, k }) {
       await api.jobFeedback(job.id, { rating, comment }, k);
       setSent(true);
     } catch (err) {
-      setError(err.message);
+      setError(errorText(err));
     }
   }
 
@@ -617,57 +652,52 @@ function Thumbs({ job, k }) {
 
   return (
     <div className="mt-6 rounded-md border border-brand-200 p-4">
-      <p className="text-[13px] font-medium">Did this translation work for you?</p>
+      <p className="text-[13px] font-medium">{t("job.thumbs.question")}</p>
       <div className="mt-3 flex flex-wrap gap-2">
-        {choice("up", "Yes")}
-        {choice("down", "Not really")}
+        {choice("up", t("job.thumbs.yes"))}
+        {choice("down", t("job.thumbs.no"))}
       </div>
       {rating && !sent && (
         <form onSubmit={send} className="mt-3 space-y-2">
           <label className="wx-label" htmlFor={`fb-${job.id}`}>
-            {rating === "up" ? "Thanks! Anything we should know? (optional)" : "Sorry. What went wrong? (optional)"}
+            {rating === "up" ? t("job.thumbs.upLabel") : t("job.thumbs.downLabel")}
           </label>
           <textarea
             id={`fb-${job.id}`}
             className="wx-input w-full"
             rows={3}
+            dir="auto"
             maxLength={2000}
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             style={{ height: "auto", paddingTop: 8, paddingBottom: 8 }}
           />
           <button type="submit" className="wx-button wx-button--compact" disabled={!comment.trim()}>
-            Send
+            {t("common.send")}
           </button>
         </form>
       )}
-      {sent && <p className="mt-2 text-xs text-brand-500">Thank you. A person reads every note.</p>}
+      {sent && <p className="mt-2 text-xs text-brand-500">{t("job.thumbs.thanks")}</p>}
       {error && <p className="wx-error mt-2 text-xs">{error}</p>}
     </div>
   );
 }
 
 // Marketplace partners for the language (server/services/marketplace.js), paid listings only.
+// Partner names, places and their badges ("Premium Partner", "Pro") are the marketplace's own.
 function Reviewers({ language, entry, loading, flagged }) {
+  const { t } = useTranslation();
   const partners = entry?.partners || [];
+  const all = entry?.url || "https://marketplace.wxrks.com/";
   return (
     <section className="flex min-w-0 flex-col gap-4 rounded-[10px] border border-brand-600 p-5">
       <div>
-        <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-brand-500">Have a person check it</p>
-        <h2 className="mt-2 text-[17px] font-medium leading-snug">
-          {flagged === 1
-            ? "A translator reviews that sentence, or the whole file"
-            : flagged
-              ? `A translator reviews the ${flagged.toLocaleString("en-US")} sentences, or the whole file`
-              : "A translator reviews the whole file"}
-        </h2>
-        <p className="mt-1.5 text-xs text-brand-500">
-          Best for contracts, medical text, and anything you publish.
-          {partners.length ? ` These partners work into ${language} on wxrks.` : ""}
-        </p>
+        <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-brand-500">{t("job.review.eyebrow")}</p>
+        <h2 className="mt-2 text-[17px] font-medium leading-snug">{t("job.review.title", { count: flagged || 0 })}</h2>
+        <p className="mt-1.5 text-xs text-brand-500">{t("job.review.intro", { partners: partners.length ? "yes" : "no", language })}</p>
       </div>
       {loading ? (
-        <p className="text-xs text-brand-500">Finding translators for {language}…</p>
+        <p className="text-xs text-brand-500">{t("job.review.finding", { language })}</p>
       ) : partners.length ? (
         <div className="space-y-2">
           {partners.map((p) => (
@@ -679,27 +709,30 @@ function Reviewers({ language, entry, loading, flagged }) {
               )}
               <span className="min-w-[10rem] flex-1">
                 <span className="flex flex-wrap items-center gap-2">
-                  <span className="text-[13px] font-medium">{p.name}</span>
-                  <span className={`wx-badge ${p.badge === "Premium Partner" ? "wx-badge--success" : ""}`}>{p.badge}</span>
+                  <bdi className="text-[13px] font-medium">{p.name}</bdi>
+                  <span className={`wx-badge ${p.badge === "Premium Partner" ? "wx-badge--success" : ""}`} lang="en">
+                    {p.badge}
+                  </span>
                 </span>
-                {p.place && <span className="mt-0.5 block truncate text-[11px] text-brand-500">{p.place}</span>}
+                {p.place && (
+                  <span className="mt-0.5 block truncate text-[11px] text-brand-500">
+                    <bdi>{p.place}</bdi>
+                  </span>
+                )}
               </span>
               <a href={p.url} className="wx-button wx-button--compact shrink-0">
-                Ask for a review
+                {t("job.review.ask")}
               </a>
             </div>
           ))}
         </div>
       ) : (
-        <a href={entry?.url || "https://marketplace.wxrks.com/"} className="wx-button self-start">
-          Find a translator for {language}
+        <a href={all} className="wx-button self-start">
+          {t("job.review.find", { language })}
         </a>
       )}
       <p className="mt-auto text-[11px] text-brand-500">
-        Partners set their own price and reply by email. Premium Partners first, then a new mix each time.{" "}
-        <a href={entry?.url || "https://marketplace.wxrks.com/"} className="underline">
-          See all partners
-        </a>
+        <Trans i18nKey="job.review.footer" components={{ a: <a href={all} className="underline" /> }} />
       </p>
     </section>
   );
@@ -708,11 +741,12 @@ function Reviewers({ language, entry, loading, flagged }) {
 // Every file at once, at the top (Rodrigo, 2026-11-22): one ZIP, a folder per language
 // (routes/downloads.js); a single file downloads as itself.
 function DownloadAll({ job, q }) {
+  const { t } = useTranslation();
   const files = job.deliverables || [];
   if (!files.length) return null;
   const several = job.targetLocales.length > 1;
   return (
-    <div className="shrink-0 sm:text-right">
+    <div className="shrink-0 sm:text-end">
       <a
         href={files.length > 1 ? `/api/jobs/${job.id}/download${q}` : `/api/jobs/${job.id}/files/${files[0].id}${q}`}
         className="wx-button wx-button--primary w-full gap-2 px-5 text-[15px] font-medium no-underline sm:w-auto"
@@ -723,9 +757,9 @@ function DownloadAll({ job, q }) {
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
           <path d="m7 10 5 5 5-5" />
         </svg>
-        {files.length > 1 ? `Download all ${files.length} files` : "Download the file"}
+        {files.length > 1 ? t("job.download.all", { count: files.length }) : t("job.download.one")}
       </a>
-      {files.length > 1 && <p className="mt-1.5 text-[11px] text-brand-500">One ZIP{several ? ", a folder for each language" : ""}</p>}
+      {files.length > 1 && <p className="mt-1.5 text-[11px] text-brand-500">{t("job.download.zip", { several: several ? "yes" : "no" })}</p>}
     </div>
   );
 }
@@ -740,45 +774,48 @@ function DownloadIcon() {
   );
 }
 
-function Preview({ job, preview, language, q, page = 0, tall = false, only = false }) {
+// language: the name inside the alt text; label: the same name standing alone, as the caption.
+function Preview({ job, preview, language, label, q, page = 0, tall = false, only = false }) {
+  const { t } = useTranslation();
   const src = (side) => `/api/jobs/${job.id}/preview/${preview.deliverableId}/${side}${q}${page ? `${q ? "&" : "?"}page=${page}` : ""}`;
   return (
     <div className={`grid grid-cols-1 gap-4 ${only ? "" : "sm:grid-cols-2"}`}>
       {[
-        ["original", "Original"],
-        ["translated", language],
+        ["original", t("job.preview.original")],
+        ["translated", label || language],
       ]
         .filter(([side]) => !only || side === "translated")
-        .map(([side, label]) => (
-        <figure key={side} className="m-0">
-          {/* Big enough to read: side by side on a computer, one above the other on a phone,
-              cropped at the bottom on the delivered page (a sample's pages show whole); a click
-              opens the page full size. */}
-          <a
-            href={src(side)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`block overflow-hidden rounded border border-brand-200 bg-white ${tall ? "" : "max-h-[420px] sm:max-h-[640px]"}`}
-          >
-            <img
-              src={src(side)}
-              alt={side === "original" ? `Page ${page + 1} of your original document` : `Page ${page + 1} translated into ${language}`}
-              className="block w-full"
-            />
-          </a>
-          <figcaption className="mt-1.5 flex justify-between text-[11px] text-brand-500">
-            <span>{label}</span>
-            <a href={src(side)} target="_blank" rel="noopener noreferrer" className="underline">
-              Open full size
+        .map(([side, caption]) => (
+          <figure key={side} className="m-0">
+            {/* Big enough to read: side by side on a computer, one above the other on a phone,
+                cropped at the bottom on the delivered page (a sample's pages show whole); a click
+                opens the page full size. */}
+            <a
+              href={src(side)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`block overflow-hidden rounded border border-brand-200 bg-white ${tall ? "" : "max-h-[420px] sm:max-h-[640px]"}`}
+            >
+              <img
+                src={src(side)}
+                alt={side === "original" ? t("job.preview.altOriginal", { page: page + 1 }) : t("job.preview.altTranslated", { page: page + 1, language })}
+                className="block w-full"
+              />
             </a>
-          </figcaption>
-        </figure>
-      ))}
+            <figcaption className="mt-1.5 flex justify-between gap-3 text-[11px] text-brand-500">
+              <span>{caption}</span>
+              <a href={src(side)} target="_blank" rel="noopener noreferrer" className="underline">
+                {t("job.preview.fullSize")}
+              </a>
+            </figcaption>
+          </figure>
+        ))}
     </div>
   );
 }
 
 function EmailForm({ job, k, onDone, intro, cta, compact }) {
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [news, setNews] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -791,7 +828,7 @@ function EmailForm({ job, k, onDone, intro, cta, compact }) {
     try {
       onDone(await api.unlockJob(job.id, { email, marketingOptIn: news }, k));
     } catch (err) {
-      setError(err.code === "invalid_email" ? "Check the email address." : err.message);
+      setError(errorText(err));
       setBusy(false);
     }
   }
@@ -801,30 +838,31 @@ function EmailForm({ job, k, onDone, intro, cta, compact }) {
       {intro && <p className="text-[13px]">{intro}</p>}
       <div className="wx-field">
         <label className="wx-label" htmlFor={`email-${job.id}`}>
-          Email
+          {t("common.emailLabel")}
         </label>
         <div className={compact ? "flex flex-col gap-2 sm:flex-row" : "space-y-3"}>
           <input
             id={`email-${job.id}`}
             type="email"
             required
+            dir="ltr"
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@company.com"
+            placeholder={t("common.emailPlaceholder")}
             className="wx-input w-full sm:flex-1"
           />
           <button type="submit" disabled={busy} className={`wx-button wx-button--primary ${compact ? "" : "w-full"}`} style={{ minHeight: 40 }}>
-            {busy ? "One moment…" : cta}
+            {busy ? t("common.oneMoment") : cta}
           </button>
         </div>
       </div>
       <label className="flex items-start gap-2 text-xs text-brand-500">
         <input type="checkbox" checked={news} onChange={(e) => setNews(e.target.checked)} className="mt-0.5" />
-        <span>Also send me wxrks product news, about once a month.</span>
+        <span>{t("job.email.news")}</span>
       </label>
       {error && <p className="wx-error text-xs">{error}</p>}
-      <p className="text-[11px] text-brand-500">We use your email to send these files. Product news only if you tick the box.</p>
+      <p className="text-[11px] text-brand-500">{t("job.email.privacy")}</p>
     </form>
   );
 }
@@ -832,14 +870,15 @@ function EmailForm({ job, k, onDone, intro, cta, compact }) {
 // The sample of a file stopped at a price, translated free (server/services/excerpt.js): its
 // design-kept pages next to the originals, one page at a time, or the text of both when there are
 // none. "Pages 3–9 of 252": the sample skips covers and blank pages.
-export function sampleRange(excerpt) {
+function sampleRange(excerpt, t) {
   const first = excerpt.firstPage || 1;
   const last = first + (excerpt.pages || 1) - 1;
-  const of = excerpt.totalPages > last ? ` of ${excerpt.totalPages}` : "";
-  return last > first ? `Pages ${first}–${last}${of}` : `Page ${first}${of}`;
+  const total = excerpt.totalPages > last ? excerpt.totalPages : 0;
+  return t("job.sample.range", { span: last > first ? "yes" : "no", hasTotal: total ? "yes" : "no", first, last, total });
 }
 
-function ExcerptPreview({ excerpt, nameOf, tone, defaultOnly = false }) {
+function ExcerptPreview({ excerpt, nameOf, labelOf, tone, defaultOnly = false }) {
+  const { t } = useTranslation();
   const [text, setText] = useState(null);
   const [page, setPage] = useState(0);
   const [only, setOnly] = useState(defaultOnly);
@@ -852,10 +891,8 @@ function ExcerptPreview({ excerpt, nameOf, tone, defaultOnly = false }) {
   if (ACTIVE.includes(excerpt.status) && !image) {
     return (
       <div className="mt-5 rounded-md bg-[#f5f7f9] p-4">
-        <p className="text-[13px]">
-          Translating {pages > 1 ? `${pages} pages` : "a page"} of it so you can see the result…
-        </p>
-        <div className="wx-progress" role="progressbar" aria-label="Sample translation">
+        <p className="text-[13px]">{t("job.sample.translating", { pages })}</p>
+        <div className="wx-progress" role="progressbar" aria-label={t("job.sample.progressLabel")}>
           <span style={{ width: `${PROGRESS[excerpt.status] ?? 10}%` }} />
         </div>
       </div>
@@ -863,42 +900,45 @@ function ExcerptPreview({ excerpt, nameOf, tone, defaultOnly = false }) {
   }
   const caption = (
     <p className="mt-2 text-[11px] text-brand-500">
-      {sampleRange(excerpt)}, translated free{tone ? ` (tone: ${tone})` : ""}. The downloads come with the whole file.
+      {t("job.sample.caption", { range: sampleRange(excerpt, t), hasTone: tone ? "yes" : "no", tone: tone || "" })}
     </p>
   );
   if (image) {
     const first = excerpt.firstPage || 1;
     return (
       <div className="mt-5">
-        {(
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-3 text-[12px]">
-            <span className="text-brand-500">
-              Page {first + page}
-              {excerpt.totalPages ? ` of ${excerpt.totalPages}` : ""}
-            </span>
-            <span className="flex flex-wrap gap-2">
-              <span className="hidden rounded-md border border-brand-200 p-0.5 sm:inline-flex" role="group" aria-label="How to show the pages">
-                <button type="button" aria-pressed={!only} onClick={() => setOnly(false)} className={`rounded px-2.5 py-1 ${only ? "text-brand-500" : "bg-brand-600 text-white"}`}>
-                  Side by side
-                </button>
-                <button type="button" aria-pressed={only} onClick={() => setOnly(true)} className={`rounded px-2.5 py-1 ${only ? "bg-brand-600 text-white" : "text-brand-500"}`}>
-                  {nameOf(image.locale)} only, bigger
-                </button>
-              </span>
-              {pages > 1 && (
-                <>
-              <button type="button" className="wx-button" style={{ minHeight: 30 }} disabled={page === 0} onClick={() => setPage(page - 1)}>
-                ← Previous
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-3 text-[12px]">
+          <span className="text-brand-500">
+            {t("job.sample.page", { page: first + page, hasTotal: excerpt.totalPages ? "yes" : "no", total: excerpt.totalPages || 0 })}
+          </span>
+          <span className="flex flex-wrap gap-2">
+            <span className="hidden rounded-md border border-brand-200 p-0.5 sm:inline-flex" role="group" aria-label={t("job.sample.viewLabel")}>
+              <button type="button" aria-pressed={!only} onClick={() => setOnly(false)} className={`rounded px-2.5 py-1 ${only ? "text-brand-500" : "bg-brand-600 text-white"}`}>
+                {t("job.sample.sideBySide")}
               </button>
-              <button type="button" className="wx-button" style={{ minHeight: 30 }} disabled={page >= pages - 1} onClick={() => setPage(page + 1)}>
-                Next page →
+              <button type="button" aria-pressed={only} onClick={() => setOnly(true)} className={`rounded px-2.5 py-1 ${only ? "bg-brand-600 text-white" : "text-brand-500"}`}>
+                {t("job.sample.only", { language: labelOf(image.locale) })}
               </button>
-                </>
-              )}
             </span>
-          </div>
-        )}
-        <Preview job={{ id: excerpt.jobId }} preview={image} language={nameOf(image.locale)} q="" page={page} tall={pages > 1} only={only} />
+            {pages > 1 && (
+              <>
+                <button type="button" className="wx-button" style={{ minHeight: 30 }} disabled={page === 0} onClick={() => setPage(page - 1)}>
+                  <span aria-hidden="true" className="inline-block rtl:-scale-x-100">
+                    ←
+                  </span>
+                  {t("job.sample.previous")}
+                </button>
+                <button type="button" className="wx-button" style={{ minHeight: 30 }} disabled={page >= pages - 1} onClick={() => setPage(page + 1)}>
+                  {t("job.sample.next")}
+                  <span aria-hidden="true" className="inline-block rtl:-scale-x-100">
+                    →
+                  </span>
+                </button>
+              </>
+            )}
+          </span>
+        </div>
+        <Preview job={{ id: excerpt.jobId }} preview={image} language={nameOf(image.locale)} label={labelOf(image.locale)} q="" page={page} tall={pages > 1} only={only} />
         {caption}
       </div>
     );
@@ -908,14 +948,14 @@ function ExcerptPreview({ excerpt, nameOf, tone, defaultOnly = false }) {
     <div className="mt-5">
       <div className={`grid gap-3 ${text.source ? "sm:grid-cols-2" : ""}`}>
         {[
-          ["Original", text.source],
-          [nameOf(text.locale), text.target],
+          ["original", t("job.preview.original"), text.source],
+          ["translated", labelOf(text.locale), text.target],
         ]
-          .filter(([, body]) => body)
-          .map(([label, body], i) => (
-            <figure key={label} className="m-0">
+          .filter(([, , body]) => body)
+          .map(([side, label, body]) => (
+            <figure key={side} className="m-0">
               <div
-                dir={i === 1 && /^(ar|he|iw|fa|ur)/i.test(text.locale) ? "rtl" : "auto"}
+                dir={side === "translated" && /^(ar|he|iw|fa|ur)/i.test(text.locale) ? "rtl" : "auto"}
                 className="max-h-96 overflow-y-auto whitespace-pre-line rounded border border-brand-200 bg-white p-4 text-[13px] leading-relaxed"
               >
                 {body}
@@ -942,7 +982,7 @@ function useRerun(job) {
       const { jobId } = await api.rerunJob(job.id, new URLSearchParams(window.location.search).get("k"));
       navigate(`/jobs/${jobId}`);
     } catch (err) {
-      setError(err.message);
+      setError(errorText(err));
       setBusy(false);
     }
   }
@@ -955,12 +995,13 @@ function useRerun(job) {
 // sign-up credit translates the file. Everything else is one quiet line. Signed in (the link
 // brings them back here), one button translates it, or packs cover what the balance doesn't.
 function PagesBar({ total, first, done }) {
+  const { t } = useTranslation();
   if (!total || !done) return null;
   const from = Math.max(0, (first || 1) - 1);
   return (
     <div>
       {total <= 30 ? (
-        <div className="flex gap-1" role="img" aria-label={`${done} of ${total} pages translated`}>
+        <div className="flex gap-1" role="img" aria-label={t("job.pages.translated", { done, total })}>
           {Array.from({ length: total }, (_, i) => (
             <span
               key={i}
@@ -970,28 +1011,25 @@ function PagesBar({ total, first, done }) {
           ))}
         </div>
       ) : (
-        <div className="wx-progress" role="progressbar" aria-label="Pages translated" aria-valuemin="0" aria-valuemax={total} aria-valuenow={done}>
+        <div className="wx-progress" role="progressbar" aria-label={t("job.pages.barLabel")} aria-valuemin="0" aria-valuemax={total} aria-valuenow={done}>
           <span style={{ width: `${Math.max(2, (done / total) * 100)}%`, background: "#00742c" }} />
         </div>
       )}
-      <div className="mt-2 flex justify-between text-[13px]">
-        <span className="font-medium text-[#176b45]">
-          {done} of {total} pages translated
-        </span>
-        <span className="text-brand-500">{total - done} to go</span>
+      <div className="mt-2 flex flex-wrap justify-between gap-x-3 text-[13px]">
+        <span className="font-medium text-[#176b45]">{t("job.pages.translated", { done, total })}</span>
+        <span className="text-brand-500">{t("job.pages.toGo", { count: total - done })}</span>
       </div>
     </div>
   );
 }
 
-function OverLimit({ job, bar, nameOf, tone }) {
+function OverLimit({ job, bar, nameOf, labelOf, tone }) {
+  const { t } = useTranslation();
   const { user, creditBalance } = useAuth();
   const { rerun, busy, error } = useRerun(job);
   const [showPacks, setShowPacks] = useState(false);
   const formRef = useRef(null);
   const words = job.analyzedWords;
-  const n = (x) => x.toLocaleString("en-US");
-  const pg = (x) => `${n(x)} ${x === 1 ? "page" : "pages"}`;
   const credits = words != null ? words * job.targetLocales.length : null;
   const balance = creditBalance ?? 0;
   const canRunNow = Boolean(user && credits != null && balance >= credits);
@@ -1015,7 +1053,7 @@ function OverLimit({ job, bar, nameOf, tone }) {
       rerun();
     }
   }, [finish, canRunNow, job.rerunJobId]); // eslint-disable-line react-hooks/exhaustive-deps
-  const languages = andList(job.targetLocales.map(nameOf));
+  const languages = formatList(job.targetLocales.map(nameOf));
   const isPdf = /\.pdf$/i.test(job.files[0]?.name || "");
 
   // Pages: the PDF's own count when the sample read it, else from the words (250 a page).
@@ -1024,25 +1062,26 @@ function OverLimit({ job, bar, nameOf, tone }) {
   const picking = pickingSample(job);
   const sampling = Boolean(excerpt && ACTIVE.includes(excerpt.status)) || picking;
   const left = total != null ? Math.max(0, total - sampled) : null;
-  const all = total != null ? `all ${pg(total)}` : "the whole file";
+  // "all 12 pages" or "the whole file", chosen inside each message.
+  const whole = { hasTotal: total != null ? "yes" : "no", total: total ?? 0 };
 
   const quiet = (
-    <p className="mt-8 text-center text-[13px] leading-5 text-brand-500">
-      Not now?{" "}
+    <p className="mt-8 flex flex-wrap justify-center gap-x-1.5 text-center text-[13px] leading-5 text-brand-500">
+      <span>{t("job.over.notNow")}</span>
       <Link to="/" className="underline">
-        Translate a shorter file free
+        {t("job.over.shorter")}
       </Link>
       {!showPacks && (
         <>
-          {" · "}
+          <span aria-hidden="true">·</span>
           <button type="button" onClick={() => setShowPacks(true)} className="underline">
-            Buy words from ${PACKS[0].price}
+            {t("job.over.buyFrom", { price: formatMoney(PACKS[0].price) })}
           </button>
         </>
       )}
-      {" · "}
+      <span aria-hidden="true">·</span>
       <a href={DEMO_URL} className="underline">
-        Team account
+        {t("job.over.team")}
       </a>
     </p>
   );
@@ -1051,21 +1090,21 @@ function OverLimit({ job, bar, nameOf, tone }) {
   const steps = sampling ? (
     <div>
       <ProgressPanel job={job} nameOf={nameOf} tone={tone} sample={excerpt || PICKING} />
-      <p className="mt-3 text-xs text-brand-500">Next: your sample, page by page.</p>
+      <p className="mt-3 text-xs text-brand-500">{t("job.over.nextSample")}</p>
     </div>
   ) : null;
   const sample = steps || (
     <div id="sample">
-      <ExcerptPreview excerpt={excerpt} nameOf={nameOf} tone={tone} />
+      <ExcerptPreview excerpt={excerpt} nameOf={nameOf} labelOf={labelOf} tone={tone} />
     </div>
   );
 
   if (job.rerunJobId) {
     return (
       <Screen bar={bar}>
-        <h1 className="text-[26px] font-semibold leading-8 tracking-[-0.4px]">This file is being translated in full</h1>
+        <h1 className="text-[26px] font-semibold leading-8 tracking-[-0.4px]">{t("job.over.inFull")}</h1>
         <Link to={`/jobs/${job.rerunJobId}`} className="wx-button wx-button--primary mt-6" style={{ minHeight: 44 }}>
-          See the whole translation
+          {t("job.over.seeWhole")}
         </Link>
       </Screen>
     );
@@ -1075,27 +1114,27 @@ function OverLimit({ job, bar, nameOf, tone }) {
     return (
       <Screen bar={bar} wide>
         <div className="max-w-2xl">
-        <PagesBar total={total} first={excerpt?.firstPage} done={sampled} />
-        <h1 className={`${sampled ? "mt-6" : ""} text-[26px] font-semibold leading-8 tracking-[-0.4px]`}>
-          {canRunNow ? `Ready to translate ${all}` : `This file needs ${n(credits ?? 0)} credits`}
-        </h1>
-        <p className="mt-2 text-[15px] leading-6 text-brand-500">
-          {canRunNow
-            ? `Into ${languages}. Uses ${n(credits)} of your ${n(balance)} credits; ${wordsAndPages(balance - credits)} stay in your account.`
-            : `Your account has ${wordsAndPages(balance)}. ${fits ? `${packLabel(fits)} covers it.` : ""} After you pay, it translates from here, without uploading it again.`}
-        </p>
-        {canRunNow ? (
-          <div className="mt-5">
-            <button type="button" onClick={rerun} disabled={busy} className="wx-button wx-button--primary px-6 text-[15px] font-medium" style={{ minHeight: 50 }}>
-              {busy ? "Starting…" : `Translate ${all}`}
-            </button>
-            {error && <p className="wx-error mt-2 text-xs">{error}</p>}
-          </div>
-        ) : (
-          <div className="mt-5">
-            <PackGrid jobId={job.id} fits={fits} place="over_limit" words={credits} />
-          </div>
-        )}
+          <PagesBar total={total} first={excerpt?.firstPage} done={sampled} />
+          <h1 className={`${sampled ? "mt-6" : ""} text-[26px] font-semibold leading-8 tracking-[-0.4px]`}>
+            {canRunNow ? t("job.over.readyAll", whole) : t("job.over.needsCredits", { credits: credits ?? 0 })}
+          </h1>
+          <p className="mt-2 text-[15px] leading-6 text-brand-500">
+            {canRunNow
+              ? t("job.over.uses", { languages, credits, balance, restWords: balance - credits, rest: wordsAndPages(balance - credits) })
+              : t("job.over.short", { amount: wordsAndPages(balance), fits: fits ? "yes" : "no", pack: fits ? packLabel(fits) : "" })}
+          </p>
+          {canRunNow ? (
+            <div className="mt-5">
+              <button type="button" onClick={rerun} disabled={busy} className="wx-button wx-button--primary px-6 text-[15px] font-medium" style={{ minHeight: 50 }}>
+                {busy ? t("common.starting") : t("job.over.translateAll", whole)}
+              </button>
+              {error && <p className="wx-error mt-2 text-xs">{error}</p>}
+            </div>
+          ) : (
+            <div className="mt-5">
+              <PackGrid jobId={job.id} fits={fits} place="over_limit" words={credits} />
+            </div>
+          )}
         </div>
         {sample}
         {quiet}
@@ -1113,36 +1152,37 @@ function OverLimit({ job, bar, nameOf, tone }) {
   const restPack = rest ? packFor(rest) : null;
   const morePages = covers ? Math.floor((SIGNUP_CREDIT.words - credits) / 250) : 0;
   const headline = covers
-    ? "Type your email to download the complete file"
-    : `Translate ${all}${restPack ? ` for $${restPack.price}` : ""}`;
+    ? t("job.over.typeEmail")
+    : restPack
+      ? t("job.over.translateAllFor", { ...whole, price: formatMoney(restPack.price) })
+      : t("job.over.translateAll", whole);
   const sub = covers
-    ? `${total != null ? `All ${pg(total)}` : "The whole file"}, in ${languages}.`
-    : `Sign up free with your email: your account starts with ${wordsAndPages(SIGNUP_CREDIT.words)}${
-        restPack ? `, and a $${restPack.price} pack covers the other ${n(rest)}` : ""
-      }.`;
-  const cta = covers ? "Get the complete file" : "Sign up free";
+    ? t("job.over.allIn", { ...whole, languages })
+    : t("job.over.signupSub", {
+        restPack: restPack ? "yes" : "no",
+        amount: wordsAndPages(SIGNUP_CREDIT.words),
+        price: restPack ? formatMoney(restPack.price) : "",
+        rest,
+      });
+  const cta = covers ? t("job.over.getComplete") : t("job.over.signupFree");
   const hasSample = Boolean(excerpt) || picking;
   // Back from a link that had expired or was used (routes/auth.js verify): ask again here.
   const expired = new URLSearchParams(window.location.search).get("expired") === "1";
   const card = (
     <aside className="wx-offer-card">
       {expired && !offer.sent && (
-        <p className="mb-4 rounded-md bg-[#fff2d1] px-3 py-2 text-[13px] leading-[19px] text-[#785000]">
-          That link expired. Type your email again, and we'll send you a new one.
-        </p>
+        <p className="mb-4 rounded-md bg-[#fff2d1] px-3 py-2 text-[13px] leading-[19px] text-[#785000]">{t("job.over.expired")}</p>
       )}
       {sampled > 0 && total != null && (
         <div className="flex items-center gap-3.5">
           <PagesRing done={sampled} total={total} />
           <span className="text-[13px] leading-[19px] text-[#176b45]">
-            {sampled} of {total} pages are translated.{covers && left > 0 ? ` The other ${left} are free too.` : ""}
+            {t("job.over.sampled", { sampled, total, alsoFree: covers && left > 0 ? "yes" : "no", left: left ?? 0 })}
           </span>
         </div>
       )}
       {sampling && (
-        <p className="text-[13px] text-brand-500">
-          {excerpt?.pages ? `Translating ${pg(excerpt.pages)} of it so you can see the result…` : "Picking pages to translate so you can see the result…"}
-        </p>
+        <p className="text-[13px] text-brand-500">{excerpt?.pages ? t("job.sample.translating", { pages: excerpt.pages }) : t("job.over.picking")}</p>
       )}
       <h1 className="mt-3 text-[26px] font-bold leading-8 tracking-[-0.4px]">{headline}</h1>
       <p className="mt-2 text-[14px] leading-[21px] text-[#3d4650]">{sub}</p>
@@ -1151,30 +1191,28 @@ function OverLimit({ job, bar, nameOf, tone }) {
       </div>
       <ul className="mt-4 space-y-2 text-[13px] text-[#3d4650]">
         {[
-          isPdf ? "A Word file and a PDF that looks like your original" : "Your translated file, by email",
-          covers ? (morePages > 0 ? `Free, and about ${pg(morePages)} left for your next files` : "Free") : "Sign up free; pay only for the rest",
-          "Your file is deleted after 30 days",
-        ].map((t) => (
-          <li key={t} className="flex items-center gap-2">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#176b45" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M5 12.5l4.5 4.5L19 7.5" />
-            </svg>
-            {t}
+          isPdf ? t("common.pdfFiles") : t("job.over.byEmail"),
+          covers ? (morePages > 0 ? t("job.over.freeLeft", { pages: morePages }) : t("job.over.free")) : t("job.over.payRest"),
+          t("job.over.deleted"),
+        ].map((x) => (
+          <li key={x} className="flex items-center gap-2">
+            <Tick />
+            {x}
           </li>
         ))}
       </ul>
-      <p className="mt-4 border-t border-[#e7ebef] pt-3.5 text-xs text-brand-500">
-        Not now?{" "}
+      <p className="mt-4 flex flex-wrap gap-x-1.5 border-t border-[#e7ebef] pt-3.5 text-xs text-brand-500">
+        <span>{t("job.over.notNow")}</span>
         <Link to="/" className="underline">
-          A shorter file
-        </Link>{" "}
-        ·{" "}
+          {t("job.over.shorterShort")}
+        </Link>
+        <span aria-hidden="true">·</span>
         <button type="button" onClick={() => setShowPacks(true)} className="underline">
-          Buy words
-        </button>{" "}
-        ·{" "}
+          {t("common.buyWords")}
+        </button>
+        <span aria-hidden="true">·</span>
         <a href={DEMO_URL} className="underline">
-          Team account
+          {t("job.over.team")}
         </a>
       </p>
     </aside>
@@ -1187,7 +1225,7 @@ function OverLimit({ job, bar, nameOf, tone }) {
           <div className="order-2 min-w-0 lg:order-1">
             {steps || (
               <div id="sample" className="-mt-5">
-                <ExcerptPreview excerpt={excerpt} nameOf={nameOf} tone={tone} defaultOnly />
+                <ExcerptPreview excerpt={excerpt} nameOf={nameOf} labelOf={labelOf} tone={tone} defaultOnly />
               </div>
             )}
           </div>
@@ -1204,8 +1242,8 @@ function OverLimit({ job, bar, nameOf, tone }) {
       <TrustStrip />
       <StickyOffer
         offer={offer}
-        title={covers ? `${total != null ? `All ${pg(total)}` : "The whole file"}, free` : headline}
-        note={covers ? `${sampled && left > 0 ? `${pg(left)} to go. ` : ""}No card, no password.` : "Sign up free, then a word pack covers the rest."}
+        title={covers ? t("job.over.allFree", whole) : headline}
+        note={covers ? t("job.over.stickyNote", { toGo: sampled && left > 0 ? "yes" : "no", left: left ?? 0 }) : t("job.over.stickyNoteRest")}
         cta={cta}
         watchRef={formRef}
       />
@@ -1215,10 +1253,11 @@ function OverLimit({ job, bar, nameOf, tone }) {
 
 // The sample's pages against the file's, as a small pale ring: progress, not a second button.
 function PagesRing({ done, total }) {
+  const { t } = useTranslation();
   const c = 2 * Math.PI * 15;
   const part = Math.min(1, done / total) * c;
   return (
-    <svg width="54" height="54" viewBox="0 0 36 36" role="img" aria-label={`${done} of ${total} pages translated`} className="shrink-0" style={{ width: 54, height: 54 }}>
+    <svg width="54" height="54" viewBox="0 0 36 36" role="img" aria-label={t("job.pages.translated", { done, total })} className="shrink-0" style={{ width: 54, height: 54 }}>
       <circle cx="18" cy="18" r="15" fill="none" stroke="#e7f5ec" strokeWidth="4" />
       <circle
         cx="18"
@@ -1231,35 +1270,38 @@ function PagesRing({ done, total }) {
         strokeLinecap="round"
         transform="rotate(-90 18 18)"
       />
-      <text x="18" y="21.5" textAnchor="middle" fontSize="9" fontWeight="600" fill="#176b45">
-        {done}/{total}
+      <text x="18" y="21.5" textAnchor="middle" fontSize="9" fontWeight="600" fill="#176b45" direction="ltr">
+        {formatNumber(done)}/{formatNumber(total)}
       </text>
     </svg>
   );
 }
 
-function NeedsCredits({ job, bar, nameOf, tone }) {
+function NeedsCredits({ job, bar, nameOf, labelOf, tone }) {
+  const { t } = useTranslation();
   const { creditBalance } = useAuth();
   const { rerun, busy, error } = useRerun(job);
   const needed = job.analyzedWords != null ? job.analyzedWords * job.targetLocales.length : null;
   const short = needed != null && creditBalance != null ? needed - creditBalance : null;
   return (
     <Screen bar={bar} wide>
-      <h1 className="text-[22px] font-medium tracking-[-0.3px]">Not enough credits</h1>
+      <h1 className="text-[22px] font-medium tracking-[-0.3px]">{t("job.needs.title")}</h1>
       <p className="mt-2 text-[13px] text-brand-500">
-        {needed != null
-          ? `This job needs ${needed.toLocaleString("en-US")} credits (${aboutPages(needed)}) and your account has ${wordsAndPages(creditBalance ?? 0)}.`
-          : "This job needs more credits than your account has."}{" "}
-        Nothing was charged.
+        {t("job.needs.body", {
+          known: needed != null ? "yes" : "no",
+          credits: needed ?? 0,
+          pages: needed != null ? aboutPages(needed) : "",
+          amount: wordsAndPages(creditBalance ?? 0),
+        })}
       </p>
-      <ExcerptPreview excerpt={job.excerpt} nameOf={nameOf} tone={tone} />
+      <ExcerptPreview excerpt={job.excerpt} nameOf={nameOf} labelOf={labelOf} tone={tone} />
       {job.rerunJobId ? (
         <Link to={`/jobs/${job.rerunJobId}`} className="wx-button wx-button--primary mt-5" style={{ minHeight: 40 }}>
-          See the translation
+          {t("job.needs.see")}
         </Link>
       ) : short != null && short <= 0 ? (
         <button type="button" onClick={rerun} disabled={busy} className="wx-button wx-button--primary mt-5" style={{ minHeight: 40 }}>
-          {busy ? "Starting…" : "Translate it now"}
+          {busy ? t("common.starting") : t("job.needs.translateNow")}
         </button>
       ) : (
         <div className="mt-5">

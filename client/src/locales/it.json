@@ -1,0 +1,557 @@
+{
+  "seo": {
+    "home": {
+      "title": "Traduttore di documenti gratuito online | wxrks",
+      "description": "Carica un file PDF, Word, PowerPoint o Excel e scaricalo tradotto in oltre 100 lingue. Gratis fino a 2.000 parole (circa 8 pagine) al giorno.",
+      "heading": "Traduci un documento",
+      "intro": "PDF, Word, PowerPoint, Excel e altro ancora, in oltre 100 lingue."
+    },
+    "pdf": {
+      "title": "Traduttore PDF gratuito che mantiene il tuo design | wxrks",
+      "description": "Traduci un PDF in oltre 100 lingue mantenendo impaginazione, font e immagini, in Word e PDF. Gratis fino a 2.000 parole (circa 8 pagine) al giorno.",
+      "heading": "Traduci un PDF mantenendo il design originale",
+      "intro": "Ottieni un file Word modificabile e un PDF che ha l’aspetto del tuo originale."
+    },
+    "documents": {
+      "title": "Traduttore di documenti Word, PowerPoint ed Excel | wxrks",
+      "description": "Traduci file Word, PowerPoint, Excel, PDF, CSV e di testo in oltre 100 lingue, nello stesso formato. Gratis fino a 2.000 parole (circa 8 pagine) al giorno.",
+      "heading": "Traduci file Word, PowerPoint, Excel e altro ancora",
+      "intro": "Scarica il file tradotto, nel suo formato originale."
+    }
+  },
+  "nav": {
+    "homeLabel": "wxrks Translate, pagina iniziale",
+    "myJobs": "Le mie traduzioni",
+    "account": "Account",
+    "signOut": "Esci",
+    "signIn": "Accedi"
+  },
+  "common": {
+    "loading": "Caricamento…",
+    "buyWords": "Acquista parole",
+    "getCredits": "Ottieni {amount} di crediti",
+    "newHere": "Prima volta qui? Ricevi {amount} di crediti quando ti registri",
+    "openingCheckout": "Apertura del pagamento…",
+    "checkoutFailed": "La pagina di pagamento non si è aperta. Riprova tra un momento.",
+    "translateAnother": "Traduci un altro documento",
+    "starting": "Avvio…",
+    "sending": "Invio…",
+    "oneMoment": "Un momento…",
+    "send": "Invia",
+    "emailLabel": "Email",
+    "emailPlaceholder": "tu@azienda.it",
+    "pdfFiles": "Un file Word e un PDF che ha l’aspetto del tuo originale"
+  },
+  "creditAdded": {
+    "text": "<strong>{amount} di crediti aggiunti per la registrazione.</strong> Hai {balance}.",
+    "close": "Chiudi"
+  },
+  "suggest": {
+    "label": "Lingua",
+    "text": "Questa pagina è disponibile anche in italiano.",
+    "accept": "Passa all’italiano",
+    "dismiss": "Resta in inglese"
+  },
+  "footer": {
+    "pdf": "Traduttore PDF",
+    "documents": "Traduttore di documenti",
+    "credits": "Traduzioni di <company>wxrks</company>. wxrks Translate è open source con licenza AGPL-3.0: <repo>codice sorgente</repo>.",
+    "languages": "Lingue"
+  },
+  "units": {
+    "words": "{words, plural, one {# parola} many {# di parole} other {# parole}}",
+    "aboutPages": "circa {pages, plural, one {# pagina} many {# di pagine} other {# pagine}}",
+    "wordsAndPages": "{words, plural, one {# parola} many {# di parole} other {# parole}} (circa {pages, plural, one {# pagina} many {# di pagine} other {# pagine}})",
+    "packLabel": "{price} per {amount}",
+    "perThousand": "{price} ogni {words, number} parole"
+  },
+  "errors": {
+    "generic": "Qualcosa è andato storto. Riprova tra un momento.",
+    "invalid_email": "Controlla l’indirizzo email.",
+    "email_send_failed": "L’email non è stata inviata. Riprova tra un momento.",
+    "checkout_unavailable": "Il pagamento online non è disponibile al momento.",
+    "unknown_pack": "Questo pacchetto di parole non è disponibile.",
+    "checkout_failed": "La pagina di pagamento non si è aperta. Riprova tra un momento.",
+    "not_found": "Non abbiamo trovato questa pagina. Il link potrebbe essere errato o non più valido.",
+    "no_files": "Aggiungi prima un documento.",
+    "invalid_target_locale": "Una delle lingue in cui tradurre non è disponibile. Scegline un’altra.",
+    "invalid_source_locale": "La lingua del documento non è disponibile. Scegline un’altra.",
+    "no_target_locales": "Scegli la lingua in cui tradurre.",
+    "too_many_languages": "Fino a {max, plural, one {# lingua} many {# di lingue} other {# lingue}} per documento. Per averne di più, usa la piattaforma wxrks.",
+    "target_equals_source": "Scegli una lingua diversa da quella del documento.",
+    "unsupported_file_type": "Questo tipo di file non può essere tradotto qui. Prova con un file PDF, Word, PowerPoint o Excel.",
+    "free_tier_one_file": "Il traduttore gratuito accetta un file alla volta.",
+    "free_limit_reached": "Il traduttore gratuito accetta un documento al giorno.",
+    "filename_collision": "Due nomi di file sono troppo simili per distinguerli dopo il caricamento. Rinominane uno e riprova.",
+    "not_authenticated": "Accedi per eseguire questa azione.",
+    "preview_failed": "Non è stato possibile creare l’anteprima.",
+    "preview_only": "Questa è un’anteprima, quindi non ci sono download.",
+    "expired": "Questo file è stato eliminato dopo 30 giorni. Caricalo di nuovo.",
+    "rate_limited": "Troppi tentativi. Riprova più tardi.",
+    "file_too_large": "Questo file è troppo grande. Il limite è {maxMb, number} MB.",
+    "languages_unavailable": "L’elenco delle lingue non si è caricato. Riprova tra un momento.",
+    "internal_error": "Qualcosa è andato storto da parte nostra. Riprova tra un momento."
+  },
+  "upload": {
+    "landing": {
+      "home": "Guarda la prima pagina nella tua lingua prima di scaricare.",
+      "pdf": "Ottieni un file Word modificabile e un PDF che ha l’aspetto del tuo originale. Guarda la pagina 1 prima di scaricare.",
+      "documents": "Ricevi il file nel suo formato originale. Guardalo prima di scaricarlo."
+    },
+    "errors": {
+      "languages": "Impossibile caricare le lingue.",
+      "noFile": "Aggiungi prima un documento.",
+      "noTarget": "Scegli la lingua in cui tradurre."
+    },
+    "drop": {
+      "title": "Trascina qui un documento o scegli un file",
+      "hint": "PDF, Word, PowerPoint, Excel e altro ancora. Fino a {size}.",
+      "hintSignedIn": "PDF, Word, PowerPoint, Excel e altro ancora. Fino a {size}, {files, plural, one {# file} many {# di file} other {# file}} per traduzione."
+    },
+    "file": {
+      "remove": "Rimuovi",
+      "change": "Cambia"
+    },
+    "onlyFirstFile": "Il traduttore gratuito accetta un file alla volta, quindi abbiamo tenuto <file/>. <a>Accedi</a> per inviare fino a {count, plural, one {# file} many {# di file} other {# file}} insieme.",
+    "from": "Lingua di partenza",
+    "fromPlaceholder": "Digita una lingua",
+    "into": "Traduci in",
+    "intoPlaceholder": "Digita una lingua, ad es. inglese",
+    "submit": "Traduci",
+    "submitting": "Caricamento…",
+    "scanNote": "Un PDF scansionato (pagine come immagini) ti viene restituito come file Word.",
+    "moreLanguages": "Ti servono più di {max, plural, one {# lingua} many {# di lingue} other {# lingue}}? La piattaforma wxrks traduce in tutte le lingue in un unico progetto. <a>Inizia gratis su wxrks</a>"
+  },
+  "freeUsed": {
+    "title": "Hai già usato il documento gratuito di oggi",
+    "body": "{when, select, hours {Il prossimo, fino a {amount}, sarà disponibile tra {hours, plural, one {# ora} many {# di ore} other {# ore}}.} other {Il prossimo sarà disponibile domani.}} Vuoi questo file subito? {offer, select, signup {Registrati e ricevi {credit} di crediti: {creditAmount}.} other {{packAmount} costano {price}, con un unico pagamento.}}",
+    "buyPack": "Acquista {words, number} parole per {price}",
+    "allPacks": "Vedi tutti i pacchetti di parole"
+  },
+  "platform": {
+    "memory": {
+      "label": "Memoria",
+      "title": "Memoria di traduzione",
+      "note": "Riutilizza le tue traduzioni passate, frase per frase. È inclusa nella piattaforma wxrks."
+    },
+    "glossary": {
+      "label": "Glossario",
+      "title": "Glossario",
+      "note": "Mantieni gli stessi termini in ogni file. È incluso nella piattaforma wxrks."
+    },
+    "history": {
+      "label": "Cronologia",
+      "title": "Traduzioni passate",
+      "note": "Tutti i file che hai tradotto, in un unico posto. È inclusa nella piattaforma wxrks."
+    },
+    "cta": "Inizia gratis su wxrks"
+  },
+  "tone": {
+    "preset": {
+      "auto": {
+        "label": "Automatico",
+        "hint": "Sous-Chef legge il tuo documento e ne riprende il tono."
+      },
+      "formal": {
+        "label": "Formale",
+        "hint": "Formale e preciso, con il «Lei» di cortesia dove la lingua lo prevede."
+      },
+      "friendly": {
+        "label": "Amichevole",
+        "hint": "Cordiale e semplice, con il «tu» dove la lingua lo prevede."
+      },
+      "marketing": {
+        "label": "Marketing",
+        "hint": "Si legge come un testo scritto direttamente nella lingua. Affermazioni e numeri restano esatti."
+      },
+      "legal": {
+        "label": "Legale",
+        "hint": "Fedele e letterale. I termini definiti restano sempre gli stessi."
+      },
+      "technical": {
+        "label": "Tecnico",
+        "hint": "Chiaro ed esatto. Nomi di prodotti, unità e codice restano invariati."
+      }
+    },
+    "withNote": "{label} · «{note}»",
+    "pill": "Tono: <b>{label}</b>{note, select, yes { + nota} other {}}",
+    "dialogLabel": "Tono",
+    "question": "Che tono deve avere?",
+    "byline": "Sous-Chef, l’agente di wxrks per il tono",
+    "noteLabel": "Altro che Sous-Chef dovrebbe sapere",
+    "notePlaceholder": "Altro? Ad esempio: «per adolescenti»",
+    "done": "Fatto"
+  },
+  "trust": {
+    "g2Alt": "G2 Leader, autunno 2026",
+    "madeBy": "Creato da <a>wxrks</a>",
+    "about": "20 anni nel settore della traduzione. La nostra piattaforma di traduzione è G2 Leader ed è sottoposta ad audit SOC 2 Type 2.",
+    "security": "Come proteggiamo i tuoi file"
+  },
+  "picker": {
+    "count": "{count, number} di {max, number}",
+    "upTo": "Fino a {max, number}",
+    "full": "{max, plural, one {# lingua, il massimo per un file} many {# di lingue, il massimo per un file} other {# lingue, il massimo per un file}}",
+    "addAnother": "Aggiungi un’altra lingua",
+    "remove": "Rimuovi {language}"
+  },
+  "progress": {
+    "received": {
+      "label": "{files, plural, one {File ricevuto} many {# di file ricevuti} other {# file ricevuti}}",
+      "active": "Ricezione del file"
+    },
+    "ocr": {
+      "label": "Testo letto dalle pagine scansionate",
+      "detail": "{pages, plural, one {# pagina letta} many {# di pagine lette} other {# pagine lette}}"
+    },
+    "convert": {
+      "label": "Versione Word modificabile creata",
+      "reader": "Letto dal nostro lettore interno",
+      "active": "Creazione di una versione Word del tuo PDF",
+      "todo": "Una versione Word del tuo PDF",
+      "sub": "Una versione da modificare in Word.",
+      "pages": "{pages, plural, one {# pagina} many {# di pagine} other {# pagine}}",
+      "converted": "Convertito dal PDF"
+    },
+    "count": {
+      "label": "Parole contate",
+      "active": "Conteggio delle parole",
+      "todo": "Conteggio parole",
+      "sub": "Di solito meno di un minuto per un documento breve."
+    },
+    "sample": {
+      "picked": "{range, select, span {Pagine da {first, number} a {last, number} scelte per la tua anteprima gratuita} single {Pagina {first, number} scelta per la tua anteprima gratuita} other {Pagine scelte per la tua anteprima gratuita}}",
+      "picking": "Scelta delle pagine per la tua anteprima gratuita",
+      "pickedDetail": "Questo file supera il limite gratuito di {amount}, quindi vedi prima queste pagine",
+      "prepared": "{range, select, span {Pagine da {first, number} a {last, number} preparate} single {Pagina {first, number} preparata} other {Pagine dell’anteprima preparate}}",
+      "preparing": "{range, select, span {Preparazione delle pagine da {first, number} a {last, number}} single {Preparazione della pagina {first, number}} other {Preparazione delle pagine dell’anteprima}}",
+      "prepSub": "Lettura del testo dell’anteprima e della sua impaginazione.",
+      "translated": "{range, select, span {Pagine da {first, number} a {last, number} tradotte in {language}} single {Pagina {first, number} tradotta in {language}} other {Pagine dell’anteprima tradotte in {language}}}",
+      "translating": "{range, select, span {Traduzione delle pagine da {first, number} a {last, number} in {language}} single {Traduzione della pagina {first, number} in {language}} other {Traduzione delle pagine dell’anteprima in {language}}}",
+      "translateSub": "Con tutta l’anteprima come contesto.",
+      "layoutLabel": "Traduzione riportata sulle tue pagine",
+      "layoutTodo": "Le tue pagine, nella nuova lingua",
+      "readyLabel": "La tua anteprima",
+      "readyActive": "Apertura dell’anteprima",
+      "readyTodo": "La tua anteprima, pagina per pagina"
+    },
+    "credits": {
+      "label": "Pagato con i tuoi crediti",
+      "detail": "{credits, plural, one {# credito} many {# di crediti} other {# crediti}}"
+    },
+    "tone": {
+      "label": "Tono impostato",
+      "active": "Impostazione del tono",
+      "todo": "Il tuo tono"
+    },
+    "translate": {
+      "label": "Tradotto in {language}",
+      "active": "Traduzione in {language} in corso",
+      "todo": "Traduzione in {language}",
+      "sub": "Il passaggio più lungo. Puoi chiudere la scheda: i file arrivano via email.",
+      "detail": "Tutto il documento come contesto"
+    },
+    "layout": {
+      "label": "Traduzione riportata sulle tue pagine",
+      "wordOnly": "Solo file Word per questo",
+      "active": "Inserimento della traduzione nelle tue pagine",
+      "todo": "Il PDF con l’aspetto del tuo originale",
+      "sub": "Disegniamo la traduzione sulle tue pagine originali.",
+      "failed": "Non è stato possibile ricostruirne il design"
+    },
+    "ready": {
+      "label": "File pronti",
+      "active": "Preparazione dei file",
+      "todo": "I tuoi file, pronti da scaricare"
+    },
+    "earlier": "prima",
+    "almostDone": "Quasi finito",
+    "usuallyUnderMinute": "di solito meno di un minuto",
+    "usuallyMinutes": "di solito circa {minutes, plural, one {# min} many {# min} other {# min}}",
+    "listLabel": "Cosa è stato fatto",
+    "srDone": "(completato)",
+    "srActive": "(in corso)"
+  },
+  "job": {
+    "notFound": "Non abbiamo trovato questa traduzione.",
+    "yourDocument": "Il tuo documento",
+    "fileCount": "{count, plural, one {# file} many {# di file} other {# file}}",
+    "privacy": "Il tuo file resta privato e viene eliminato dopo 30 giorni.",
+    "cancel": "Annulla",
+    "toneBySousChef": "{tone}, a cura di Sous-Chef",
+    "noText": {
+      "language": "Questo PDF è scansionato e non riusciamo ancora a leggere le pagine scansionate nella sua lingua. Prova con un file in cui puoi selezionare il testo.",
+      "scanned": "Questo PDF è scansionato e non siamo riusciti a leggere alcun testo nelle sue pagine. Prova con una scansione più nitida o con un file in cui puoi selezionare il testo.",
+      "generic": "Non abbiamo trovato testo in questo file. Prova con un file in cui puoi selezionare il testo."
+    },
+    "stopped": {
+      "noTextTitle": "Non abbiamo trovato alcun testo da tradurre",
+      "cancelledTitle": "Traduzione annullata",
+      "failedTitle": "Qualcosa è andato storto",
+      "noTextBody": "{reason} Questo file non conta come il tuo documento gratuito.",
+      "cancelledBody": "Non verrà tradotto nient’altro per questo documento.",
+      "failedBody": "La traduzione non è stata completata. Riprova, oppure rispondi a una qualsiasi delle nostre email e una persona se ne occuperà."
+    },
+    "gated": {
+      "titlePreview": "La pagina 1 è pronta. Dove ti mandiamo i file?",
+      "title": "La tua traduzione è pronta. Dove te la mandiamo?",
+      "bodyEmail": "I download si aprono subito e ti inviamo i link via email, così potrai ritrovarli in seguito.",
+      "body": "I download si aprono subito.",
+      "footnote": "Gratis: un documento al giorno. Nessuna carta, nessun abbonamento. wxrks è sottoposta ad audit SOC 2 Type 2 e il tuo file viene eliminato dopo 30 giorni."
+    },
+    "email": {
+      "sendFiles": "Inviami i file",
+      "news": "Inviami anche le novità sui prodotti wxrks, circa una volta al mese.",
+      "privacy": "Usiamo la tua email per inviarti questi file. Le novità sui prodotti solo se selezioni la casella."
+    },
+    "delivered": {
+      "title": "La tua traduzione è pronta",
+      "tone": "Tono: {tone}",
+      "alsoSent": "Abbiamo inviato i link anche a {email}.",
+      "scanned": "{pages, plural, one {Questo PDF era scansionato, quindi prima abbiamo letto il testo della sua pagina. Ricevi un file Word; un PDF con il design originale non si può ancora creare da una scansione.} many {Questo PDF era scansionato, quindi prima abbiamo letto il testo delle sue # di pagine. Ricevi un file Word; un PDF con il design originale non si può ancora creare da una scansione.} other {Questo PDF era scansionato, quindi prima abbiamo letto il testo delle sue # pagine. Ricevi un file Word; un PDF con il design originale non si può ancora creare da una scansione.}}",
+      "languagesTabs": "Lingue",
+      "useNow": "Pronto all’uso",
+      "nothing": "Nessun file ricevuto per questa lingua.",
+      "downloadLanguage": "Scarica tutto ({language}, ZIP)",
+      "hideFlags": "Nascondile",
+      "showFlags": "{count, plural, one {Vedi la frase da controllare} many {Vedi le # di frasi da controllare} other {Vedi le # frasi da controllare}}",
+      "beta": "Beta: il PDF con il design originale ridisegna la traduzione sulle tue pagine originali con un font simile. Controllalo prima di condividerlo; la versione da modificare è il file Word."
+    },
+    "variant": {
+      "design": "Ha l’aspetto del tuo originale",
+      "images": "Un’immagine per pagina, si stampa uguale ovunque",
+      "word": "Modificalo in Word",
+      "same": "Nel formato originale"
+    },
+    "next": {
+      "title": "Prossimo file?",
+      "body": "{account, select, user {Il tuo prossimo documento gratuito, fino a {amount}, sarà disponibile domani. Per continuare oggi, acquista parole con un unico pagamento.} other {Il tuo prossimo documento gratuito, fino a {amount}, sarà disponibile domani. Per continuare oggi, registrati e ricevi {credit} di crediti: {creditAmount}.}}",
+      "teams": "Scopri cosa offre wxrks ai team"
+    },
+    "card": {
+      "firstFree": "Gratis: il tuo primo documento",
+      "freeToday": "Gratis: il tuo documento di oggi, fino a {amount}",
+      "paid": "Pagato con i tuoi crediti: {credits, number}",
+      "paidLater": "Pagato con i tuoi crediti dopo il conteggio delle parole",
+      "balance": "{amount} nel tuo account",
+      "deleted": "Eliminato dopo 30 giorni",
+      "byEmailTitle": "I file ti arrivano via email",
+      "byEmailBody": "Li invieremo a {email} appena saranno pronti. Puoi chiudere questa scheda.",
+      "askTitle": "Ricevi i file via email",
+      "askBody": "Lascia la tua email e chiudi la scheda. Ti inviamo i file appena sono pronti.",
+      "askCta": "Inviami i file via email",
+      "hereTitle": "I file compariranno qui",
+      "hereBody": "Tieni aperta questa scheda: i file compariranno in questa pagina appena saranno pronti."
+    },
+    "progress": {
+      "continued": "Ripreso da dove il file si era fermato: era già stato ricevuto, convertito e conteggiato, quindi non è stato caricato di nuovo nulla. Ora tutte le sue pagine vengono tradotte, ciascuna con l’intero file come contesto.",
+      "steps": "{total, plural, one {{done, number} di # passaggio completato} many {{done, number} di # di passaggi completati} other {{done, number} di # passaggi completati}}",
+      "label": "Avanzamento della traduzione"
+    },
+    "status": {
+      "done": "Completato",
+      "inProgress": "In corso",
+      "sampleReady": "Anteprima pronta",
+      "ready": "Pronto da tradurre",
+      "cancelled": "Annullato",
+      "stopped": "Interrotto"
+    },
+    "severity": {
+      "critical": "Critico",
+      "major": "Grave",
+      "minor": "Lieve"
+    },
+    "score": {
+      "name": "Confidence Score",
+      "checking": "Controllo della traduzione…",
+      "reading": "Smells, il controllo wxrks dei problemi di significato, sta leggendo ogni frase.",
+      "summary": "Smells, il controllo wxrks dei problemi di significato, {sentences, plural, one {ha letto l’unica frase} many {ha letto tutte le # di frasi} other {ha letto tutte le # frasi}}. {flagged, plural, =0 {Non ha trovato nulla da controllare.} one {# merita una seconda occhiata.} many {# meritano una seconda occhiata.} other {# meritano una seconda occhiata.}}",
+      "part": {
+        "clean": "{count, plural, one {# senza problemi} many {# senza problemi} other {# senza problemi}}",
+        "minor": "{count, plural, one {# lieve} many {# lievi} other {# lievi}}",
+        "major": "{count, plural, one {# grave} many {# gravi} other {# gravi}}",
+        "critical": "{count, plural, one {# critica} many {# critiche} other {# critiche}}"
+      },
+      "line": "Confidence Score {score}",
+      "lineFlagged": "{count, plural, =0 {niente da controllare} one {# frase da ricontrollare} many {# di frasi da ricontrollare} other {# frasi da ricontrollare}}"
+    },
+    "flagged": {
+      "original": "Originale: <text/>",
+      "showing": "Ne mostriamo {shown, number} su {count, number}, le più gravi per prime.",
+      "disclaimer": "Un punteggio alto non è una garanzia: per contratti, testi medici o da pubblicare, fallo controllare da una persona."
+    },
+    "thumbs": {
+      "question": "Questa traduzione ti è stata utile?",
+      "yes": "Sì",
+      "no": "Non proprio",
+      "upLabel": "Grazie! C’è qualcosa che dovremmo sapere? (facoltativo)",
+      "downLabel": "Ci dispiace. Cosa non ha funzionato? (facoltativo)",
+      "thanks": "Grazie. Ogni messaggio viene letto da una persona."
+    },
+    "review": {
+      "eyebrow": "Revisione umana",
+      "title": "{count, plural, =0 {Un traduttore rivede l’intero file} one {Un traduttore rivede quella frase, o l’intero file} many {Un traduttore rivede le # di frasi, o l’intero file} other {Un traduttore rivede le # frasi, o l’intero file}}",
+      "intro": "{partners, select, yes {Ideale per contratti, testi medici e tutto ciò che pubblichi. Questi partner traducono in {language} su wxrks.} other {Ideale per contratti, testi medici e tutto ciò che pubblichi.}}",
+      "finding": "Ricerca di traduttori di {language}…",
+      "ask": "Richiedi una revisione",
+      "find": "Trova un traduttore di {language}",
+      "footer": "I partner stabiliscono il proprio prezzo e rispondono via email. Prima i Premium Partners, poi un mix diverso ogni volta. <a>Vedi tutti i partner</a>"
+    },
+    "download": {
+      "all": "{count, plural, one {Scarica # file} many {Scarica tutti i # di file} other {Scarica tutti i # file}}",
+      "one": "Scarica il file",
+      "zip": "{several, select, yes {Un unico ZIP, una cartella per lingua} other {Un unico ZIP}}"
+    },
+    "preview": {
+      "original": "Originale",
+      "altOriginal": "Pagina {page, number} del tuo documento originale",
+      "altTranslated": "Pagina {page, number} tradotta in {language}",
+      "fullSize": "Apri a dimensione reale"
+    },
+    "sample": {
+      "range": "{span, select, yes {{hasTotal, select, yes {Pagine {first, number}–{last, number} di {total, number}} other {Pagine {first, number}–{last, number}}}} other {{hasTotal, select, yes {Pagina {first, number} di {total, number}} other {Pagina {first, number}}}}}",
+      "translating": "{pages, plural, one {Traduciamo una pagina per mostrarti il risultato…} many {Traduciamo # di pagine per mostrarti il risultato…} other {Traduciamo # pagine per mostrarti il risultato…}}",
+      "progressLabel": "Traduzione dell’anteprima",
+      "caption": "{hasTone, select, yes {{range}: traduzione gratuita (tono: {tone}). I download arrivano con il file completo.} other {{range}: traduzione gratuita. I download arrivano con il file completo.}}",
+      "page": "{hasTotal, select, yes {Pagina {page, number} di {total, number}} other {Pagina {page, number}}}",
+      "viewLabel": "Visualizzazione delle pagine",
+      "sideBySide": "Affiancate",
+      "only": "{language} da solo, più grande",
+      "previous": "Precedente",
+      "next": "Pagina successiva"
+    },
+    "pages": {
+      "translated": "{total, plural, one {{done, number} di # pagina tradotta} many {{done, number} di # di pagine tradotte} other {{done, number} di # pagine tradotte}}",
+      "toGo": "{count, plural, one {ne manca #} many {ne mancano #} other {ne mancano #}}",
+      "barLabel": "Pagine tradotte"
+    },
+    "over": {
+      "notNow": "Non ora?",
+      "shorter": "Traduci gratis un file più breve",
+      "shorterShort": "Un file più breve",
+      "buyFrom": "Acquista parole a partire da {price}",
+      "team": "Account per team",
+      "nextSample": "Poi: la tua anteprima, pagina per pagina.",
+      "inFull": "Questo file viene tradotto per intero",
+      "seeWhole": "Vedi la traduzione completa",
+      "readyAll": "{hasTotal, select, yes {{total, plural, one {# pagina pronta per la traduzione} many {Tutte le # di pagine pronte per la traduzione} other {Tutte le # pagine pronte per la traduzione}}} other {L’intero file è pronto per la traduzione}}",
+      "translateAll": "{hasTotal, select, yes {Traduci {total, plural, one {# pagina} many {tutte le # di pagine} other {tutte le # pagine}}} other {Traduci l’intero file}}",
+      "translateAllFor": "{hasTotal, select, yes {Traduci {total, plural, one {# pagina} many {tutte le # di pagine} other {tutte le # pagine}} per {price}} other {Traduci l’intero file per {price}}}",
+      "needsCredits": "{credits, plural, one {Questo file richiede # credito} many {Questo file richiede # di crediti} other {Questo file richiede # crediti}}",
+      "uses": "In {languages}. Usa {credits, number} dei tuoi {balance, plural, one {# credito} many {# di crediti} other {# crediti}}; {restWords, plural, one {{rest} resta nel tuo account.} many {{rest} restano nel tuo account.} other {{rest} restano nel tuo account.}}",
+      "short": "{fits, select, yes {Il tuo account ha {amount}. {pack} copre questo file. Dopo il pagamento, la traduzione parte da qui, senza caricare di nuovo il file.} other {Il tuo account ha {amount}. Dopo il pagamento, la traduzione parte da qui, senza caricare di nuovo il file.}}",
+      "typeEmail": "Inserisci la tua email per scaricare il file completo",
+      "allIn": "{hasTotal, select, yes {{total, plural, one {# pagina} many {Tutte le # di pagine} other {Tutte le # pagine}}, in {languages}.} other {L’intero file, in {languages}.}}",
+      "signupSub": "{restPack, select, yes {Registrati gratis con la tua email: il tuo account parte con {amount} e un pacchetto da {price} copre le altre {rest, number} parole.} other {Registrati gratis con la tua email: il tuo account parte con {amount}.}}",
+      "getComplete": "Ottieni il file completo",
+      "signupFree": "Registrati gratis",
+      "expired": "Questo link è scaduto. Inserisci di nuovo la tua email e te ne invieremo uno nuovo.",
+      "sampled": "{alsoFree, select, yes {{total, plural, one {Pagine tradotte: {sampled, number} di #.} many {Pagine tradotte: {sampled, number} di #.} other {Pagine tradotte: {sampled, number} di #.}} Anche le altre {left, number} sono gratis.} other {{total, plural, one {Pagine tradotte: {sampled, number} di #.} many {Pagine tradotte: {sampled, number} di #.} other {Pagine tradotte: {sampled, number} di #.}}}}",
+      "picking": "Scegliamo le pagine da tradurre per mostrarti il risultato…",
+      "byEmail": "Il file tradotto, via email",
+      "free": "Gratis",
+      "freeLeft": "Gratis, e {pages, plural, one {ti resta circa # pagina} many {ti restano circa # di pagine} other {ti restano circa # pagine}} per i prossimi file",
+      "payRest": "Registrati gratis; paghi solo il resto",
+      "deleted": "Il tuo file viene eliminato dopo 30 giorni",
+      "allFree": "{hasTotal, select, yes {{total, plural, one {# pagina, gratis} many {Tutte le # di pagine, gratis} other {Tutte le # pagine, gratis}}} other {L’intero file, gratis}}",
+      "stickyNote": "{toGo, select, yes {{left, plural, one {Manca # pagina.} many {Mancano # di pagine.} other {Mancano # pagine.}} Nessuna carta, nessuna password.} other {Nessuna carta, nessuna password.}}",
+      "stickyNoteRest": "Registrati gratis, poi un pacchetto di parole copre il resto."
+    },
+    "needs": {
+      "title": "Crediti insufficienti",
+      "body": "{known, select, yes {Questa traduzione richiede {credits, plural, one {# credito} many {# di crediti} other {# crediti}} ({pages}) e il tuo account ha {amount}. Non è stato addebitato nulla.} other {Questa traduzione richiede più crediti di quelli presenti nel tuo account. Non è stato addebitato nulla.}}",
+      "see": "Vedi la traduzione",
+      "translateNow": "Traducilo ora"
+    }
+  },
+  "offer": {
+    "sendFailed": "L’email non è stata inviata. Riprova tra un momento.",
+    "sentTitle": "Controlla la tua email",
+    "sentBody": "Abbiamo inviato un link a {email}. Cliccalo entro {minutes, plural, one {# minuto} many {# di minuti} other {# minuti}}: parte la traduzione dell’intero file e ti inviamo i file via email appena sono pronti.",
+    "emailLabel": "La tua email",
+    "noCard": "Nessuna carta, nessuna password. Ti inviamo un link via email.",
+    "stickyLabel": "Traduci l’intero file"
+  },
+  "packs": {
+    "covers": "Copre questo file",
+    "pages": "({about})",
+    "opening": "Apertura…",
+    "buyFor": "Acquista per {price}",
+    "howCredits": "Pagamento unico, nessun abbonamento. Un credito corrisponde a una parola del testo originale tradotta in una lingua, quindi un file di {file, number} parole tradotto in {languages, plural, one {# lingua} many {# di lingue} other {# lingue}} ne usa {credits, number}.",
+    "byEmail": "Il pagamento online arriverà presto. Nel frattempo, scegliendo un pacchetto si apre un’email a <a>{email}</a> e aggiungiamo le parole al tuo account."
+  },
+  "pricing": {
+    "title": "Acquista parole",
+    "intro": "Traduci documenti interi, in tutte le lingue che ti servono. Hai sempre il PDF con il design originale, il file Word e il tono che scegli.",
+    "balance": "<b>Hai {words, plural, one {# parola} many {# di parole} other {# parole}}</b>{hasPages, select, yes {<muted> ({about})</muted>} other {}}.",
+    "newHereBody": "Cioè {amount}, prima di acquistare qualsiasi cosa.",
+    "signUp": "Registrati",
+    "freeDaily": "Gratis ogni giorno: un documento fino a {amount}."
+  },
+  "thanks": {
+    "notFound": "Non abbiamo trovato questo pagamento.",
+    "lateTitle": "Il pagamento è andato a buon fine",
+    "lateBody": "Le parole stanno impiegando più del solito ad arrivare sul tuo account. Rispondi all’email della ricevuta e una persona le aggiungerà.",
+    "adding": "Aggiunta delle parole…",
+    "paid": "Pagato",
+    "inAccount": "{words, plural, one {{amount} è nel tuo account} many {{amount} sono nel tuo account} other {{amount} sono nel tuo account}}",
+    "signedInAs": "Accesso effettuato come {email}.",
+    "translateMine": "Traduci subito il mio file",
+    "translateOne": "Traduci un documento",
+    "hasAccount": "{email} ha già un account: accedi con questo indirizzo per usare le parole.",
+    "linkSent": "Abbiamo inviato un link di accesso a {email}.",
+    "sendLink": "Inviami un link di accesso",
+    "uploadAgain": "Carica di nuovo il file per tradurlo."
+  },
+  "login": {
+    "title": "Accedi o registrati",
+    "intro": "Nessuna password. Ti inviamo via email un link che ti fa accedere o crea il tuo account.",
+    "expired": "Questo link è scaduto o è già stato usato. Richiedine uno nuovo.",
+    "newHereBody": "Cioè {words}, nel tuo account appena clicchi sul link.",
+    "sentBody": "Abbiamo inviato un link a {email}. È valido per {minutes, plural, one {# minuto} many {# di minuti} other {# minuti}}.",
+    "sentCredit": "Nuovo account? Cliccalo e i tuoi {amount} di crediti sono pronti: {words}.",
+    "submit": "Inviami un link"
+  },
+  "account": {
+    "signInFirst": "<a>Accedi</a> per vedere il tuo account.",
+    "title": "Account",
+    "balanceLabel": "Parole nel tuo account",
+    "creditRule": "Un credito corrisponde a una parola del testo originale tradotta in una lingua.",
+    "history": "Cronologia",
+    "kind": {
+      "purchase": "Acquisto",
+      "charge": "Traduzione",
+      "refund": "Rimborso",
+      "grant": "Aggiunto da wxrks",
+      "signup": "Credito di registrazione"
+    }
+  },
+  "jobs": {
+    "signInFirst": "<a>Accedi</a> per vedere le tue traduzioni.",
+    "empty": "Ancora nessuna traduzione. <a>Traduci qualcosa</a>.",
+    "languages": "{source} → {targets}",
+    "status": {
+      "inProgress": "In corso",
+      "delivered": "Completato",
+      "failed": "Interrotto",
+      "cancelled": "Annullato",
+      "over_free_limit": "Pronto da tradurre",
+      "needs_credits": "Servono crediti",
+      "no_text": "Nessun testo trovato"
+    }
+  },
+  "feedback": {
+    "expired": "Questo link è scaduto.",
+    "upTitle": "Siamo contenti che abbia funzionato. Grazie.",
+    "downTitle": "Ci dispiace che non abbia funzionato. Grazie per avercelo detto.",
+    "up": "Ha funzionato",
+    "down": "Qualcosa non andava",
+    "thanks": "Ricevuto. Ogni messaggio viene letto da una persona.",
+    "upLabel": "C’è qualcosa che dovremmo sapere? (facoltativo)",
+    "downLabel": "Cosa non ha funzionato? (facoltativo)"
+  },
+  "activity": {
+    "pill": "{words, plural, one {<b># parola</b> tradotta} many {<b># di parole</b> tradotte} other {<b># parole</b> tradotte}} in {to} (originale in {from}){when, select, moments { · qualche istante fa} minutes { · qualche minuto fa} today { · oggi} other {}}",
+    "close": "Chiudi"
+  }
+}

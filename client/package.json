@@ -6,11 +6,17 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "i18n:check": "node scripts/check-messages.mjs && node ../.claude/skills/localize-code/scripts/check-i18n.mjs ..",
+    "i18n:pseudo": "node ../.claude/skills/localize-code/scripts/pseudo-locale.mjs src/locales/en.json"
   },
   "dependencies": {
+    "i18next": "27.1.1",
+    "i18next-icu": "2.7.0",
+    "intl-messageformat": "12.1.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-i18next": "18.0.1",
     "react-router-dom": "^6.27.0"
   },
   "devDependencies": {

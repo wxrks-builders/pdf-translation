@@ -1,14 +1,19 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
 import { wordsAndPages } from "../pricing";
+import { errorText } from "../i18n";
+import { isolate } from "../i18n/format";
+import { Link, useNavigate } from "../i18n/routing";
 
 // Where Stripe Checkout sends the buyer back. The words arrive with Stripe's webhook, usually
 // within seconds, so this page asks until they're there.
 const WAIT_MS = 60 * 1000;
 
 export default function Thanks() {
+  const { t } = useTranslation();
   const [params] = useSearchParams();
   const sessionId = params.get("session_id");
   const { refresh } = useAuth();
@@ -48,7 +53,7 @@ export default function Thanks() {
       const { jobId } = await api.rerunJob(purchase.jobId);
       navigate(`/jobs/${jobId}`);
     } catch (err) {
-      setError(err.status === 404 ? "Upload the file again to translate it." : err.message);
+      setError(err.status === 404 ? t("thanks.uploadAgain") : errorText(err));
       setBusy(false);
     }
   }
@@ -59,61 +64,58 @@ export default function Thanks() {
       await api.requestLoginLink(purchase.email);
       setLinkSent(true);
     } catch (err) {
-      setError(err.message);
+      setError(errorText(err));
     }
     setBusy(false);
   }
 
   let body;
-  if (!sessionId) body = <p className="text-[15px]">We couldn't find this payment.</p>;
+  if (!sessionId) body = <p className="text-[15px]">{t("thanks.notFound")}</p>;
   else if (!purchase && late) {
     body = (
       <>
-        <h1 className="text-[22px] font-medium tracking-[-0.3px]">Your payment went through</h1>
-        <p className="mt-2 text-[13px] text-brand-500">
-          The words are taking longer than usual to reach your account. Reply to the receipt email and a person will
-          add them.
-        </p>
+        <h1 className="text-[22px] font-medium tracking-[-0.3px]">{t("thanks.lateTitle")}</h1>
+        <p className="mt-2 text-[13px] text-brand-500">{t("thanks.lateBody")}</p>
       </>
     );
   } else if (!purchase) {
     body = (
       <>
-        <h1 className="text-[22px] font-medium tracking-[-0.3px]">Adding your words…</h1>
-        <div className="wx-progress mt-4" role="progressbar" aria-label="Adding your words">
+        <h1 className="text-[22px] font-medium tracking-[-0.3px]">{t("thanks.adding")}</h1>
+        <div className="wx-progress mt-4" role="progressbar" aria-label={t("thanks.adding")}>
           <span style={{ width: "60%" }} />
         </div>
       </>
     );
   } else {
-    const words = wordsAndPages(purchase.words);
+    const email = isolate(purchase.email);
     body = (
       <>
-        <span className="wx-badge wx-badge--success">Paid</span>
-        <h1 className="mt-3 text-[22px] font-medium tracking-[-0.3px]">{words} are in your account</h1>
+        <span className="wx-badge wx-badge--success">{t("thanks.paid")}</span>
+        <h1 className="mt-3 text-[22px] font-medium tracking-[-0.3px]">
+          {t("thanks.inAccount", { words: purchase.words, amount: wordsAndPages(purchase.words) })}
+        </h1>
         {purchase.signedIn ? (
           <>
-            <p className="mt-2 text-[13px] text-brand-500">Signed in as {purchase.email}.</p>
+            <p className="mt-2 text-[13px] text-brand-500">{t("thanks.signedInAs", { email })}</p>
             {purchase.jobId ? (
               <button type="button" onClick={translateNow} disabled={busy} className="wx-button wx-button--primary mt-5" style={{ minHeight: 40 }}>
-                {busy ? "Starting…" : "Translate my file now"}
+                {busy ? t("common.starting") : t("thanks.translateMine")}
               </button>
             ) : (
               <Link to="/" className="wx-button wx-button--primary mt-5" style={{ minHeight: 40 }}>
-                Translate a document
+                {t("thanks.translateOne")}
               </Link>
             )}
           </>
         ) : (
           <>
-            <p className="mt-2 text-[13px] text-brand-500">
-              {purchase.email} already has an account, so sign in with it to use the words.
-            </p>
+            <p className="mt-2 text-[13px] text-brand-500">{t("thanks.hasAccount", { email })}</p>
             {linkSent ? (
-              <p className="mt-5 text-[13px]">We sent a sign-in link to {purchase.email}.</p>
+              <p className="mt-5 text-[13px]">{t("thanks.linkSent", { email })}</p>
             ) : (
               <button type="button" onClick={sendLink} disabled={busy} className="wx-button wx-button--primary mt-5" style={{ minHeight: 40 }}>
-                Email me a sign-in link
+                {t("thanks.sendLink")}
               </button>
             )}
           </>

@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { api } from "./api";
+import { formatList, languageName } from "./i18n/format";
 
 // What people really translated here this week (server/routes/activity.js), as a light green pill
 // in the bottom corner, one translation at a time: "🎉 783 words translated from Portuguese into
@@ -16,21 +18,18 @@ const GAP_MS = 900;
 const EMOJI = ["🎉", "✨", "👏"];
 const SEEN_KEY = "wx-activity-seen";
 
+// "a few moments ago", "a few minutes ago", "earlier today", or nothing once it isn't fresh.
 function when(iso) {
   const at = new Date(iso);
   const minutes = (Date.now() - at.getTime()) / 60000;
-  if (minutes < 5) return "a few moments ago";
-  if (minutes < 60) return "a few minutes ago";
-  if (at.toDateString() === new Date().toDateString()) return "earlier today";
+  if (minutes < 5) return "moments";
+  if (minutes < 60) return "minutes";
+  if (at.toDateString() === new Date().toDateString()) return "today";
   return null;
 }
 
 // "Portuguese (Portugal)" → "Portuguese": the pill stays one line on a computer.
 const short = (name) => String(name).replace(/\s*\([^)]*\)\s*$/, "");
-const list = (names) => {
-  const n = [...new Set(names.map(short))];
-  return n.length < 2 ? n[0] : `${n.slice(0, -1).join(", ")} and ${n[n.length - 1]}`;
-};
 
 function seen() {
   try {
@@ -49,7 +48,9 @@ function markSeen() {
 }
 
 export default function RecentActivity() {
+  const { t } = useTranslation();
   const [rows, setRows] = useState(null);
+  const [codes, setCodes] = useState({});
   const [index, setIndex] = useState(-1);
   const [leaving, setLeaving] = useState(false);
   const [closed, setClosed] = useState(false);
@@ -61,6 +62,12 @@ export default function RecentActivity() {
       .then((data) => {
         if (data.recent.length >= MIN_ROWS) setRows(data.recent.slice(0, MAX_PILLS));
       })
+      .catch(() => {});
+    // The pill names its languages in English (the catalog's names); their codes let it say them
+    // in the reader's language.
+    api
+      .languages()
+      .then((d) => setCodes(Object.fromEntries(d.languages.map((l) => [l.name, l.code]))))
       .catch(() => {});
   }, []);
 
@@ -82,6 +89,9 @@ export default function RecentActivity() {
   if (!rows || closed || index < 0) return null;
   const r = rows[index];
   const fresh = when(r.at);
+  // A language's name without its region, in the reader's language.
+  const name = (catalogName) => short(codes[catalogName] ? languageName(codes[catalogName].split(/[-_]/)[0], short(catalogName)) : catalogName);
+  const targets = formatList([...new Set(r.to.map(name))]);
   return (
     <div className="wx-activity" role="status" aria-live="polite">
       <div key={index} className="wx-activity-pill" data-leaving={leaving ? "true" : "false"}>
@@ -91,21 +101,24 @@ export default function RecentActivity() {
           </span>
           {index === 0 && (
             <>
-              <span className="wx-activity-spark" style={{ left: 18, top: -2, width: 4, height: 4, background: "#00742c" }} />
-              <span className="wx-activity-spark" style={{ left: 4, top: -6, width: 3, height: 3, background: "#315b7c", animationDelay: ".15s" }} />
-              <span className="wx-activity-spark" style={{ left: 12, top: -10, width: 3, height: 3, background: "#785000", animationDelay: ".3s" }} />
+              <span className="wx-activity-spark" style={{ insetInlineStart: 18, top: -2, width: 4, height: 4, background: "#00742c" }} />
+              <span className="wx-activity-spark" style={{ insetInlineStart: 4, top: -6, width: 3, height: 3, background: "#315b7c", animationDelay: ".15s" }} />
+              <span className="wx-activity-spark" style={{ insetInlineStart: 12, top: -10, width: 3, height: 3, background: "#785000", animationDelay: ".3s" }} />
             </>
           )}
         </span>
         <span className="wx-activity-text min-w-0 text-[13px] leading-[18px] text-[#176b45]">
-          <strong className="font-medium">{r.words.toLocaleString("en-US")} words</strong> translated from {short(r.from)} into {list(r.to)}
-          {fresh ? ` · ${fresh}` : ""}
+          <Trans
+            i18nKey="activity.pill"
+            values={{ words: r.words, from: name(r.from), to: targets, when: fresh || "none" }}
+            components={{ b: <strong className="font-medium" /> }}
+          />
         </span>
         <button
           type="button"
-          aria-label="Close"
+          aria-label={t("activity.close")}
           onClick={() => setClosed(true)}
-          className="-my-1 -mr-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[16px] leading-none text-[#176b45] hover:bg-[#d4eedd]"
+          className="-my-1 -me-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[16px] leading-none text-[#176b45] hover:bg-[#d4eedd]"
         >
           ×
         </button>

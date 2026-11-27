@@ -1,29 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useLocation, Link } from "react-router-dom";
+import { Trans, useTranslation } from "react-i18next";
 import { api, track } from "../api";
 import { useAuth } from "../context/AuthContext";
 import { PACKS, FREE_WORDS, SIGNUP_CREDIT, buy, wordsAndPages } from "../pricing";
 import RecentActivity from "../RecentActivity";
-import { TONES, TONE_NOTE_MAX } from "../tone";
+import { TONES, TONE_NOTE_MAX, toneHint, toneLabel } from "../tone";
+import { errorText } from "../i18n";
+import { compareText, formatFileSize, formatMoney, languageLabel } from "../i18n/format";
+import { Link, useNavigate, usePagePath } from "../i18n/routing";
 
 const ACCEPT = ".pdf,.docx,.doc,.txt,.csv,.json,.yml,.yaml,.xlsx,.pptx,.md,.html,.xml,.srt";
+const MAX_MB = 25;
+const MAX_FILES = 10;
 
 // Languages per document, free or paid; past this the picker points to the wxrks platform.
 // The server checks the same number (MAX_TARGETS in server/routes/jobs.js).
 const MAX_TARGETS = 3;
 
-// Landing pages share this upload screen; keep the headings in step with PAGES in server/seo.js.
-const LANDING = {
-  "/": { h1: "Translate a document", sub: "See the first page in your language before you download." },
-  "/pdf": {
-    h1: "Translate a PDF and keep its design",
-    sub: "Get an editable Word file and a PDF that looks like your original. See page 1 before you download.",
-  },
-  "/documents": {
-    h1: "Translate Word, PowerPoint, Excel and more",
-    sub: "Your file comes back in the format you uploaded. See it before you download.",
-  },
-};
+// Landing pages share this upload screen. Their headings are seo.<page>.heading, the same message
+// the server renders before the app loads (server/seo.js).
+const LANDING = { "/": "home", "/pdf": "pdf", "/documents": "documents" };
 
 export function FileIcon() {
   return (
@@ -37,10 +33,10 @@ export function FileIcon() {
 }
 
 export default function Upload() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { pathname } = useLocation();
-  const landing = LANDING[pathname] || LANDING["/"];
+  const landing = LANDING[usePagePath()] || "home";
   const [languages, setLanguages] = useState([]);
   const [files, setFiles] = useState([]);
   const [sourceLocale, setSourceLocale] = useState("en");
@@ -56,8 +52,8 @@ export default function Upload() {
   const inputRef = useRef(null);
 
   useEffect(() => {
-    api.languages().then((d) => setLanguages(d.languages)).catch(() => setError("Could not load languages."));
-  }, []);
+    api.languages().then((d) => setLanguages(d.languages)).catch(() => setError(t("upload.errors.languages")));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     api.allowance().then(setAllowance).catch(() => setAllowance(null));
@@ -83,9 +79,9 @@ export default function Upload() {
   }
 
   async function submit() {
-    if (!files.length) return setError("Add a document first.");
+    if (!files.length) return setError(t("upload.errors.noFile"));
     const targets = targetLocales.filter((c) => c !== sourceLocale);
-    if (!targets.length) return setError("Pick the language to translate into.");
+    if (!targets.length) return setError(t("upload.errors.noTarget"));
     setSubmitting(true);
     setError(null);
     setFreeUsed(false);
@@ -100,17 +96,16 @@ export default function Upload() {
       navigate(`/jobs/${jobId}`);
     } catch (err) {
       if (err.code === "free_limit_reached") setFreeUsed(true);
-      else setError(err.message);
+      else setError(errorText(err));
       setSubmitting(false);
     }
   }
 
-
   return (
     <section className="mx-auto max-w-xl">
       <div className="rounded-[10px] border border-brand-200 bg-white p-6 sm:p-8">
-        <h1 className="text-[29px] font-medium leading-tight tracking-[-0.4px]">{landing.h1}</h1>
-        <p className="mt-2 text-[15px] leading-relaxed text-brand-500">{landing.sub}</p>
+        <h1 className="text-[29px] font-medium leading-tight tracking-[-0.4px] [text-wrap:balance]">{t(`seo.${landing}.heading`)}</h1>
+        <p className="mt-2 text-[15px] leading-relaxed text-brand-500">{t(`upload.landing.${landing}`)}</p>
         {/* No limits box (Rodrigo, 2026-11-09): the free limit and prices show after the upload. */}
 
         <div className="mt-6 space-y-5">
@@ -129,7 +124,7 @@ export default function Upload() {
               onClick={() => inputRef.current?.click()}
               role="button"
               tabIndex={0}
-              onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && inputRef.current?.click()}
+              onKeyDown={(e) => !e.nativeEvent.isComposing && (e.key === "Enter" || e.key === " ") && inputRef.current?.click()}
               className={`cursor-pointer rounded-[10px] border border-dashed px-6 py-10 text-center transition ${
                 dragOver ? "border-brand-600 bg-brand-50" : "border-[#757d88] hover:bg-[#f7f8fa]"
               }`}
@@ -142,9 +137,11 @@ export default function Upload() {
                 className="hidden"
                 onChange={(e) => addFiles(e.target.files)}
               />
-              <p className="text-[15px] font-medium">Drop a document here, or choose a file</p>
+              <p className="text-[15px] font-medium">{t("upload.drop.title")}</p>
               <p className="mt-1 text-xs text-brand-500">
-                PDF, Word, PowerPoint, Excel and more. Up to 25&nbsp;MB{user ? ", 10 files per job" : ""}.
+                {user
+                  ? t("upload.drop.hintSignedIn", { size: formatFileSize(MAX_MB * 1024 * 1024), files: MAX_FILES })
+                  : t("upload.drop.hint", { size: formatFileSize(MAX_MB * 1024 * 1024) })}
               </p>
             </div>
           ) : null}
@@ -157,8 +154,10 @@ export default function Upload() {
                     <FileIcon />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] font-medium">{f.name}</span>
-                    <span className="block text-[11px] text-brand-500">{(f.size / 1024).toFixed(0)} KB</span>
+                    <span className="block truncate text-[13px] font-medium" title={f.name}>
+                      <bdi>{f.name}</bdi>
+                    </span>
+                    <span className="block text-[11px] text-brand-500">{formatFileSize(f.size)}</span>
                   </span>
                   <button
                     type="button"
@@ -168,7 +167,7 @@ export default function Upload() {
                       setOnlyFirstFile(false);
                     }}
                   >
-                    {user ? "Remove" : "Change"}
+                    {user ? t("upload.file.remove") : t("upload.file.change")}
                   </button>
                 </li>
               ))}
@@ -178,11 +177,11 @@ export default function Upload() {
           {onlyFirstFile && files[0] && (
             <div className="wx-alert" role="status">
               <span>
-                The free translator takes one file at a time, so we kept {files[0].name}.{" "}
-                <Link to="/login" className="underline">
-                  Sign in
-                </Link>{" "}
-                to send up to 10 files together.
+                <Trans
+                  i18nKey="upload.onlyFirstFile"
+                  values={{ count: MAX_FILES }}
+                  components={{ file: <bdi>{files[0].name}</bdi>, a: <Link to="/login" className="underline" /> }}
+                />
               </span>
             </div>
           )}
@@ -191,15 +190,15 @@ export default function Upload() {
           <div className="grid items-start gap-4 sm:grid-cols-2">
             <LanguagePicker
               id="source"
-              label="From"
+              label={t("upload.from")}
               languages={languages}
               selected={[sourceLocale]}
               onChange={(codes) => setSourceLocale(codes[0])}
-              placeholder="Type a language"
+              placeholder={t("upload.fromPlaceholder")}
             />
             <LanguagePicker
               id="target"
-              label="Translate into"
+              label={t("upload.into")}
               languages={languages}
               selected={targetLocales}
               onChange={setTargetLocales}
@@ -207,7 +206,7 @@ export default function Upload() {
               multiple
               max={MAX_TARGETS}
               whenFull={<MoreLanguages />}
-              placeholder="Type a language, e.g. Portuguese"
+              placeholder={t("upload.intoPlaceholder")}
             />
           </div>
 
@@ -215,7 +214,11 @@ export default function Upload() {
 
           {freeUsed && <FreeUsed allowance={allowance} />}
 
-          {error && <div className="wx-alert wx-alert--danger"><span>{error}</span></div>}
+          {error && (
+            <div className="wx-alert wx-alert--danger">
+              <span>{error}</span>
+            </div>
+          )}
 
           <button
             type="button"
@@ -224,10 +227,10 @@ export default function Upload() {
             className="wx-button wx-button--primary w-full"
             style={{ minHeight: 40 }}
           >
-            {submitting ? "Uploading…" : "Translate"}
+            {submitting ? t("upload.submitting") : t("upload.submit")}
           </button>
 
-          <p className="text-[11px] leading-relaxed text-brand-500">A scanned PDF (pictures of pages) comes back as a Word file.</p>
+          <p className="text-[11px] leading-relaxed text-brand-500">{t("upload.scanNote")}</p>
         </div>
       </div>
       <RecentActivity />
@@ -240,6 +243,7 @@ export default function Upload() {
 // credit to keep going today (or, once today's credits are all given, the smallest pack straight
 // to checkout; after paying, /thanks signs the buyer in to translate the file).
 function FreeUsed({ allowance }) {
+  const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const pack = PACKS[0];
@@ -261,29 +265,34 @@ function FreeUsed({ allowance }) {
 
   return (
     <div className="rounded-md border border-brand-200 bg-[#f5f7f9] px-4 py-3.5" role="status">
-      <p className="text-[13px] font-medium">Your free document for today is used</p>
+      <p className="text-[13px] font-medium">{t("freeUsed.title")}</p>
       <p className="mt-1 text-xs leading-relaxed text-brand-500">
-        {hours ? `A new one, up to ${wordsAndPages(free)}, is ready in ${hours} ${hours === 1 ? "hour" : "hours"}.` : "A new one is ready tomorrow."}{" "}
-        Want this file now?{" "}
-        {signup
-          ? `Sign up and get $${SIGNUP_CREDIT.dollars} in credits: ${wordsAndPages(SIGNUP_CREDIT.words)}.`
-          : `${wordsAndPages(pack.words)} cost $${pack.price}, paid once.`}
+        {t("freeUsed.body", {
+          when: hours ? "hours" : "tomorrow",
+          hours: hours || 0,
+          amount: wordsAndPages(free),
+          offer: signup ? "signup" : "pack",
+          credit: formatMoney(SIGNUP_CREDIT.dollars),
+          creditAmount: wordsAndPages(SIGNUP_CREDIT.words),
+          packAmount: wordsAndPages(pack.words),
+          price: formatMoney(pack.price),
+        })}
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
         {signup ? (
           <Link to="/login" className="wx-button wx-button--primary wx-button--compact">
-            Get ${SIGNUP_CREDIT.dollars} in credits
+            {t("common.getCredits", { amount: formatMoney(SIGNUP_CREDIT.dollars) })}
           </Link>
         ) : (
           <button type="button" onClick={buyNow} disabled={busy} className="wx-button wx-button--primary wx-button--compact">
-            {busy ? "Opening checkout…" : `Buy ${pack.words.toLocaleString("en-US")} words for $${pack.price}`}
+            {busy ? t("common.openingCheckout") : t("freeUsed.buyPack", { words: pack.words, price: formatMoney(pack.price) })}
           </button>
         )}
         <Link to="/pricing" className="text-xs underline">
-          {signup ? "Buy words" : "See all word packs"}
+          {signup ? t("common.buyWords") : t("freeUsed.allPacks")}
         </Link>
       </div>
-      {failed && <p className="wx-error mt-2 text-xs">Checkout didn't open. Try again in a moment.</p>}
+      {failed && <p className="wx-error mt-2 text-xs">{t("common.checkoutFailed")}</p>}
     </div>
   );
 }
@@ -292,23 +301,21 @@ function FreeUsed({ allowance }) {
 const platformUrl = (key) =>
   `https://wxrks.com/pricing?utm_source=translate.wxrks.com&utm_medium=referral&utm_campaign=free-translator&utm_content=platform-${key}`;
 
-const PLATFORM_FEATURES = [
-  { key: "memory", label: "Memory", title: "Translation memory", note: "Reuse your past translations, sentence by sentence." },
-  { key: "glossary", label: "Glossary", title: "Glossary", note: "Keep your terms the same in every file." },
-  { key: "history", label: "Past files", title: "Past translations", note: "Every file you translated, in one place." },
-];
+// Each feature's label, title and note are messages: platform.<key>.label, .title and .note.
+const PLATFORM_FEATURES = ["memory", "glossary", "history"];
 
 const PILL = "inline-flex min-h-[32px] items-center gap-1.5 rounded-md border px-2.5 text-xs [@media(pointer:coarse)]:min-h-[44px]";
-const POPOVER = "absolute left-0 top-full z-20 mt-1.5 w-full rounded-md border border-brand-200 bg-white p-4 shadow-[0_6px_20px_#11141814]";
+const POPOVER = "absolute start-0 top-full z-20 mt-1.5 w-full rounded-md border border-brand-200 bg-white p-4 shadow-[0_6px_20px_#11141814]";
 
 // Tone and the wxrks platform features as one line of pills, so the form stays short. Each pill
 // opens a small pop-up under the row: the tone (a Sous-Chef agent: a preset, plus anything the
 // visitor wants to add), or what a locked platform feature does and where to get it.
 function OptionPills({ preset, note, onPreset, onNote }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(null);
   const rowRef = useRef(null);
-  const tone = TONES.find((t) => t.key === preset) || TONES[0];
-  const feature = PLATFORM_FEATURES.find((f) => f.key === open);
+  const tone = TONES.find((x) => x.key === preset) || TONES[0];
+  const feature = PLATFORM_FEATURES.find((f) => f === open);
 
   useEffect(() => {
     if (!open) return;
@@ -344,82 +351,86 @@ function OptionPills({ preset, note, onPreset, onNote }) {
         >
           <ChefHatIcon />
           <span>
-            Tone: <span className="font-medium">{tone.label}</span>
-            {note.trim() ? " + note" : ""}
+            <Trans
+              i18nKey="tone.pill"
+              values={{ label: toneLabel(tone.key), note: note.trim() ? "yes" : "no" }}
+              components={{ b: <span className="font-medium" /> }}
+            />
           </span>
           <ChevronIcon up={open === "tone"} />
         </button>
         {PLATFORM_FEATURES.map((f) => (
           <button
-            key={f.key}
-            id={`pill-${f.key}`}
+            key={f}
+            id={`pill-${f}`}
             type="button"
             aria-haspopup="dialog"
-            aria-expanded={open === f.key}
-            aria-controls={`pop-${f.key}`}
-            onClick={() => toggle(f.key)}
+            aria-expanded={open === f}
+            aria-controls={`pop-${f}`}
+            onClick={() => toggle(f)}
             className={`${PILL} ${
-              open === f.key
+              open === f
                 ? "border-[#757d88] bg-brand-50 text-brand-600"
                 : "border-dashed border-[#c4cad2] bg-[#f7f8fa] text-brand-500 hover:text-brand-600"
             }`}
           >
             <LockIcon />
-            {f.label}
+            {t(`platform.${f}.label`)}
           </button>
         ))}
       </div>
 
       {open === "tone" && (
-        <div id="pop-tone" role="dialog" aria-label="Tone" className={`${POPOVER} max-w-[420px]`}>
-          <div className="flex items-baseline justify-between gap-3">
+        <div id="pop-tone" role="dialog" aria-label={t("tone.dialogLabel")} className={`${POPOVER} max-w-[420px]`}>
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
             <span id="tone-label" className="text-[13px] font-medium">
-              How should it sound?
+              {t("tone.question")}
             </span>
-            <span className="text-[11px] text-brand-500">Sous-Chef, the wxrks tone agent</span>
+            <span className="text-[11px] text-brand-500">{t("tone.byline")}</span>
           </div>
           <div className="mt-2.5 flex flex-wrap gap-1.5" role="radiogroup" aria-labelledby="tone-label">
-            {TONES.map((t) => (
+            {TONES.map((x) => (
               <button
-                key={t.key}
+                key={x.key}
                 type="button"
                 role="radio"
-                aria-checked={preset === t.key}
-                onClick={() => onPreset(t.key)}
+                aria-checked={preset === x.key}
+                onClick={() => onPreset(x.key)}
                 className={`rounded-md border px-3 py-1.5 text-xs ${
-                  preset === t.key ? "border-brand-600 bg-brand-50 font-medium" : "border-brand-200 hover:bg-[#f7f8fa]"
+                  preset === x.key ? "border-brand-600 bg-brand-50 font-medium" : "border-brand-200 hover:bg-[#f7f8fa]"
                 }`}
               >
-                {t.label}
+                {toneLabel(x.key)}
               </button>
             ))}
           </div>
-          <p className="mt-2 text-[11px] text-brand-500">{tone.hint}</p>
+          <p className="mt-2 text-[11px] text-brand-500">{toneHint(tone.key)}</p>
           <input
             className="wx-input mt-2.5 w-full"
             value={note}
+            dir="auto"
             maxLength={TONE_NOTE_MAX}
             onChange={(e) => onNote(e.target.value)}
-            aria-label="Anything else Sous-Chef should know"
-            placeholder="Anything else? For example: “for teenagers”"
+            aria-label={t("tone.noteLabel")}
+            placeholder={t("tone.notePlaceholder")}
           />
           <div className="mt-3 flex justify-end">
             <button type="button" onClick={() => setOpen(null)} className="wx-button wx-button--primary wx-button--compact">
-              Done
+              {t("tone.done")}
             </button>
           </div>
         </div>
       )}
 
       {feature && (
-        <div id={`pop-${feature.key}`} role="dialog" aria-label={feature.title} className={`${POPOVER} max-w-[320px]`}>
+        <div id={`pop-${feature}`} role="dialog" aria-label={t(`platform.${feature}.title`)} className={`${POPOVER} max-w-[320px]`}>
           <p className="flex items-center gap-1.5 text-[13px] font-medium">
             <LockIcon />
-            {feature.title}
+            {t(`platform.${feature}.title`)}
           </p>
-          <p className="mt-1 text-xs leading-relaxed text-brand-500">{feature.note} It comes with the wxrks platform.</p>
-          <a href={platformUrl(feature.key)} className="mt-2 inline-block text-xs font-medium underline">
-            Start free in wxrks
+          <p className="mt-1 text-xs leading-relaxed text-brand-500">{t(`platform.${feature}.note`)}</p>
+          <a href={platformUrl(feature)} className="mt-2 inline-block text-xs font-medium underline">
+            {t("platform.cta")}
           </a>
         </div>
       )}
@@ -431,10 +442,7 @@ function OptionPills({ preset, note, onPreset, onNote }) {
 function MoreLanguages() {
   return (
     <p className="mt-2 text-[11px] leading-relaxed text-brand-500" role="status">
-      Need more than {MAX_TARGETS} languages? The wxrks platform translates into all of them in one project.{" "}
-      <a href={platformUrl("languages")} className="underline">
-        Start free in wxrks
-      </a>
+      <Trans i18nKey="upload.moreLanguages" values={{ max: MAX_TARGETS }} components={{ a: <a href={platformUrl("languages")} className="underline" /> }} />
     </p>
   );
 }
@@ -467,29 +475,25 @@ function LockIcon() {
 
 const UTM = "utm_source=translate.wxrks.com&utm_medium=referral&utm_campaign=free-translator&utm_content=trust";
 
-// Who is behind the translator. The badges are wxrks's own, the same ones wxrks.com shows.
+// Who is behind the translator. The badges are wxrks's own, the same ones wxrks.com shows; the
+// text is in the page, so it translates (the G2 badge itself is G2's English artwork).
 export function TrustStrip() {
+  const { t } = useTranslation();
   return (
     <div className="mt-4 flex items-center gap-5 rounded-[10px] border border-brand-200 bg-white px-5 py-4">
-      <img src="/badges/g2-leader-fall-2026.svg" alt="G2 Leader, Fall 2026" className="h-[72px] w-auto shrink-0" />
+      <img src="/badges/g2-leader-fall-2026.svg" alt={t("trust.g2Alt")} className="h-[72px] w-auto shrink-0" />
       <div className="min-w-0">
         <p className="text-[13px] font-medium">
-          Made by{" "}
-          <a href={`https://wxrks.com/?${UTM}`} className="underline">
-            wxrks
-          </a>
+          <Trans i18nKey="trust.madeBy" components={{ a: <a href={`https://wxrks.com/?${UTM}`} className="underline" /> }} />
         </p>
-        <p className="mt-0.5 text-xs leading-relaxed text-brand-500">
-          20 years in translation. Our translation platform is a G2 Leader and is audited for SOC 2 Type 2.
-        </p>
-        <p className="mt-2 flex items-center gap-2 text-[11px] text-brand-500">
+        <p className="mt-0.5 text-xs leading-relaxed text-brand-500">{t("trust.about")}</p>
+        <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-brand-500">
           <img src="/badges/soc2.svg" alt="" className="h-3.5 w-auto" />
-          <span>
-            SOC 2 Type 2 ·{" "}
-            <a href={`https://wxrks.com/security?${UTM}`} className="underline">
-              How we protect your files
-            </a>
-          </span>
+          <span lang="en">SOC 2 Type 2</span>
+          <span aria-hidden="true">·</span>
+          <a href={`https://wxrks.com/security?${UTM}`} className="underline">
+            {t("trust.security")}
+          </a>
         </p>
       </div>
     </div>
@@ -498,23 +502,32 @@ export function TrustStrip() {
 
 // Type a few letters, then click a match or press Enter. There are 100+ languages, so typing
 // beats scrolling a list. Single mode shows the chosen name in the box; multiple mode adds chips.
+// Names show in the reader's language, and a match on the catalog's English name or the code
+// counts too ("portug", "Portuguese", "pt_br").
 function LanguagePicker({ id, label, languages, selected, onChange, exclude = [], multiple = false, max = Infinity, whenFull = null, placeholder }) {
+  const { t, i18n } = useTranslation();
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const [active, setActive] = useState(0);
-  const nameOf = (code) => languages.find((l) => l.code === code)?.name || code;
+  const named = useMemo(
+    () => languages.map((l) => ({ ...l, label: languageLabel(l.code, l.name) })),
+    [languages, i18n.resolvedLanguage] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const nameOf = (code) => named.find((l) => l.code === code)?.label || code;
   const full = multiple && selected.length >= max;
-  const counter = multiple && max !== Infinity ? (selected.length ? `${selected.length} of ${max}` : `Up to ${max}`) : null;
+  const counter =
+    multiple && max !== Infinity ? (selected.length ? t("picker.count", { count: selected.length, max }) : t("picker.upTo", { max })) : null;
 
   const matches = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = query.trim().toLocaleLowerCase();
     if (!q || full) return [];
-    return languages
+    const starts = (l) => l.label.toLocaleLowerCase().startsWith(q) || l.name.toLowerCase().startsWith(q);
+    return named
       .filter((l) => !exclude.includes(l.code) && !(multiple && selected.includes(l.code)))
-      .filter((l) => l.name.toLowerCase().includes(q) || l.code.toLowerCase().includes(q))
-      .sort((a, b) => Number(b.name.toLowerCase().startsWith(q)) - Number(a.name.toLowerCase().startsWith(q)) || a.name.localeCompare(b.name))
+      .filter((l) => l.label.toLocaleLowerCase().includes(q) || l.name.toLowerCase().includes(q) || l.code.toLowerCase().includes(q))
+      .sort((a, b) => Number(starts(b)) - Number(starts(a)) || compareText(a.label, b.label))
       .slice(0, 8);
-  }, [query, languages, exclude, multiple, selected, full]);
+  }, [query, named, exclude, multiple, selected, full]);
 
   function pick(l) {
     onChange(multiple ? [...selected, l.code] : [l.code]);
@@ -524,6 +537,8 @@ function LanguagePicker({ id, label, languages, selected, onChange, exclude = []
   }
 
   function onKeyDown(e) {
+    // Chinese, Japanese and Korean input methods confirm a character with Enter.
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setActive((i) => Math.min(i + 1, matches.length - 1));
@@ -543,7 +558,7 @@ function LanguagePicker({ id, label, languages, selected, onChange, exclude = []
 
   return (
     <div className="wx-field">
-      <div className="flex items-baseline justify-between gap-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3">
         <label className="wx-label" htmlFor={id}>
           {label}
         </label>
@@ -561,13 +576,7 @@ function LanguagePicker({ id, label, languages, selected, onChange, exclude = []
           value={shown}
           disabled={full}
           placeholder={
-            full
-              ? `${max} languages, the most for one file`
-              : !multiple && selected[0]
-                ? nameOf(selected[0])
-                : multiple && selected.length
-                  ? "Add another language"
-                  : placeholder
+            full ? t("picker.full", { max }) : !multiple && selected[0] ? nameOf(selected[0]) : multiple && selected.length ? t("picker.addAnother") : placeholder
           }
           onFocus={() => {
             setFocused(true);
@@ -589,12 +598,12 @@ function LanguagePicker({ id, label, languages, selected, onChange, exclude = []
               <li key={l.code} role="option" aria-selected={i === active}>
                 <button
                   type="button"
-                  className={`w-full px-3 py-2 text-left text-[13px] ${i === active ? "bg-brand-50" : ""} hover:bg-brand-50`}
+                  className={`w-full px-3 py-2 text-start text-[13px] ${i === active ? "bg-brand-50" : ""} hover:bg-brand-50`}
                   onMouseDown={(e) => e.preventDefault()} // keep focus so the click lands before blur
                   onMouseEnter={() => setActive(i)}
                   onClick={() => pick(l)}
                 >
-                  {l.name}
+                  {l.label}
                 </button>
               </li>
             ))}
@@ -606,7 +615,7 @@ function LanguagePicker({ id, label, languages, selected, onChange, exclude = []
           {selected.map((code) => (
             <span key={code} className="inline-flex items-center gap-1.5 rounded-md border border-[#757d88] px-2 py-1 text-xs">
               {nameOf(code)}
-              <button type="button" aria-label={`Remove ${nameOf(code)}`} onClick={() => onChange(selected.filter((c) => c !== code))}>
+              <button type="button" aria-label={t("picker.remove", { language: nameOf(code) })} onClick={() => onChange(selected.filter((c) => c !== code))}>
                 ×
               </button>
             </span>

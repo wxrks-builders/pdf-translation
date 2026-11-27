@@ -1,16 +1,21 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { api } from "../api";
 import { SIGNUP_CREDIT, wordsAndPages } from "../pricing";
+import { errorText } from "../i18n";
+import { formatMoney, isolate } from "../i18n/format";
 
 // Sign in or sign up: one email link does both. A new account starts with the sign-up credit
 // (server/services/signupCredit.js), so the page says so while today's credits last.
 export default function Login() {
+  const { t } = useTranslation();
   const [params] = useSearchParams();
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [devLink, setDevLink] = useState(null);
-  const [error, setError] = useState(params.get("error") === "expired" ? "That link expired or was already used. Request a new one." : null);
+  // A message key, so it follows a language switch; or a sentence already in the reader's language.
+  const [error, setError] = useState(params.get("error") === "expired" ? { key: "login.expired" } : null);
   const [busy, setBusy] = useState(false);
   const [credit, setCredit] = useState(0);
 
@@ -27,37 +32,34 @@ export default function Login() {
       setSent(true);
       if (res.devLoginUrl) setDevLink(res.devLoginUrl);
     } catch (err) {
-      setError(err.code === "invalid_email" ? "Check the email address." : err.message);
+      setError({ text: errorText(err) });
     } finally {
       setBusy(false);
     }
   }
 
+  const amount = formatMoney(SIGNUP_CREDIT.dollars);
   return (
     <section className="mx-auto max-w-md space-y-4">
       <div>
-        <h1 className="text-[22px] font-medium tracking-[-0.3px]">Sign in or sign up</h1>
-        <p className="mt-1.5 text-[13px] leading-relaxed text-brand-500">No password. We email you a link that signs you in, or makes your account.</p>
+        <h1 className="text-[22px] font-medium tracking-[-0.3px]">{t("login.title")}</h1>
+        <p className="mt-1.5 text-[13px] leading-relaxed text-brand-500">{t("login.intro")}</p>
       </div>
 
       {credit > 0 && !sent && (
         <div className="rounded-[7px] bg-[#e7f5ec] px-4 py-3.5">
-          <p className="text-[13px] font-medium text-[#176b45]">New here? Get ${SIGNUP_CREDIT.dollars} in credits when you sign up</p>
-          <p className="mt-0.5 text-xs leading-relaxed text-[#24543a]">That's {wordsAndPages(credit)}, in your account as soon as you click the link.</p>
+          <p className="text-[13px] font-medium text-[#176b45]">{t("common.newHere", { amount })}</p>
+          <p className="mt-0.5 text-xs leading-relaxed text-[#24543a]">{t("login.newHereBody", { words: wordsAndPages(credit) })}</p>
         </div>
       )}
 
       {sent ? (
         <div className="rounded-[10px] border border-brand-200 bg-white p-6 text-center">
-          <p className="text-[15px] font-medium">Check your inbox</p>
-          <p className="mt-1.5 text-[13px] text-brand-500">We sent a link to {email}. It works for 15 minutes.</p>
-          {credit > 0 && (
-            <p className="mt-3 text-[13px] text-[#176b45]">
-              New account? Click it and your ${SIGNUP_CREDIT.dollars} in credits are ready: {wordsAndPages(credit)}.
-            </p>
-          )}
+          <p className="text-[15px] font-medium">{t("offer.sentTitle")}</p>
+          <p className="mt-1.5 text-[13px] text-brand-500">{t("login.sentBody", { email: isolate(email), minutes: 15 })}</p>
+          {credit > 0 && <p className="mt-3 text-[13px] text-[#176b45]">{t("login.sentCredit", { amount, words: wordsAndPages(credit) })}</p>}
           {devLink && (
-            <p className="mt-3 text-xs text-brand-500">
+            <p className="mt-3 text-xs text-brand-500" lang="en" dir="ltr">
               Dev mode:{" "}
               <a className="underline" href={devLink}>
                 sign in now
@@ -68,20 +70,21 @@ export default function Login() {
       ) : (
         <form onSubmit={submit} className="space-y-3.5 rounded-[10px] border border-brand-200 bg-white p-5">
           <label className="flex flex-col gap-1 text-xs font-medium">
-            Email
+            {t("common.emailLabel")}
             <input
               type="email"
               required
+              dir="ltr"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@company.com"
+              placeholder={t("common.emailPlaceholder")}
               autoComplete="email"
-              className="h-[38px] rounded-md border border-[#757d88] px-2.5 text-[13px] font-normal"
+              className="min-h-[38px] rounded-md border border-[#757d88] px-2.5 text-[13px] font-normal"
             />
           </label>
-          {error && <p className="wx-error text-xs">{error}</p>}
+          {error && <p className="wx-error text-xs">{error.key ? t(error.key) : error.text}</p>}
           <button disabled={busy} className="wx-button wx-button--primary w-full" style={{ minHeight: 40 }}>
-            {busy ? "Sending…" : "Email me a link"}
+            {busy ? t("common.sending") : t("login.submit")}
           </button>
         </form>
       )}

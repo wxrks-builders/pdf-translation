@@ -1,0 +1,557 @@
+{
+  "seo": {
+    "home": {
+      "title": "無料オンラインドキュメント翻訳 | wxrks",
+      "description": "PDF、Word、PowerPoint、Excel ファイルをアップロードすると、100 以上の言語に翻訳されたファイルをダウンロードできます。1 日 2,000 語（約 8 ページ）まで無料です。",
+      "heading": "ドキュメントを翻訳",
+      "intro": "PDF、Word、PowerPoint、Excel などを 100 以上の言語に翻訳できます。"
+    },
+    "pdf": {
+      "title": "デザインをそのまま保つ無料 PDF 翻訳 | wxrks",
+      "description": "PDF を 100 以上の言語に翻訳し、レイアウト、フォント、画像をそのまま保ちます。Word と PDF で受け取れます。1 日 2,000 語（約 8 ページ）まで無料です。",
+      "heading": "デザインはそのままに PDF を翻訳",
+      "intro": "編集できる Word ファイルと、元のファイルと同じ見た目の PDF を受け取れます。"
+    },
+    "documents": {
+      "title": "Word、PowerPoint、Excel のドキュメント翻訳 | wxrks",
+      "description": "Word、PowerPoint、Excel、PDF、CSV、テキストファイルを、同じ形式のまま 100 以上の言語に翻訳します。1 日 2,000 語（約 8 ページ）まで無料です。",
+      "heading": "Word、PowerPoint、Excel などを翻訳",
+      "intro": "アップロードしたときと同じ形式で、翻訳済みのファイルをダウンロードできます。"
+    }
+  },
+  "nav": {
+    "homeLabel": "wxrks Translate、ホーム",
+    "myJobs": "翻訳一覧",
+    "account": "アカウント",
+    "signOut": "ログアウト",
+    "signIn": "ログイン"
+  },
+  "common": {
+    "loading": "読み込み中…",
+    "buyWords": "語数を購入",
+    "getCredits": "{amount} 分のクレジットを受け取る",
+    "newHere": "初めてですか？登録すると {amount} 分のクレジットを受け取れます",
+    "openingCheckout": "決済ページを開いています…",
+    "checkoutFailed": "決済ページを開けませんでした。しばらくしてからもう一度お試しください。",
+    "translateAnother": "別のドキュメントを翻訳",
+    "starting": "開始しています…",
+    "sending": "送信中…",
+    "oneMoment": "少々お待ちください…",
+    "send": "送信",
+    "emailLabel": "メールアドレス",
+    "emailPlaceholder": "yamada@company.co.jp",
+    "pdfFiles": "Word ファイルと、元のファイルと同じ見た目の PDF"
+  },
+  "creditAdded": {
+    "text": "<strong>登録特典として {amount} 分のクレジットを追加しました。</strong>現在の残高は {balance}です。",
+    "close": "閉じる"
+  },
+  "suggest": {
+    "label": "言語",
+    "text": "このページは日本語でもご覧いただけます。",
+    "accept": "日本語で表示",
+    "dismiss": "英語のまま表示"
+  },
+  "footer": {
+    "pdf": "PDF 翻訳",
+    "documents": "ドキュメント翻訳",
+    "credits": "翻訳は <company>wxrks</company> が提供しています。wxrks Translate は AGPL-3.0 ライセンスのオープンソースです（<repo>ソースコード</repo>）。",
+    "languages": "言語"
+  },
+  "units": {
+    "words": "{words, plural, other {# 語}}",
+    "aboutPages": "約 {pages, plural, other {# ページ}}",
+    "wordsAndPages": "{words, plural, other {# 語}}（約 {pages, plural, other {# ページ}}）",
+    "packLabel": "{price} で {amount}",
+    "perThousand": "{words, number} 語あたり {price}"
+  },
+  "errors": {
+    "generic": "問題が発生しました。しばらくしてからもう一度お試しください。",
+    "invalid_email": "メールアドレスをご確認ください。",
+    "email_send_failed": "メールを送信できませんでした。しばらくしてからもう一度お試しください。",
+    "checkout_unavailable": "現在、オンライン決済はご利用いただけません。",
+    "unknown_pack": "このワードパックはご利用いただけません。",
+    "checkout_failed": "決済ページを開けませんでした。しばらくしてからもう一度お試しください。",
+    "not_found": "見つかりませんでした。リンクが間違っているか、古くなっている可能性があります。",
+    "no_files": "まずドキュメントを追加してください。",
+    "invalid_target_locale": "翻訳先の言語のひとつがご利用いただけません。別の言語を選んでください。",
+    "invalid_source_locale": "ドキュメントの言語がご利用いただけません。別の言語を選んでください。",
+    "no_target_locales": "翻訳先の言語を選んでください。",
+    "too_many_languages": "1 つのドキュメントにつき最大 {max, plural, other {# 言語}}までです。それ以上は wxrks プラットフォームをご利用ください。",
+    "target_equals_source": "ドキュメントとは別の言語を選んでください。",
+    "unsupported_file_type": "この種類のファイルはここでは翻訳できません。PDF、Word、PowerPoint、Excel ファイルをお試しください。",
+    "free_tier_one_file": "無料の翻訳では、一度に 1 ファイルまでです。",
+    "free_limit_reached": "無料の翻訳は 1 日 1 ドキュメントまでです。",
+    "filename_collision": "2 つのファイル名が似すぎていて、アップロード後に区別できません。どちらかの名前を変更して、もう一度お試しください。",
+    "not_authenticated": "この操作にはログインが必要です。",
+    "preview_failed": "プレビューを作成できませんでした。",
+    "preview_only": "これはプレビューのため、ダウンロードはありません。",
+    "expired": "このファイルは 30 日が経過したため削除されました。もう一度アップロードしてください。",
+    "rate_limited": "試行回数が多すぎます。しばらくしてからもう一度お試しください。",
+    "file_too_large": "ファイルが大きすぎます。上限は {maxMb, number} MB です。",
+    "languages_unavailable": "言語の一覧を読み込めませんでした。しばらくしてからもう一度お試しください。",
+    "internal_error": "こちら側で問題が発生しました。しばらくしてからもう一度お試しください。"
+  },
+  "upload": {
+    "landing": {
+      "home": "ダウンロードする前に、1 ページ目を翻訳先の言語で確認できます。",
+      "pdf": "編集できる Word ファイルと、元のファイルと同じ見た目の PDF を受け取れます。ダウンロード前に 1 ページ目を確認できます。",
+      "documents": "翻訳されたファイルは、アップロードしたときと同じ形式で届きます。ダウンロード前に確認できます。"
+    },
+    "errors": {
+      "languages": "言語を読み込めませんでした。",
+      "noFile": "まずドキュメントを追加してください。",
+      "noTarget": "翻訳先の言語を選んでください。"
+    },
+    "drop": {
+      "title": "ここにドキュメントをドロップするか、ファイルを選択",
+      "hint": "PDF、Word、PowerPoint、Excel など。最大 {size}。",
+      "hintSignedIn": "PDF、Word、PowerPoint、Excel など。1 ファイル最大 {size}、1 回の翻訳につき {files, plural, other {# ファイル}}まで。"
+    },
+    "file": {
+      "remove": "削除",
+      "change": "変更"
+    },
+    "onlyFirstFile": "無料の翻訳では一度に 1 ファイルまでのため、<file/> を残しました。<a>ログイン</a>すると、最大 {count, plural, other {# ファイル}}をまとめて送れます。",
+    "from": "翻訳元",
+    "fromPlaceholder": "言語を入力",
+    "into": "翻訳先",
+    "intoPlaceholder": "言語を入力（例：英語）",
+    "submit": "翻訳する",
+    "submitting": "アップロード中…",
+    "scanNote": "スキャンした PDF（ページが画像のもの）は Word ファイルで届きます。",
+    "moreLanguages": "{max, plural, other {# 言語}}より多く必要ですか？wxrks プラットフォームなら、1 つのプロジェクトですべての言語に翻訳できます。<a>wxrks を無料で始める</a>"
+  },
+  "freeUsed": {
+    "title": "本日の無料ドキュメントは使用済みです",
+    "body": "{when, select, hours {あと {hours, plural, other {# 時間}}で、{amount}までの新しい無料ドキュメントを翻訳できます。} other {明日、新しい無料ドキュメントを翻訳できます。}}このファイルを今すぐ翻訳しますか？{offer, select, signup {登録すると {credit} 分のクレジット（{creditAmount}）を受け取れます。} other {{packAmount}は {price} の 1 回払いです。}}",
+    "buyPack": "{words, number} 語を {price} で購入",
+    "allPacks": "すべてのワードパックを見る"
+  },
+  "platform": {
+    "memory": {
+      "label": "メモリ",
+      "title": "翻訳メモリ",
+      "note": "過去の翻訳を文ごとに再利用できます。wxrks プラットフォームで使える機能です。"
+    },
+    "glossary": {
+      "label": "用語集",
+      "title": "用語集",
+      "note": "すべてのファイルで用語を統一できます。wxrks プラットフォームで使える機能です。"
+    },
+    "history": {
+      "label": "過去のファイル",
+      "title": "過去の翻訳",
+      "note": "これまでに翻訳したすべてのファイルを 1 か所で確認できます。wxrks プラットフォームで使える機能です。"
+    },
+    "cta": "wxrks を無料で始める"
+  },
+  "tone": {
+    "preset": {
+      "auto": {
+        "label": "自動",
+        "hint": "Sous-Chef がドキュメントを読み、そのトーンに合わせます。"
+      },
+      "formal": {
+        "label": "フォーマル",
+        "hint": "改まった正確な文体。言語に丁寧な二人称（vous、Sie など）があれば、それを使います。"
+      },
+      "friendly": {
+        "label": "フレンドリー",
+        "hint": "温かく平易な文体。言語にくだけた二人称（tu、du など）があれば、それを使います。"
+      },
+      "marketing": {
+        "label": "マーケティング",
+        "hint": "その言語で書かれたコピーのように読めます。主張や数字は正確なままです。"
+      },
+      "legal": {
+        "label": "法務",
+        "hint": "原文に忠実で逐語的。定義された用語は常に同じ訳語を使います。"
+      },
+      "technical": {
+        "label": "技術",
+        "hint": "明確で正確。製品名、単位、コードはそのまま残します。"
+      }
+    },
+    "withNote": "{label} ·「{note}」",
+    "pill": "トーン：<b>{label}</b>{note, select, yes { + メモ} other {}}",
+    "dialogLabel": "トーン",
+    "question": "どのようなトーンにしますか？",
+    "byline": "Sous-Chef（wxrks のトーンエージェント）",
+    "noteLabel": "Sous-Chef に伝えておきたいこと",
+    "notePlaceholder": "ほかにありますか？例：「10 代向け」",
+    "done": "完了"
+  },
+  "trust": {
+    "g2Alt": "G2 Leader、2026 年秋",
+    "madeBy": "<a>wxrks</a> が開発",
+    "about": "翻訳に携わって 20 年。当社の翻訳プラットフォームは G2 Leader に選ばれ、SOC 2 Type 2 の監査を受けています。",
+    "security": "ファイルの保護について"
+  },
+  "picker": {
+    "count": "{count, number}/{max, number}",
+    "upTo": "最大 {max, number} 言語",
+    "full": "{max, plural, other {# 言語（1 ファイルの上限）}}",
+    "addAnother": "言語を追加",
+    "remove": "{language}を削除"
+  },
+  "progress": {
+    "received": {
+      "label": "{files, plural, other {# ファイルを受信しました}}",
+      "active": "ファイルを受信しています"
+    },
+    "ocr": {
+      "label": "スキャンしたページの文字を読み取りました",
+      "detail": "{pages, plural, other {# ページを読み取り}}"
+    },
+    "convert": {
+      "label": "編集できる Word 版を作成しました",
+      "reader": "自社開発のリーダーで読み取り",
+      "active": "PDF の Word 版を作成しています",
+      "todo": "PDF の Word 版",
+      "sub": "Word で編集できるバージョンです。",
+      "pages": "{pages, plural, other {# ページ}}",
+      "converted": "PDF から変換"
+    },
+    "count": {
+      "label": "語数をカウントしました",
+      "active": "語数をカウントしています",
+      "todo": "語数のカウント",
+      "sub": "短いドキュメントなら、通常 1 分以内です。"
+    },
+    "sample": {
+      "picked": "{range, select, span {{first, number}〜{last, number} ページを無料サンプルに選びました} single {{first, number} ページ目を無料サンプルに選びました} other {無料サンプルのページを選びました}}",
+      "picking": "無料サンプルのページを選んでいます",
+      "pickedDetail": "このファイルは無料の {amount}を超えているため、まずこれらのページをお見せします",
+      "prepared": "{range, select, span {{first, number}〜{last, number} ページを準備しました} single {{first, number} ページ目を準備しました} other {サンプルのページを準備しました}}",
+      "preparing": "{range, select, span {{first, number}〜{last, number} ページを準備しています} single {{first, number} ページ目を準備しています} other {サンプルのページを準備しています}}",
+      "prepSub": "サンプルのテキストとレイアウトを読み取っています。",
+      "translated": "{range, select, span {{first, number}〜{last, number} ページを{language}に翻訳しました} single {{first, number} ページ目を{language}に翻訳しました} other {サンプルのページを{language}に翻訳しました}}",
+      "translating": "{range, select, span {{first, number}〜{last, number} ページを{language}に翻訳しています} single {{first, number} ページ目を{language}に翻訳しています} other {サンプルのページを{language}に翻訳しています}}",
+      "translateSub": "サンプル全体を文脈として翻訳します。",
+      "layoutLabel": "元のページに配置しました",
+      "layoutTodo": "新しい言語になったページ",
+      "readyLabel": "サンプル",
+      "readyActive": "サンプルを開いています",
+      "readyTodo": "ページごとのサンプル"
+    },
+    "credits": {
+      "label": "クレジットで支払いました",
+      "detail": "{credits, plural, other {# クレジット}}"
+    },
+    "tone": {
+      "label": "トーンを設定しました",
+      "active": "トーンを設定しています",
+      "todo": "トーン"
+    },
+    "translate": {
+      "label": "{language}に翻訳しました",
+      "active": "{language}に翻訳しています",
+      "todo": "{language}への翻訳",
+      "sub": "最も時間のかかるステップです。タブを閉じても大丈夫です。ファイルはメールで届きます。",
+      "detail": "ドキュメント全体を文脈として使用"
+    },
+    "layout": {
+      "label": "翻訳を元のページに配置しました",
+      "wordOnly": "このファイルは Word ファイルのみ",
+      "active": "翻訳を元のページに配置しています",
+      "todo": "元のファイルと同じ見た目の PDF",
+      "sub": "翻訳を元のページに描画しています。",
+      "failed": "デザインを再現できませんでした"
+    },
+    "ready": {
+      "label": "ファイルの準備ができました",
+      "active": "ファイルを準備しています",
+      "todo": "ダウンロードできるファイル"
+    },
+    "earlier": "前回",
+    "almostDone": "まもなく完了",
+    "usuallyUnderMinute": "通常 1 分以内",
+    "usuallyMinutes": "通常約 {minutes, plural, other {# 分}}",
+    "listLabel": "完了したステップ",
+    "srDone": "（完了）",
+    "srActive": "（処理中）"
+  },
+  "job": {
+    "notFound": "この翻訳が見つかりませんでした。",
+    "yourDocument": "ドキュメント",
+    "fileCount": "{count, plural, other {# ファイル}}",
+    "privacy": "ファイルは非公開のまま保管され、30 日後に削除されます。",
+    "cancel": "キャンセル",
+    "toneBySousChef": "{tone}（Sous-Chef による）",
+    "noText": {
+      "language": "この PDF はスキャンされたもので、この言語のスキャンページはまだ読み取れません。テキストを選択できるファイルでお試しください。",
+      "scanned": "この PDF はスキャンされたもので、ページから文字を読み取れませんでした。より鮮明にスキャンしたファイルか、テキストを選択できるファイルでお試しください。",
+      "generic": "このファイルにはテキストが見つかりませんでした。テキストを選択できるファイルでお試しください。"
+    },
+    "stopped": {
+      "noTextTitle": "翻訳するテキストが見つかりませんでした",
+      "cancelledTitle": "キャンセルしました",
+      "failedTitle": "問題が発生しました",
+      "noTextBody": "{reason}今回は無料ドキュメントの回数に含まれません。",
+      "cancelledBody": "この翻訳では、これ以上何も翻訳されません。",
+      "failedBody": "翻訳が完了しませんでした。もう一度お試しいただくか、当社からのメールのいずれかに返信してください。担当者が確認します。"
+    },
+    "gated": {
+      "titlePreview": "1 ページ目が完成しました。ファイルをどこに送りますか？",
+      "title": "翻訳が完成しました。どこに送りますか？",
+      "bodyEmail": "すぐにダウンロードできます。あとで見つけられるよう、リンクもメールでお送りします。",
+      "body": "すぐにダウンロードできます。",
+      "footnote": "無料：1 日 1 ドキュメント。カード登録もサブスクリプションも不要です。wxrks は SOC 2 Type 2 の監査を受けており、ファイルは 30 日後に削除されます。"
+    },
+    "email": {
+      "sendFiles": "ファイルを受け取る",
+      "news": "wxrks の製品ニュースも受け取る（月 1 回程度）",
+      "privacy": "メールアドレスはこれらのファイルの送信に使います。製品ニュースは、チェックを入れた場合のみお送りします。"
+    },
+    "delivered": {
+      "title": "翻訳が完成しました",
+      "tone": "トーン：{tone}",
+      "alsoSent": "リンクは {email} にもお送りしました。",
+      "scanned": "{pages, plural, other {この PDF はスキャンされたものなので、まず # ページから文字を読み取りました。お届けするのは Word ファイルです。スキャンからは、元のデザインのままの PDF はまだ作成できません。}}",
+      "languagesTabs": "言語",
+      "useNow": "今すぐ使う",
+      "nothing": "この言語では何も返ってきませんでした。",
+      "downloadLanguage": "すべてダウンロード（{language}、ZIP）",
+      "hideFlags": "非表示にする",
+      "showFlags": "{count, plural, other {確認が必要な # 文を見る}}",
+      "beta": "ベータ版：元のデザインのままの PDF は、元のページに似たフォントで翻訳を描き直したものです。共有する前にご確認ください。編集には Word ファイルをお使いください。"
+    },
+    "variant": {
+      "design": "元のファイルと同じ見た目",
+      "images": "1 ページ 1 画像で、どこで印刷しても同じ仕上がり",
+      "word": "Word で編集",
+      "same": "アップロードしたときと同じ形式"
+    },
+    "next": {
+      "title": "次のファイルは？",
+      "body": "{account, select, user {明日、{amount}までの次の無料ドキュメントを翻訳できます。今日続けるには、語数をご購入ください（1 回払い）。} other {明日、{amount}までの次の無料ドキュメントを翻訳できます。今日続けるには、登録して {credit} 分のクレジット（{creditAmount}）をお受け取りください。}}",
+      "teams": "チーム向けの wxrks を見る"
+    },
+    "card": {
+      "firstFree": "無料：初めてのドキュメント",
+      "freeToday": "無料：本日分のドキュメント、{amount}まで",
+      "paid": "クレジットで支払い：{credits, number}",
+      "paidLater": "語数のカウント後にクレジットで支払い",
+      "balance": "アカウント残高：{amount}",
+      "deleted": "30 日後に削除",
+      "byEmailTitle": "ファイルはメールで届きます",
+      "byEmailBody": "準備ができたら {email} にお送りします。このタブは閉じてもかまいません。",
+      "askTitle": "ファイルをメールで受け取る",
+      "askBody": "メールアドレスを入力して、タブを閉じてください。準備ができたらファイルをお送りします。",
+      "askCta": "メールで受け取る",
+      "hereTitle": "ファイルはここに表示されます",
+      "hereBody": "このタブは開いたままにしてください。準備ができると、このページに表示されます。"
+    },
+    "progress": {
+      "continued": "ファイルが止まったところから再開しました。受信、変換、語数のカウントは前回済んでいるため、再アップロードはしていません。現在、ファイル全体を文脈として、すべてのページを翻訳しています。",
+      "steps": "{total, plural, other {# ステップ中 {done, number} ステップ完了}}",
+      "label": "翻訳の進行状況"
+    },
+    "status": {
+      "done": "完了",
+      "inProgress": "処理中",
+      "sampleReady": "サンプル完成",
+      "ready": "翻訳準備完了",
+      "cancelled": "キャンセル済み",
+      "stopped": "停止"
+    },
+    "severity": {
+      "critical": "重大",
+      "major": "中程度",
+      "minor": "軽微"
+    },
+    "score": {
+      "name": "Confidence Score",
+      "checking": "翻訳をチェックしています…",
+      "reading": "Smells（wxrks の意味の誤りチェック）が、すべての文を読んでいます。",
+      "summary": "Smells（wxrks の意味の誤りチェック）が{sentences, plural, other {全 # 文を読みました}}。{flagged, plural, =0 {確認が必要な箇所は見つかりませんでした。} other {そのうち # 文は再確認をおすすめします。}}",
+      "part": {
+        "clean": "{count, plural, other {問題なし # 文}}",
+        "minor": "{count, plural, other {軽微 # 文}}",
+        "major": "{count, plural, other {中程度 # 文}}",
+        "critical": "{count, plural, other {重大 # 文}}"
+      },
+      "line": "Confidence Score {score}",
+      "lineFlagged": "{count, plural, =0 {確認が必要な箇所なし} other {再確認をおすすめする文 # 件}}"
+    },
+    "flagged": {
+      "original": "原文：<text/>",
+      "showing": "{count, number} 件中 {shown, number} 件を、重大なものから順に表示しています。",
+      "disclaimer": "高いスコアは品質を保証するものではありません。契約書、医療文書、公開する文章は、人による確認を受けてください。"
+    },
+    "thumbs": {
+      "question": "この翻訳はお役に立ちましたか？",
+      "yes": "はい",
+      "no": "いまひとつ",
+      "upLabel": "ありがとうございます！ほかにお伝えいただきたいことはありますか？（任意）",
+      "downLabel": "申し訳ありません。何が問題でしたか？（任意）",
+      "thanks": "ありがとうございます。すべてのコメントに担当者が目を通します。"
+    },
+    "review": {
+      "eyebrow": "人によるチェック",
+      "title": "{count, plural, =0 {翻訳者がファイル全体をレビュー} other {翻訳者が # 文、またはファイル全体をレビュー}}",
+      "intro": "{partners, select, yes {契約書、医療文書、公開するあらゆる文章に最適です。以下のパートナーは、wxrks で{language}への翻訳を担当しています。} other {契約書、医療文書、公開するあらゆる文章に最適です。}}",
+      "finding": "{language}の翻訳者を探しています…",
+      "ask": "レビューを依頼",
+      "find": "{language}の翻訳者を探す",
+      "footer": "パートナーは各自で料金を設定し、メールで返信します。Premium Partner が最初に表示され、その後は毎回異なる組み合わせで表示されます。<a>すべてのパートナーを見る</a>"
+    },
+    "download": {
+      "all": "{count, plural, other {# ファイルをダウンロード}}",
+      "one": "ファイルをダウンロード",
+      "zip": "{several, select, yes {1 つの ZIP（言語ごとのフォルダー）} other {1 つの ZIP}}"
+    },
+    "preview": {
+      "original": "原文",
+      "altOriginal": "元のドキュメントの {page, number} ページ目",
+      "altTranslated": "{language}に翻訳された {page, number} ページ目",
+      "fullSize": "フルサイズで開く"
+    },
+    "sample": {
+      "range": "{span, select, yes {{hasTotal, select, yes {{first, number}〜{last, number} ページ（全 {total, number} ページ）} other {{first, number}〜{last, number} ページ}}} other {{hasTotal, select, yes {{first, number} ページ目（全 {total, number} ページ）} other {{first, number} ページ目}}}}",
+      "translating": "{pages, plural, other {仕上がりを確認できるよう、# ページを翻訳しています…}}",
+      "progressLabel": "サンプルの翻訳",
+      "caption": "{hasTone, select, yes {{range}を無料で翻訳しました（トーン：{tone}）。ダウンロードは、ファイル全体の翻訳とともにお届けします。} other {{range}を無料で翻訳しました。ダウンロードは、ファイル全体の翻訳とともにお届けします。}}",
+      "page": "{hasTotal, select, yes {{page, number} / {total, number} ページ} other {{page, number} ページ}}",
+      "viewLabel": "ページの表示方法",
+      "sideBySide": "並べて表示",
+      "only": "{language}のみ（拡大）",
+      "previous": "前へ",
+      "next": "次のページ"
+    },
+    "pages": {
+      "translated": "{total, plural, other {# ページ中 {done, number} ページを翻訳済み}}",
+      "toGo": "{count, plural, other {残り # ページ}}",
+      "barLabel": "翻訳済みのページ"
+    },
+    "over": {
+      "notNow": "今回は見送りますか？",
+      "shorter": "短いファイルを無料で翻訳",
+      "shorterShort": "短いファイル",
+      "buyFrom": "{price} から語数を購入",
+      "team": "チームアカウント",
+      "nextSample": "次は、ページごとのサンプルです。",
+      "inFull": "このファイル全体を翻訳しています",
+      "seeWhole": "翻訳全体を見る",
+      "readyAll": "{hasTotal, select, yes {全 {total, plural, other {# ページ}}を翻訳する準備ができました} other {ファイル全体を翻訳する準備ができました}}",
+      "translateAll": "{hasTotal, select, yes {全 {total, plural, other {# ページ}}を翻訳} other {ファイル全体を翻訳}}",
+      "translateAllFor": "{hasTotal, select, yes {全 {total, plural, other {# ページ}}を {price} で翻訳} other {ファイル全体を {price} で翻訳}}",
+      "needsCredits": "{credits, plural, other {このファイルには # クレジットが必要です}}",
+      "uses": "{languages}に翻訳します。{balance, plural, other {# クレジット}}のうち {credits, number} クレジットを使用し、{restWords, plural, other {{rest}がアカウントに残ります。}}",
+      "short": "{fits, select, yes {アカウントの残高は {amount}です。{pack}のワードパックで足ります。お支払い後、再アップロードなしで、ここから翻訳が始まります。} other {アカウントの残高は {amount}です。お支払い後、再アップロードなしで、ここから翻訳が始まります。}}",
+      "typeEmail": "メールアドレスを入力して、完全なファイルをダウンロード",
+      "allIn": "{hasTotal, select, yes {全 {total, plural, other {# ページ}}を{languages}で。} other {ファイル全体を{languages}で。}}",
+      "signupSub": "{restPack, select, yes {メールアドレスで無料登録すると、アカウントに最初から {amount}が入っています。残りの {rest, number} 語は {price} のワードパックでまかなえます。} other {メールアドレスで無料登録すると、アカウントに最初から {amount}が入っています。}}",
+      "getComplete": "完全なファイルを受け取る",
+      "signupFree": "無料で登録",
+      "expired": "リンクの有効期限が切れました。メールアドレスをもう一度入力していただければ、新しいリンクをお送りします。",
+      "sampled": "{alsoFree, select, yes {{total, plural, other {# ページ中 {sampled, number} ページを翻訳しました。}}残りの {left, number} ページも無料です。} other {{total, plural, other {# ページ中 {sampled, number} ページを翻訳しました。}}}}",
+      "picking": "仕上がりを確認できるよう、翻訳するページを選んでいます…",
+      "byEmail": "翻訳済みファイルをメールでお届け",
+      "free": "無料",
+      "freeLeft": "無料。さらに約 {pages, plural, other {# ページ}}分が次のファイル用に残ります",
+      "payRest": "無料で登録し、残りの分だけお支払い",
+      "deleted": "ファイルは 30 日後に削除されます",
+      "allFree": "{hasTotal, select, yes {全 {total, plural, other {# ページ}}を無料で} other {ファイル全体を無料で}}",
+      "stickyNote": "{toGo, select, yes {残り {left, plural, other {# ページ}}。カードもパスワードも不要です。} other {カードもパスワードも不要です。}}",
+      "stickyNoteRest": "無料で登録すれば、残りはワードパックでまかなえます。"
+    },
+    "needs": {
+      "title": "クレジットが足りません",
+      "body": "{known, select, yes {この翻訳には {credits, plural, other {# クレジット}}（{pages}）が必要ですが、アカウントの残高は {amount}です。料金は発生していません。} other {この翻訳には、アカウントの残高より多くのクレジットが必要です。料金は発生していません。}}",
+      "see": "翻訳を見る",
+      "translateNow": "今すぐ翻訳"
+    }
+  },
+  "offer": {
+    "sendFailed": "メールを送信できませんでした。しばらくしてからもう一度お試しください。",
+    "sentTitle": "受信トレイをご確認ください",
+    "sentBody": "{email} にリンクをお送りしました。{minutes, plural, other {# 分}}以内にクリックすると、ファイル全体の翻訳が始まり、準備ができしだいファイルをメールでお送りします。",
+    "emailLabel": "メールアドレス",
+    "noCard": "カードもパスワードも不要です。メールでリンクをお送りします。",
+    "stickyLabel": "ファイル全体を翻訳"
+  },
+  "packs": {
+    "covers": "このファイルに足ります",
+    "pages": "（{about}）",
+    "opening": "開いています…",
+    "buyFor": "{price} で購入",
+    "howCredits": "1 回払いで、サブスクリプションはありません。1 クレジットは原文の 1 語を 1 つの言語に翻訳する分なので、{file, number} 語のファイルを {languages, plural, other {# 言語}}に翻訳すると {credits, number} クレジットを使います。",
+    "byEmail": "オンライン決済はまもなく利用できるようになります。それまでは、パックを選ぶと <a>{email}</a> 宛てのメールが開きます。語数は当社がアカウントに追加します。"
+  },
+  "pricing": {
+    "title": "語数を購入",
+    "intro": "ドキュメント全体を、必要なだけの言語に翻訳できます。元のデザインのままの PDF、Word ファイル、選んだトーンもそのままです。",
+    "balance": "<b>残高は {words, plural, other {# 語}}</b>{hasPages, select, yes {<muted>（{about}）</muted>} other {}}です。",
+    "newHereBody": "何も購入しなくても、{amount}分を使えます。",
+    "signUp": "登録",
+    "freeDaily": "毎日無料：{amount}までのドキュメントを 1 つ。"
+  },
+  "thanks": {
+    "notFound": "この支払いが見つかりませんでした。",
+    "lateTitle": "お支払いが完了しました",
+    "lateBody": "語数がアカウントに反映されるまで、通常より時間がかかっています。領収書のメールに返信していただければ、担当者が追加します。",
+    "adding": "語数を追加しています…",
+    "paid": "支払い済み",
+    "inAccount": "{words, plural, other {{amount}がアカウントに入りました}}",
+    "signedInAs": "{email} でログインしています。",
+    "translateMine": "今すぐファイルを翻訳",
+    "translateOne": "ドキュメントを翻訳",
+    "hasAccount": "{email} のアカウントはすでにあります。購入した語数を使うには、このアドレスでログインしてください。",
+    "linkSent": "{email} にログインリンクをお送りしました。",
+    "sendLink": "ログインリンクをメールで受け取る",
+    "uploadAgain": "翻訳するには、ファイルをもう一度アップロードしてください。"
+  },
+  "login": {
+    "title": "ログインまたは登録",
+    "intro": "パスワードは不要です。メールでお送りするリンクから、ログインまたはアカウントの作成ができます。",
+    "expired": "このリンクは有効期限が切れているか、すでに使用されています。新しいリンクをリクエストしてください。",
+    "newHereBody": "{words}分で、リンクをクリックするとすぐにアカウントに追加されます。",
+    "sentBody": "{email} にリンクをお送りしました。有効期間は {minutes, plural, other {# 分}}です。",
+    "sentCredit": "新規アカウントの場合は、リンクをクリックすると {amount} 分のクレジット（{words}）がすぐに使えます。",
+    "submit": "リンクをメールで受け取る"
+  },
+  "account": {
+    "signInFirst": "アカウントを見るには<a>ログイン</a>してください。",
+    "title": "アカウント",
+    "balanceLabel": "アカウントの語数",
+    "creditRule": "1 クレジットで、原文の 1 語を 1 つの言語に翻訳できます。",
+    "history": "履歴",
+    "kind": {
+      "purchase": "購入",
+      "charge": "翻訳",
+      "refund": "返金",
+      "grant": "wxrks が追加",
+      "signup": "登録特典クレジット"
+    }
+  },
+  "jobs": {
+    "signInFirst": "翻訳一覧を見るには<a>ログイン</a>してください。",
+    "empty": "まだ翻訳はありません。<a>何か翻訳してみましょう</a>。",
+    "languages": "{source} → {targets}",
+    "status": {
+      "inProgress": "処理中",
+      "delivered": "完了",
+      "failed": "停止",
+      "cancelled": "キャンセル済み",
+      "over_free_limit": "翻訳準備完了",
+      "needs_credits": "クレジット不足",
+      "no_text": "テキストなし"
+    }
+  },
+  "feedback": {
+    "expired": "このリンクは有効期限が切れています。",
+    "upTitle": "お役に立ててうれしいです。ありがとうございます。",
+    "downTitle": "うまくいかず申し訳ありません。お知らせいただきありがとうございます。",
+    "up": "うまくいった",
+    "down": "問題があった",
+    "thanks": "承知しました。すべてのコメントに担当者が目を通します。",
+    "upLabel": "ほかにお伝えいただきたいことはありますか？（任意）",
+    "downLabel": "何が問題でしたか？（任意）"
+  },
+  "activity": {
+    "pill": "<b>{words, plural, other {# 語}}</b>を{from}から{to}に翻訳{when, select, moments { · たった今} minutes { · 数分前} today { · 今日} other {}}",
+    "close": "閉じる"
+  }
+}

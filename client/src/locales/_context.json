@@ -18,8 +18,8 @@
   "common.pdfFiles": "A checklist item: what a PDF comes back as.",
 
   "creditAdded.text": "Notice after a new account is made. {amount} is a price ('$18'); {balance} is a word count with pages, e.g. '20,000 words (about 80 pages)'. <strong> is the first sentence in bold.",
-  "suggest.text": "Shown, in YOUR language, to visitors whose browser prefers your language while they read the English site. Name your own language: e.g. es 'Esta página también está disponible en español.'",
-  "suggest.accept": "Button on that notice: switch the page to your language. Name your language: e.g. es 'Ver en español'.",
+  "suggest.text": "Shown, in your language, to visitors whose browser prefers your language while they read the English site. {language} is your language's own name as it reads inside a sentence (español, français, Deutsch, 日本語).",
+  "suggest.accept": "Button on that notice: opens the page in your language. {language} as above.",
   "suggest.dismiss": "Always shown in English (the visitor is on the English page). Translate it anyway, for completeness.",
   "suggest.label": "Screen-reader name of that notice.",
   "footer.credits": "Footer. 'wxrks Translate' is the product name; AGPL-3.0 is a license name. <company> links to wxrks.com, <repo> to the source code.",

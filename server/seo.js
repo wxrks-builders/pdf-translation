@@ -6,8 +6,8 @@
  *
  * Every landing page exists once per language (LOCALIZATION.md): /pdf in English, /es/pdf in
  * Spanish... Each is rendered in its language (<html lang dir>, the `seo` messages of
- * client/src/locales/<locale>.json, the same files the app reads) and lists all its language
- * versions with hreflang, English as x-default.
+ * client/src/locales/<locale>.json, the same files the app reads) and lists its public language
+ * versions with hreflang, English as x-default ("public" in _languages.json: the review gate).
  */
 const fs = require("fs");
 const path = require("path");
@@ -21,6 +21,12 @@ const LOCALES_DIR = path.join(__dirname, "..", "client", "src", "locales");
 const config = JSON.parse(fs.readFileSync(path.join(LOCALES_DIR, "_languages.json"), "utf8"));
 const DEFAULT = config.languages.find((l) => l.code === config.default);
 const byPrefix = new Map(config.languages.filter((l) => l.path).map((l) => [l.path, l]));
+
+// The review gate (LOCALIZATION.md, Review): only the languages in "public" get hreflang and
+// sitemap entries. The others still render in their language for reviewers who open them by
+// address (/es/pdf), marked noindex so search engines leave them alone until they go public.
+const PUBLIC = new Set([config.default, ...(config.public || [])]);
+const isPublic = (lang) => PUBLIC.has(lang.code);
 
 // Landing page paths (without a language prefix) → their messages: seo.<key>.title, .description,
 // .heading (the same heading the app shows, client/src/pages/Upload.jsx) and .intro.
@@ -64,7 +70,9 @@ function render(clientDist, pagePath) {
   const page = landing ? split.page : "/";
   const url = absolute(page, lang);
   const t = (field) => text(lang, key, field);
-  const versions = landing ? config.languages.filter((l) => translated(l, key)) : [];
+  // A page offered in one language only needs no alternates.
+  const offered = landing ? config.languages.filter((l) => isPublic(l) && translated(l, key)) : [];
+  const versions = offered.length > 1 ? offered : [];
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "WebApplication",
@@ -80,6 +88,7 @@ function render(clientDist, pagePath) {
     `<title>${escape(t("title"))}</title>`,
     `<meta name="description" content="${escape(t("description"))}" />`,
     `<link rel="canonical" href="${url}" />`,
+    ...(isPublic(lang) ? [] : [`<meta name="robots" content="noindex" />`]),
     ...versions.map((l) => `<link rel="alternate" hreflang="${l.code}" href="${absolute(page, l)}" />`),
     ...(versions.length ? [`<link rel="alternate" hreflang="x-default" href="${absolute(page, DEFAULT)}" />`] : []),
     `<meta property="og:type" content="website" />`,
@@ -111,10 +120,11 @@ function robots(req, res) {
   res.type("text/plain").send(`User-agent: *\nAllow: /\nDisallow: /api/\n${disallow.join("\n")}\n\nSitemap: ${ORIGIN}/sitemap.xml\n`);
 }
 
-// Every language version of every landing page, each with all its alternates.
+// Every public language version of every landing page, each with all its alternates.
 function sitemap(req, res) {
   const urls = Object.entries(PAGES).flatMap(([page, key]) => {
-    const versions = config.languages.filter((l) => translated(l, key));
+    const versions = config.languages.filter((l) => isPublic(l) && translated(l, key));
+    if (versions.length < 2) return versions.map((l) => `  <url>\n    <loc>${absolute(page, l)}</loc>\n  </url>`);
     const alternates = [
       ...versions.map((a) => `    <xhtml:link rel="alternate" hreflang="${a.code}" href="${absolute(page, a)}"/>`),
       `    <xhtml:link rel="alternate" hreflang="x-default" href="${absolute(page, DEFAULT)}"/>`,

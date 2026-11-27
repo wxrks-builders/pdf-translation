@@ -54,14 +54,17 @@ when a decision changes.
   `/es/`, `/fr/`, `/de/`, `/it/`, `/sv/`, `/ar/`, `/zh-cn/`, `/ja/`, `/ko/` (`/es/pdf`,
   `/es/jobs/…`). Links inside the app keep the current prefix (`client/src/i18n/routing.jsx`).
 - The server renders each landing page in its language: `<html lang dir>`, title, description,
-  self-referencing canonical, `og:locale`, hreflang for every language plus `x-default` (English),
-  and the heading inside `#root` (`server/seo.js`, from the `seo` messages). The sitemap lists every
-  language version with its alternates; robots.txt keeps the private pages out in every language.
+  self-referencing canonical, `og:locale`, hreflang for every public language plus `x-default`
+  (English), and the heading inside `#root` (`server/seo.js`, from the `seo` messages). The
+  sitemap lists every public language version with its alternates; a language that isn't public
+  yet renders for reviewers with `noindex` (see Review). robots.txt keeps the private pages out in
+  every language.
 - The visitor's choice is the `wx_locale` cookie (a year). Addresses without a prefix (links in
   emails, Stripe's return, sign-in links) open in the saved language. Visiting a prefixed page
   saves it; picking English in the switcher saves English.
-- The switcher is in the footer of every page: each language in its own name, linking to the
-  same page (query string kept), so a picked file or typed email stays.
+- The switcher is in the footer of every page: each public language in its own name, plus the
+  one on screen, linking to the same page (query string kept), so a picked file or typed email
+  stays. With only English public there is nothing to switch to, so no switcher.
 
 ## Never translate
 
@@ -140,9 +143,36 @@ from a business tool:
 
 ## Review
 
+### The gate
+
+- `"public"` in `client/src/locales/_languages.json` lists the languages offered to everyone:
+  the footer switcher, the language suggestion, hreflang and the sitemap. Today it is `["en"]`.
+- Every other language still opens by its address, for reviewers: `/pt-br/pdf`, `/es/pdf`,
+  `/fr/pdf`, `/de/pdf`, `/it/pdf`, `/sv/pdf`, `/ar/pdf`, `/zh-cn/pdf`, `/ja/pdf`, `/ko/pdf`, and the
+  same prefix in front of any page (`/es/pricing`, `/es/login`, `/es/documents`, a job's
+  `/es/jobs/…`). Those pages carry `noindex`, and their footer offers English and the language on
+  screen.
+- A language goes live with one line, as soon as its reviewer approves it:
+  `"public": ["en", "es"]`, or all ten:
+  `"public": ["en", "pt-BR", "es", "fr", "de", "it", "sv", "ar", "zh-CN", "ja", "ko"]`.
+  Merge to main; the deploy does the rest.
+
+### Status
+
+- Translated through wxrks on 2026-11-27 (projects "translate.wxrks.com UI …" in the app's own
+  wxrks account), with a Sous-Chef agent carrying the voice rules and never-translate names above.
+  Every message is `pending review` in `_status.json`; `by` says how it was made:
+  - `wxrks`: as wxrks returned it.
+  - `plural/select sentences`: wxrks's JSON import reads ICU as plain text (it left most `other`
+    branches in English and moved closing braces), so the 60 messages with a plural or select were
+    split into plain sentences, one per plural category the language needs with a sample number
+    (Arabic: zero, one, two, few, many, other), translated by wxrks and rebuilt as ICU.
+  - `name restored` / `placeholder name restored` / `arrow turned for right-to-left`: a
+    never-translate name (Confidence Score, Smells, G2 Leader), a `{placeholder}` or the Arabic
+    jobs-list arrow put back by hand; nothing else was edited.
+- Only a person sets `approved`, with their name in `by`. A fix goes into the language file and
+  its status in the same change.
 - Who approves each language: [name or team per language — to fill in]
-- Every translation in this repository is a draft written by Claude (status `draft` in
-  `_status.json`), not yet read by a person who speaks the language.
 - Always reviewed by a person who speaks the language before going live: prices and payment
   (`units.*`, `packs.*`, `pricing.*`, `freeUsed.*`, `thanks.*`, `job.over.*`, `job.needs.*`,
   `job.card.*`), account and security messages (`login.*`, `offer.*`, `errors.*`, `job.email.*`,
@@ -151,8 +181,17 @@ from a business tool:
 
 ### Open questions for each language's reviewer
 
-Raised by the drafts; decide, then update the glossary and the files.
+Decide, then update the glossary and the files.
 
+- All: wxrks had the glossary's definitions but not the glossary itself, so terms drift: "sample"
+  is échantillon (fr), campione (it), Probe and Leseprobe (de), provexemplar (sv) where the
+  glossary says extrait, anteprima, Probe, provsida; "credit" is both 额度 and 积分 in zh-CN; "My
+  jobs" is 自分のジョブ (ja), Mes tâches (fr). Loading the glossary into wxrks before the next run
+  keeps them fixed.
+- All: progress labels ("Picking pages…", "Reading…") came back as infinitives or commands in
+  es, fr, de, sv, ja and ko ("Seleccionar páginas"); they describe something happening now.
+- zh-CN: the language field's example still says "Portuguese" (`upload.intoPlaceholder`);
+  `job.over.translateAllFor` reads "translate into {price}" instead of "for {price}".
 - All: the G2 badge's alt text translates the season ("outono de 2026"); G2 names its reports by
   the northern season, so keeping "Fall 2026" may be better.
 - pt-BR: 0 is singular in Portuguese plural rules, so five messages add a `=0` branch ("0
@@ -162,7 +201,7 @@ Raised by the drafts; decide, then update the glossary and the files.
   code change in `client/src/i18n/format.js`. "socio" for partner may read as co-owner.
 - fr / it: the activity pill is rephrased so articles agree with language names; Italian uses
   "anteprima" for both sample and preview.
-- de: "Probe" for the sample may read as a product sample ("Leseprobe"? "Probeseiten"?); "Credits im
+- de: the suggestion's button reads "In Deutsch ansehen" ("Auf Deutsch ansehen"?). "Probe" for the sample may read as a product sample ("Leseprobe"? "Probeseiten"?); "Credits im
   Wert von 18 $" is long on a button; "Memory" became "Translation Memory" (the card game).
 - sv: "krediter" may read as loan credit.
 - ar: وحدة رصيد for counted credits; dual forms after numbers; buttons use masculine imperatives;
@@ -190,3 +229,8 @@ Raised by the drafts; decide, then update the glossary and the files.
   from the right) instead of the "$" landing on the far side ("$US 9").
 - 2026-11-27: Chinese, Japanese, Korean and Arabic use system fonts after Visual Sans (no web font
   download), with line height 1.7 for body text and no letter-spacing.
+- 2026-11-27: the interface is translated through wxrks, not drafted by the coding agent, and
+  every language waits behind the review gate (`"public"` in `_languages.json`).
+- 2026-11-27: a message never depends on a translator note to come out right, because machine
+  translation doesn't read `_context.json`. The language suggestion names the language through
+  `{language}` ("This page is also available in {language}."), filled with the language's own name.

@@ -23,6 +23,13 @@ const CODES = LOCALES.map((l) => l.code);
 export const isLocale = (code) => CODES.includes(code);
 export const localeInfo = (code) => LOCALES.find((l) => l.code === code) || LOCALES[0];
 
+// The review gate (LOCALIZATION.md, Review): only the languages in "public" in _languages.json
+// are offered to everyone (the switcher, the language suggestion; hreflang and the sitemap on
+// the server). Every language still opens by its address (/es/pdf), so reviewers can read it
+// before it goes live. The pseudo-locale is offered wherever it exists.
+const PUBLIC = new Set([DEFAULT_LOCALE, ...(config.public || []), ...PSEUDO.map((l) => l.code)]);
+export const PUBLIC_LOCALES = LOCALES.filter((l) => PUBLIC.has(l.code));
+
 // Missing keys fall back to English; in development they are listed once per language.
 function reportMissing(locale, messages) {
   const flat = (obj, prefix = "") =>
@@ -94,18 +101,19 @@ export function saveLocale(code) {
   }
 }
 
-// The first language in the browser's list that the app has, or null when that is English or
-// none: what the suggestion offers (never a redirect). Traditional Chinese readers aren't offered
-// Simplified Chinese.
+// The first language in the browser's list that the app offers to everyone, or null when that is
+// English or none: what the suggestion offers (never a redirect). Traditional Chinese readers
+// aren't offered Simplified Chinese.
 export function browserLocale() {
   const wanted = (navigator.languages?.length ? navigator.languages : [navigator.language]).filter(Boolean);
+  const offered = PUBLIC_LOCALES.filter((l) => config.languages.includes(l));
   for (const tag of wanted) {
     const lower = tag.toLowerCase();
-    const exact = LOCALES.find((l) => l.code.toLowerCase() === lower);
+    const exact = offered.find((l) => l.code.toLowerCase() === lower);
     if (exact) return exact.code === DEFAULT_LOCALE ? null : exact.code;
     const base = lower.split("-")[0];
     if (base === "zh" && /-(tw|hk|mo|hant)/.test(lower)) continue;
-    const near = config.languages.find((l) => l.code.toLowerCase().split("-")[0] === base);
+    const near = offered.find((l) => l.code.toLowerCase().split("-")[0] === base);
     if (near) return near.code === DEFAULT_LOCALE ? null : near.code;
   }
   return null;

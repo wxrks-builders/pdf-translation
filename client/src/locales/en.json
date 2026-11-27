@@ -48,8 +48,8 @@
   },
   "suggest": {
     "label": "Language",
-    "text": "This page is also available in English.",
-    "accept": "Switch to English",
+    "text": "This page is also available in {language}.",
+    "accept": "View in {language}",
     "dismiss": "Keep English"
   },
   "footer": {

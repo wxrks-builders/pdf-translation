@@ -1,5 +1,6 @@
 {
   "default": "en",
+  "public": ["en"],
   "languages": [
     { "code": "en", "path": "", "name": "English", "dir": "ltr", "ogLocale": "en_US" },
     { "code": "pt-BR", "path": "pt-br", "name": "Português (Brasil)", "dir": "ltr", "ogLocale": "pt_BR" },

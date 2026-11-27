@@ -4,7 +4,7 @@
 import { forwardRef, useEffect, useState } from "react";
 import { Link as RouterLink, useLocation, useNavigate as useRouterNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import i18n, { DEFAULT_LOCALE, LOCALES, browserLocale, localeInfo, saveLocale, savedLocale } from "./index";
+import i18n, { DEFAULT_LOCALE, LOCALES, PUBLIC_LOCALES, browserLocale, localeInfo, saveLocale, savedLocale } from "./index";
 
 const byPath = new Map(LOCALES.filter((l) => l.path).map((l) => [l.path, l.code]));
 
@@ -66,16 +66,20 @@ export function useLocaleSync() {
   return locale;
 }
 
-// The same page in every language, each in its own name and script. Plain links, so the form on
-// the page keeps what was typed (the route stays mounted) and search engines can follow them.
+// The same page in every language offered to everyone (PUBLIC_LOCALES), plus the one on screen
+// when a reviewer opened it by its address; each in its own name and script. Plain links, so the
+// form on the page keeps what was typed (the route stays mounted) and search engines can follow
+// them. Nothing to switch to, no switcher.
 export function LanguageSwitcher() {
   const { t } = useTranslation();
   const { pathname, search, hash } = useLocation();
   const { locale, path } = splitLocale(pathname);
+  const shown = LOCALES.filter((l) => PUBLIC_LOCALES.includes(l) || l.code === locale);
+  if (shown.length < 2) return null;
   return (
     <nav aria-label={t("footer.languages")} className="mt-3">
       <ul className="flex flex-wrap gap-x-3 gap-y-1.5">
-        {LOCALES.map((l) => (
+        {shown.map((l) => (
           <li key={l.code}>
             <RouterLink
               to={`${localizePath(path, l.code)}${search}${hash}`}
@@ -95,6 +99,15 @@ export function LanguageSwitcher() {
   );
 }
 
+// A language's name in that language, as it reads inside a sentence: "español", "français".
+function ownLanguageName(code) {
+  try {
+    return new Intl.DisplayNames([code], { type: "language" }).of(code.split("-")[0]) || localeInfo(code).name;
+  } catch {
+    return localeInfo(code).name;
+  }
+}
+
 // On an English page, for a browser that prefers another language the app has and a visitor who
 // hasn't chosen: one line in that language offering it. Choosing either way is remembered.
 export function LanguageSuggestion() {
@@ -112,17 +125,20 @@ export function LanguageSuggestion() {
   if (!offer || locale !== DEFAULT_LOCALE) return null;
   const t = i18n.getFixedT(offer);
   const info = localeInfo(offer);
+  // The offered language named in itself ("español", "Deutsch", "日本語"), so the message needs no
+  // translator note: machine translation doesn't read _context.json.
+  const language = ownLanguageName(offer);
   return (
     <div className="mx-auto mt-4 max-w-6xl px-4" lang={offer} dir={info.dir}>
       <div className="wx-alert flex-wrap items-center" role="region" aria-label={t("suggest.label")}>
-        <span className="min-w-0 flex-1">{t("suggest.text")}</span>
+        <span className="min-w-0 flex-1">{t("suggest.text", { language })}</span>
         <span className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <RouterLink
             to={`${localizePath(path, offer)}${search}${hash}`}
             onClick={() => saveLocale(offer)}
             className="wx-button wx-button--primary wx-button--compact no-underline"
           >
-            {t("suggest.accept")}
+            {t("suggest.accept", { language })}
           </RouterLink>
           <button
             type="button"

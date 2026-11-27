@@ -33,6 +33,8 @@ RUN npm ci --omit=dev
 COPY server ./server
 COPY scripts ./scripts
 COPY --from=build /app/client/dist ./client/dist
+# The interface's languages and messages: server/seo.js renders each landing page from them.
+COPY client/src/locales ./client/src/locales
 # SQLite database lives on the persistent volume mounted at /var/data
 VOLUME /var/data
 EXPOSE 3000

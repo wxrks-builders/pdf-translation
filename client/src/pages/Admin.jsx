@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "../i18n/routing";
 import { api } from "../api";
 import { useAuth } from "../context/AuthContext";
 
@@ -42,10 +42,12 @@ export default function Admin() {
     api.adminActivity(days).then(setData).catch((err) => setError(err.status === 404 ? "Not found." : err.message));
   }, [user, days]);
 
-  if (loading) return <p className="text-brand-500">Loading…</p>;
+  // The admin pages stay in English in every language (LOCALIZATION.md), marked so for screen
+  // readers and laid out left to right inside an Arabic page.
+  if (loading) return <p className="text-brand-500" lang="en" dir="ltr">Loading…</p>;
   if (!user) {
     return (
-      <p>
+      <p lang="en" dir="ltr">
         <Link to="/login" className="underline">
           Sign in
         </Link>{" "}
@@ -53,11 +55,11 @@ export default function Admin() {
       </p>
     );
   }
-  if (error) return <p>{error}</p>;
+  if (error) return <p lang="en" dir="ltr">{error}</p>;
 
   const t = data?.totals;
   return (
-    <section className="mx-auto max-w-5xl space-y-4">
+    <section className="mx-auto max-w-5xl space-y-4" lang="en" dir="ltr">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-[22px] font-medium tracking-[-0.3px]">Who used the translator</h1>

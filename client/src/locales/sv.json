@@ -1,0 +1,557 @@
+{
+  "seo": {
+    "home": {
+      "title": "Gratis dokumentöversättare online | wxrks",
+      "description": "Ladda upp en PDF-, Word-, PowerPoint- eller Excel-fil och ladda ner den översatt till över 100 språk. Gratis upp till 2 000 ord (cirka 8 sidor) om dagen.",
+      "heading": "Översätt ett dokument",
+      "intro": "PDF, Word, PowerPoint, Excel och fler format, till över 100 språk."
+    },
+    "pdf": {
+      "title": "Gratis PDF-översättare som bevarar din design | wxrks",
+      "description": "Översätt en PDF till över 100 språk och behåll layouten, teckensnitten och bilderna i Word och PDF. Gratis upp till 2 000 ord (cirka 8 sidor) om dagen.",
+      "heading": "Översätt en PDF och behåll dess design",
+      "intro": "Få en redigerbar Word-fil och en PDF som ser ut som originalet."
+    },
+    "documents": {
+      "title": "Dokumentöversättare för Word, PowerPoint och Excel | wxrks",
+      "description": "Översätt Word-, PowerPoint-, Excel-, PDF-, CSV- och textfiler till över 100 språk i samma format. Gratis upp till 2 000 ord (cirka 8 sidor) om dagen.",
+      "heading": "Översätt Word, PowerPoint, Excel och mer",
+      "intro": "Ladda ner din översatta fil i samma format som du laddade upp den i."
+    }
+  },
+  "nav": {
+    "homeLabel": "wxrks Translate, startsida",
+    "myJobs": "Mina jobb",
+    "account": "Konto",
+    "signOut": "Logga ut",
+    "signIn": "Logga in"
+  },
+  "common": {
+    "loading": "Laddar…",
+    "buyWords": "Köp ord",
+    "getCredits": "Skaffa {amount} i krediter",
+    "newHere": "Ny här? Få {amount} i krediter när du registrerar dig",
+    "openingCheckout": "Öppnar kassan…",
+    "checkoutFailed": "Kassan öppnades inte. Försök igen om en stund.",
+    "translateAnother": "Översätt ett dokument till",
+    "starting": "Startar…",
+    "sending": "Skickar…",
+    "oneMoment": "Ett ögonblick…",
+    "send": "Skicka",
+    "emailLabel": "E-post",
+    "emailPlaceholder": "you@company.com",
+    "pdfFiles": "En Word-fil och en PDF som ser ut som originalet ditt"
+  },
+  "creditAdded": {
+    "text": "<strong>{amount} i krediter har lagts till för att du registrerade dig.</strong> Du har {balance}.",
+    "close": "Stäng"
+  },
+  "suggest": {
+    "label": "Språk",
+    "text": "Den här sidan finns också på {language}.",
+    "accept": "Visa på {language}",
+    "dismiss": "Behåll engelska"
+  },
+  "footer": {
+    "pdf": "PDF-översättare",
+    "documents": "Dokumentöversättare",
+    "credits": "Översättningar av <company>wxrks</company>. wxrks Translate är öppen källkod under AGPL-3.0: <repo>källkod</repo>.",
+    "languages": "Språk"
+  },
+  "units": {
+    "words": "{words, plural, one {# ord} other {# ord}}",
+    "aboutPages": "{pages, plural, one {cirka # sida} other {cirka # sidor}}",
+    "wordsAndPages": "{words, plural, one {# ord} other {# ord}} (cirka {pages, plural, one {# sida} other {# sidor}})",
+    "packLabel": "{price} för {amount}",
+    "perThousand": "{price} per {words, number} ord"
+  },
+  "errors": {
+    "generic": "Något gick fel. Försök igen om en stund.",
+    "invalid_email": "Kontrollera e-postadressen.",
+    "email_send_failed": "E-postmeddelandet skickades inte. Försök igen om en stund.",
+    "checkout_unavailable": "Onlinebetalning är inte tillgänglig just nu.",
+    "unknown_pack": "Det ordpaketet är inte tillgängligt.",
+    "checkout_failed": "Kassan öppnades inte. Försök igen om en stund.",
+    "not_found": "Vi kunde inte hitta det här. Länken kan vara felaktig eller inaktuell.",
+    "no_files": "Lägg till ett dokument först.",
+    "invalid_target_locale": "Ett av språken som ska översättas till är inte tillgängligt. Välj en annan.",
+    "invalid_source_locale": "Dokumentets språk är inte tillgängligt. Välj en annan.",
+    "no_target_locales": "Välj språket du vill översätta till.",
+    "too_many_languages": "{max, plural, one {Upp till # språk per dokument. Använd wxrks-plattformen för mer.} other {Upp till # språk per dokument. Använd wxrks-plattformen för mer.}}",
+    "target_equals_source": "Välj ett annat språk än dokumentets.",
+    "unsupported_file_type": "Den här filtypen kan inte översättas här. Prova en PDF-, Word-, PowerPoint- eller Excel-fil.",
+    "free_tier_one_file": "Den kostnadsfria översättaren hanterar en fil åt gången.",
+    "free_limit_reached": "Den kostnadsfria översättaren tar emot ett dokument om dagen.",
+    "filename_collision": "Två filnamn är för lika för att kunna skiljas åt efter uppladdningen. Byt namn på en och försök igen.",
+    "not_authenticated": "Logga in för att göra detta.",
+    "preview_failed": "Det gick inte att skapa förhandsvisningen.",
+    "preview_only": "Det här är en förhandsvisning och kan därför inte laddas ner.",
+    "expired": "Den här filen raderades efter 30 dagar. Ladda upp den igen.",
+    "rate_limited": "För många försök. Försök igen senare.",
+    "file_too_large": "Den här filen är för stor. Gränsen är {maxMb, number} MB.",
+    "languages_unavailable": "Listan över språk kunde inte läsas in. Försök igen om en stund.",
+    "internal_error": "Något gick fel hos oss. Försök igen om en stund."
+  },
+  "upload": {
+    "landing": {
+      "home": "Se den första sidan på ditt språk innan du laddar ner.",
+      "pdf": "Få en redigerbar Word-fil och en PDF som ser ut som originalet. Se sidan 1 innan du laddar ner.",
+      "documents": "Din fil kommer tillbaka i det format du laddade upp den i. Se det innan du laddar ner."
+    },
+    "errors": {
+      "languages": "Det gick inte att läsa in språken.",
+      "noFile": "Lägg till ett dokument först.",
+      "noTarget": "Välj språket du vill översätta till."
+    },
+    "drop": {
+      "title": "Släpp ett dokument här eller välj en fil",
+      "hint": "PDF, Word, PowerPoint, Excel och mer. Upp till {size}.",
+      "hintSignedIn": "{files, plural, one {PDF, Word, PowerPoint, Excel och mer. Upp till {size}, # fil per jobb.} other {PDF, Word, PowerPoint, Excel och mer. Upp till {size}, # filer per jobb.}}"
+    },
+    "file": {
+      "remove": "Ta bort",
+      "change": "Ändra"
+    },
+    "onlyFirstFile": "{count, plural, one {Den kostnadsfria översättaren hanterar en fil åt gången, så vi behöll <file/>. <a>Logga in</a> för att skicka upp till # fil samtidigt.} other {Den kostnadsfria översättaren hanterar en fil åt gången, så vi behöll <file/>. <a>Logga in</a> för att skicka upp till # filer samtidigt.}}",
+    "from": "Från",
+    "fromPlaceholder": "Skriv ett språk",
+    "into": "Översätt till",
+    "intoPlaceholder": "Skriv ett språk, t.ex. portugisiska",
+    "submit": "Översätt",
+    "submitting": "Laddar upp…",
+    "scanNote": "En skannad PDF (bilder av sidor) kommer tillbaka som en Word-fil.",
+    "moreLanguages": "{max, plural, one {Behöver du fler än # språk? wxrks-plattformen översätter till alla dessa språk i ett och samma projekt. <a>Kom igång gratis i wxrks</a>} other {Behöver du fler än # språk? wxrks-plattformen översätter till alla dessa språk i ett och samma projekt. <a>Kom igång gratis i wxrks</a>}}"
+  },
+  "freeUsed": {
+    "title": "Ditt kostnadsfria dokument för idag har använts",
+    "body": "{when, select, hours {{hours, plural, one {En ny, på upp till {amount}, är klar om # timme.} other {En ny, på upp till {amount}, är klar om # timmar.}}} other {En ny är klar i morgon.}} Vill du ha den här filen nu? {offer, select, signup {Registrera dig och få {credit} i krediter: {creditAmount}.} other {{packAmount} kostar {price}, betalas en gång.}}",
+    "buyPack": "Köp {words, number} ord för {price}",
+    "allPacks": "Se alla ordpaket"
+  },
+  "platform": {
+    "memory": {
+      "label": "Minne",
+      "title": "Översättningsminne",
+      "note": "Återanvänd dina tidigare översättningar, mening för mening. Det ingår i wxrks-plattformen."
+    },
+    "glossary": {
+      "label": "Ordlista",
+      "title": "Ordlista",
+      "note": "Håll dina termer likadana i alla filer. Det ingår i wxrks-plattformen."
+    },
+    "history": {
+      "label": "Tidigare filer",
+      "title": "Tidigare översättningar",
+      "note": "Alla filer du har översatt, på ett och samma ställe. Det ingår i wxrks-plattformen."
+    },
+    "cta": "Börja gratis med wxrks"
+  },
+  "tone": {
+    "preset": {
+      "auto": {
+        "label": "Automatisk",
+        "hint": "Sous-Chef läser ditt dokument och anpassar tonen."
+      },
+      "formal": {
+        "label": "Formell",
+        "hint": "Formell och precis, med formellt tilltal där språket har ett sådant."
+      },
+      "friendly": {
+        "label": "Vänlig",
+        "hint": "Varmt och enkelt, med informellt tilltal där språket har ett sådant."
+      },
+      "marketing": {
+        "label": "Marknadsföring",
+        "hint": "Låter som text skriven på språket. Påståenden och siffror förblir exakta."
+      },
+      "legal": {
+        "label": "Juridiskt",
+        "hint": "Trogen och ordagrann. Definierade termer förblir desamma varje gång."
+      },
+      "technical": {
+        "label": "Tekniskt",
+        "hint": "Tydligt och exakt. Produktnamn, enheter och kod förblir som de är."
+      }
+    },
+    "withNote": "{label} · ”{note}”",
+    "pill": "Ton: <b>{label}</b>{note, select, yes { + anteckning} other {}}",
+    "dialogLabel": "Ton",
+    "question": "Hur ska det låta?",
+    "byline": "Sous-Chef, wxrks tonagent",
+    "noteLabel": "Något annat som Sous-Chef bör känna till?",
+    "notePlaceholder": "Något annat? Till exempel: ”för tonåringar”",
+    "done": "Klart"
+  },
+  "trust": {
+    "g2Alt": "G2 Leader, hösten 2026",
+    "madeBy": "Skapad av <a>wxrks</a>",
+    "about": "20 år inom översättning. Vår översättningsplattform är en G2 Leader och granskas enligt SOC 2 Type 2.",
+    "security": "Så skyddar vi dina filer"
+  },
+  "picker": {
+    "count": "{count, number} av {max, number}",
+    "upTo": "Upp till {max, number}",
+    "full": "{max, plural, one {# språk, det högsta antalet för en fil} other {# språk, flest för en fil}}",
+    "addAnother": "Lägg till ett språk till",
+    "remove": "Ta bort {language}"
+  },
+  "progress": {
+    "received": {
+      "label": "{files, plural, one {Filen har tagits emot} other {# filer mottagna}}",
+      "active": "Tar emot din fil"
+    },
+    "ocr": {
+      "label": "Text som lästs från dina skannade sidor",
+      "detail": "{pages, plural, one {# sida läst} other {# sidor lästa}}"
+    },
+    "convert": {
+      "label": "Redigerbar Word-version skapad",
+      "reader": "Läs av vår egen läsare",
+      "active": "Skapar en Word-version av din PDF",
+      "todo": "En Word-version av din PDF",
+      "sub": "En version som du kan redigera i Word.",
+      "pages": "{pages, plural, one {# sida} other {# sidor}}",
+      "converted": "Konverterad från PDF-filen"
+    },
+    "count": {
+      "label": "Räknade ord",
+      "active": "Räkna ord",
+      "todo": "Ordantal",
+      "sub": "Vanligtvis under en minut för ett kort dokument."
+    },
+    "sample": {
+      "picked": "{range, select, span {Sidorna {first, number} till {last, number} har valts ut till ditt kostnadsfria provexemplar} single {Sidan {first, number} har valts ut till ditt kostnadsfria provexemplar} other {Exempelsidorna som valts ut för ditt kostnadsfria provexemplar}}",
+      "picking": "Välja sidor till ditt kostnadsfria provexemplar",
+      "pickedDetail": "Den här filen överskrider den kostnadsfria gränsen på {amount}, så det här är det första du ser",
+      "prepared": "{range, select, span {Sidorna {first, number} till {last, number} har förberetts} single {Sidan {first, number} har förberetts} other {Exempelsidorna har förberetts}}",
+      "preparing": "{range, select, span {Förbereder sidorna {first, number} till {last, number}} single {Förbereder sida {first, number}} other {Förbereder provets sidor}}",
+      "prepSub": "Läser provets text och layout.",
+      "translated": "{range, select, span {Sidorna {first, number} till {last, number} översatta till {language}} single {Sida {first, number} översatt till {language}} other {Exempelsidorna översatta till {language}}}",
+      "translating": "{range, select, span {Översätter sidorna {first, number} till {last, number} till {language}} single {Översätter sida {first, number} till {language}} other {Översätter provets sidor till {language}}}",
+      "translateSub": "Med hela provet som kontext.",
+      "layoutLabel": "Lägg tillbaka på dina sidor",
+      "layoutTodo": "Dina sidor på det nya språket",
+      "readyLabel": "Ditt prov",
+      "readyActive": "Öppnar ditt provexemplar",
+      "readyTodo": "Ditt prov, sida för sida"
+    },
+    "credits": {
+      "label": "Betalas med dina krediter",
+      "detail": "{credits, plural, one {# kredit} other {# krediter}}"
+    },
+    "tone": {
+      "label": "Din ton är inställd",
+      "active": "Ställa in din ton",
+      "todo": "Din ton"
+    },
+    "translate": {
+      "label": "Översatt till {language}",
+      "active": "Översätter till {language}",
+      "todo": "Översättning till {language}",
+      "sub": "Det längsta steget. Du kan stänga fliken; filerna kommer via e-post.",
+      "detail": "Hela dokumentet som kontext"
+    },
+    "layout": {
+      "label": "Översättningen har lagts tillbaka på dina sidor",
+      "wordOnly": "Endast Word-filen den här gången",
+      "active": "Lägg tillbaka översättningen på dina sidor",
+      "todo": "PDF-filen som ser ut som ditt originalutkast",
+      "sub": "Ritar in översättningen på dina originalsidor.",
+      "failed": "Dess design kunde inte återskapas"
+    },
+    "ready": {
+      "label": "Filerna är klara",
+      "active": "Förbereder dina filer",
+      "todo": "Dina filer är redo att laddas ner"
+    },
+    "earlier": "tidigare",
+    "almostDone": "Nästan klart",
+    "usuallyUnderMinute": "vanligtvis under en minut",
+    "usuallyMinutes": "{minutes, plural, one {vanligtvis cirka # min} other {vanligtvis cirka # min}}",
+    "listLabel": "Vad har gjorts",
+    "srDone": "(klar)",
+    "srActive": "(pågår)"
+  },
+  "job": {
+    "notFound": "Vi kunde inte hitta den här översättningen.",
+    "yourDocument": "Ditt dokument",
+    "fileCount": "{count, plural, one {# fil} other {# filer}}",
+    "privacy": "Din fil förblir privat och raderas efter 30 dagar.",
+    "cancel": "Avbryt",
+    "toneBySousChef": "{tone}, av Sous-Chef",
+    "noText": {
+      "language": "Den här PDF-filen är skannad, och vi kan inte läsa skannade sidor på dess språk än. Prova med en fil där du kan markera texten.",
+      "scanned": "Den här PDF-filen är skannad, och vi kunde inte läsa någon text på sidorna. Prova att skanna skarpare eller använd en fil där du kan markera texten.",
+      "generic": "Vi kunde inte hitta någon text i den här filen. Prova med en fil där du kan markera texten."
+    },
+    "stopped": {
+      "noTextTitle": "Vi kunde inte hitta någon text att översätta.",
+      "cancelledTitle": "Avbruten",
+      "failedTitle": "Något gick fel",
+      "noTextBody": "{reason} Det här räknas inte som ditt kostnadsfria dokument.",
+      "cancelledBody": "Inget mer kommer att översättas för det här jobbet.",
+      "failedBody": "Översättningen slutfördes inte. Försök igen eller svara på något av våra mejl, så tittar en person på det."
+    },
+    "gated": {
+      "titlePreview": "Sida 1 är klar. Vart ska vi skicka filerna?",
+      "title": "Din översättning är klar. Vart ska vi skicka det?",
+      "bodyEmail": "Dina nedladdningar öppnas direkt, och vi mejlar länkarna till dig så att du kan hitta dem senare.",
+      "body": "Dina nedladdningar öppnas direkt.",
+      "footnote": "Gratis: ett dokument om dagen. Inget kort, inget abonnemang. wxrks har granskats enligt SOC 2 Type 2, och din fil raderas efter 30 dagar."
+    },
+    "email": {
+      "sendFiles": "Skicka filerna till mig",
+      "news": "Skicka också produktnyheter från wxrks till mig, ungefär en gång i månaden.",
+      "privacy": "Vi använder din e-postadress för att skicka de här filerna. Produktnyheter endast om du markerar rutan."
+    },
+    "delivered": {
+      "title": "Din översättning är klar",
+      "tone": "Ton: {tone}",
+      "alsoSent": "Vi skickade också länkarna till {email}.",
+      "scanned": "{pages, plural, one {Den här PDF-filen skannades, så vi läste först av texten från sidan. Du får en Word-fil; en PDF där layouten bevaras skapas ännu inte från skanningar.} other {Den här PDF-filen skannades, så vi läste först av texten från dess # sidor. Du får en Word-fil; en PDF där layouten bevaras skapas ännu inte från skanningar.}}",
+      "languagesTabs": "Språk",
+      "useNow": "Använd det nu",
+      "nothing": "Inget resultat för det här språket.",
+      "downloadLanguage": "Ladda ned allt ({language}, ZIP)",
+      "hideFlags": "Dölj dem",
+      "showFlags": "{count, plural, one {Visa meningen som ska kontrolleras} other {Se de # meningarna som ska kontrolleras}}",
+      "beta": "Beta: den designbevarande PDF-filen ritar om översättningen på dina originalsidor med ett liknande typsnitt. Kontrollera den innan du delar; Word-filen är den version du ska redigera."
+    },
+    "variant": {
+      "design": "Det ser ut som ditt originalutkast",
+      "images": "En bild per sida, skrivs ut likadant överallt",
+      "word": "Redigera det i Word",
+      "same": "Samma format som du laddade upp"
+    },
+    "next": {
+      "title": "Nästa fil?",
+      "body": "{account, select, user {Ditt nästa kostnadsfria dokument, på upp till {amount}, är klart i morgon. Köp ord och betala en gång för att fortsätta idag.} other {Ditt nästa kostnadsfria dokument, på upp till {amount}, är klart i morgon. Fortsätt idag genom att registrera dig och få {credit} i krediter: {creditAmount}.}}",
+      "teams": "Se vad wxrks gör för teamen"
+    },
+    "card": {
+      "firstFree": "Gratis: ditt första dokument",
+      "freeToday": "Gratis: ditt dokument för i dag, upp till {amount}",
+      "paid": "Betalas med dina krediter: {credits, number}",
+      "paidLater": "Dras från dina krediter när orden har räknats",
+      "balance": "{amount} på ditt konto",
+      "deleted": "Raderas efter 30 dagar",
+      "byEmailTitle": "Dina filer kommer via e-post",
+      "byEmailBody": "Vi skickar dem till {email} när de är klara. Du kan stänga den här fliken.",
+      "askTitle": "Få filerna via e-post",
+      "askBody": "Lämna din e-postadress och stäng fliken. Vi skickar filerna när de är klara.",
+      "askCta": "Mejla filerna till mig",
+      "hereTitle": "Dina filer visas här",
+      "hereBody": "Håll den här fliken öppen: de visas på den här sidan när de är klara."
+    },
+    "progress": {
+      "continued": "Fortsatte där filen slutade: mottagen, konverterad och räknad tidigare, så inget laddades upp igen. Nu är alla sidor översatta, med hela filen som sammanhang för varje sida.",
+      "steps": "{total, plural, one {{done, number} av # steg klart} other {{done, number} av # steg klara}}",
+      "label": "Översättningsförlopp"
+    },
+    "status": {
+      "done": "Klart",
+      "inProgress": "Pågår",
+      "sampleReady": "Förhandsvisningen är klar",
+      "ready": "Redo att översätta",
+      "cancelled": "Avbruten",
+      "stopped": "Stoppad"
+    },
+    "severity": {
+      "critical": "Kritiskt",
+      "major": "Huvudämne",
+      "minor": "Mindre"
+    },
+    "score": {
+      "name": "Confidence Score",
+      "checking": "Kontrollerar översättningen…",
+      "reading": "Smells, wxrks-kontrollen av meningsproblem, läser varje mening.",
+      "summary": "Smells, wxrks-kontrollen av meningsproblem, {sentences, plural, one {läs den enda meningen} other {läs alla # meningar}}. {flagged, plural, =0 {Inget att kontrollera hittades.} one {# är värd en närmare titt.} other {# är värda en extra titt.}}",
+      "part": {
+        "clean": "{count, plural, one {# utan problem} other {# utan problem}}",
+        "minor": "{count, plural, one {# mindreårig} other {# mindre}}",
+        "major": "{count, plural, one {# större} other {# större}}",
+        "critical": "{count, plural, one {# kritisk} other {# kritiska}}"
+      },
+      "line": "Confidence Score {score}",
+      "lineFlagged": "{count, plural, =0 {inget att kontrollera} one {# mening som är värd en andra titt} other {# meningar värda en extra titt}}"
+    },
+    "flagged": {
+      "original": "Original: <text/>",
+      "showing": "Visar {shown, number} av {count, number}, de allvarligaste först.",
+      "disclaimer": "Ett högt betyg är ingen garanti: låt en person granska avtal, medicinska texter eller texter som ska publiceras."
+    },
+    "thumbs": {
+      "question": "Fungerade den här översättningen för dig?",
+      "yes": "Ja",
+      "no": "Inte direkt",
+      "upLabel": "Tack! Är det något vi bör känna till? (valfritt)",
+      "downLabel": "Förlåt. Vad gick fel? (valfritt)",
+      "thanks": "Tack. En person läser varje anteckning."
+    },
+    "review": {
+      "eyebrow": "Låt någon kontrollera det",
+      "title": "{count, plural, =0 {En översättare granskar hela filen} one {En översättare granskar den meningen eller hela filen} other {En översättare granskar de # meningarna eller hela filen}}",
+      "intro": "{partners, select, yes {Passar bäst för avtal, medicinska texter och allt du publicerar. De här partnerna översätter till {language} på wxrks.} other {Passar bäst för avtal, medicinska texter och allt du publicerar.}}",
+      "finding": "Hittar översättare för {language}…",
+      "ask": "Be om en recension",
+      "find": "Hitta en översättare för {language}",
+      "footer": "Partner bestämmer sitt eget pris och svarar via e-post. Premium Partners först, sedan en ny blandning varje gång. <a>Se alla partner</a>"
+    },
+    "download": {
+      "all": "{count, plural, one {Ladda ner # fil} other {Ladda ned alla # filer}}",
+      "one": "Ladda ner filen",
+      "zip": "{several, select, yes {En ZIP-fil, en mapp för varje språk} other {En ZIP-fil}}"
+    },
+    "preview": {
+      "original": "Original",
+      "altOriginal": "Sida {page, number} i ditt originaldokument",
+      "altTranslated": "Sidan {page, number} översatt till {language}",
+      "fullSize": "Öppna i full storlek"
+    },
+    "sample": {
+      "range": "{span, select, yes {{hasTotal, select, yes {Sidorna {first, number}–{last, number} av {total, number}} other {Sidor {first, number}–{last, number}}}} other {{hasTotal, select, yes {Sida {first, number} av {total, number}} other {Sida {first, number}}}}}",
+      "translating": "{pages, plural, one {Översätter en sida av den så att du kan se resultatet…} other {Översätter # sidor av den så att du kan se resultatet…}}",
+      "progressLabel": "Översättning av provet",
+      "caption": "{hasTone, select, yes {{range}, översatt gratis (ton: {tone}). Nedladdningarna innehåller hela filen.} other {{range}, översatt gratis. Nedladdningarna innehåller hela filen.}}",
+      "page": "{hasTotal, select, yes {Sida {page, number} av {total, number}} other {Sida {page, number}}}",
+      "viewLabel": "Så här visar du sidorna",
+      "sideBySide": "Sida vid sida",
+      "only": "Endast {language}, större",
+      "previous": "Föregående",
+      "next": "Nästa sida"
+    },
+    "pages": {
+      "translated": "{total, plural, one {{done, number} av # sida översatt} other {{done, number} av # sidor översatta}}",
+      "toGo": "{count, plural, one {# kvar} other {# kvar}}",
+      "barLabel": "Översatta sidor"
+    },
+    "over": {
+      "notNow": "Inte nu?",
+      "shorter": "Översätt en kortare fil gratis",
+      "shorterShort": "En kortare fil",
+      "buyFrom": "Köp ord för {price}",
+      "team": "Teamkonto",
+      "nextSample": "Nästa: ditt prov, sida för sida.",
+      "inFull": "Den här filen översätts i sin helhet",
+      "seeWhole": "Visa hela översättningen",
+      "readyAll": "{hasTotal, select, yes {{total, plural, one {Redo att översätta hela sidan #} other {Redo att översätta alla # sidor}}} other {Redo att översätta hela filen}}",
+      "translateAll": "{hasTotal, select, yes {{total, plural, one {Översätt # sida allt} other {Översätt alla # sidor}}} other {Översätt hela filen}}",
+      "translateAllFor": "{hasTotal, select, yes {{total, plural, one {Översätt hela # sidan för {price}} other {Översätt alla # sidor för {price}}}} other {Översätt hela filen för {price}}}",
+      "needsCredits": "{credits, plural, one {Den här filen kräver # kredit} other {Den här filen behöver # krediter}}",
+      "uses": "Till {languages}. Använder {credits, number} av ditt {balance, plural, one {# kredit} other {# krediter}}; {restWords, plural, one {{rest} finns kvar på ditt konto.} other {{rest} finns kvar på ditt konto.}}",
+      "short": "{fits, select, yes {Ditt konto har {amount}. {pack} täcker det. När du har betalat översätts den härifrån, utan att du behöver ladda upp den igen.} other {Ditt konto har {amount}. När du har betalat översätts den härifrån, utan att du behöver ladda upp den igen.}}",
+      "typeEmail": "Ange din e-postadress för att ladda ner hela filen",
+      "allIn": "{hasTotal, select, yes {{total, plural, one {Alla # sida, på {languages}.} other {Alla # sidorna på {languages}.}}} other {Hela filen på {languages}.}}",
+      "signupSub": "{restPack, select, yes {Registrera dig gratis med din e-postadress: ditt konto börjar med {amount}, och ett paket för {price} täcker resten ({rest, number}).} other {Registrera dig gratis med din e-postadress: ditt konto börjar med {amount}.}}",
+      "getComplete": "Hämta hela filen",
+      "signupFree": "Registrera dig gratis",
+      "expired": "Den länken har gått ut. Ange din e-postadress igen, så skickar vi en ny.",
+      "sampled": "{alsoFree, select, yes {{total, plural, one {{sampled, number} av # sida har översatts. De andra {left, number} är också gratis.} other {{sampled, number} av # sidor har översatts. De andra {left, number} är också gratis.}}} other {{total, plural, one {{sampled, number} av # sida har översatts.} other {{sampled, number} av # sidor har översatts.}}}}",
+      "picking": "Väljer sidor att översätta så att du kan se resultatet…",
+      "byEmail": "Din översatta fil via e-post",
+      "free": "Gratis",
+      "freeLeft": "{pages, plural, one {Gratis, och ungefär # sida kvar för dina nästa filer} other {Gratis, och cirka # sidor kvar för dina nästa filer}}",
+      "payRest": "Registrera dig gratis; betala bara för resten",
+      "deleted": "Din fil raderas efter 30 dagar",
+      "allFree": "{hasTotal, select, yes {{total, plural, one {Alla # sidor, gratis} other {Alla # sidorna, gratis}}} other {Hela filen, gratis}}",
+      "stickyNote": "{toGo, select, yes {{left, plural, one {# sida kvar. Inget kort, inget lösenord.} other {# sidor kvar. Inget kort, inget lösenord.}}} other {Inget kort, inget lösenord.}}",
+      "stickyNoteRest": "Registrera dig gratis, så täcker ett ordpaket resten."
+    },
+    "needs": {
+      "title": "Inte tillräckligt med krediter",
+      "body": "{known, select, yes {{credits, plural, one {Det här jobbet kräver # kredit ({pages}) och ditt konto har {amount}. Inget debiterades.} other {Det här jobbet kräver # krediter ({pages}) och ditt konto har {amount}. Inget debiterades.}}} other {Det här jobbet kräver fler krediter än du har på ditt konto. Inget debiterades.}}",
+      "see": "Se översättningen",
+      "translateNow": "Översätt det nu"
+    }
+  },
+  "offer": {
+    "sendFailed": "E-postmeddelandet skickades inte. Försök igen om en stund.",
+    "sentTitle": "Kolla din inkorg",
+    "sentBody": "{minutes, plural, one {Vi skickade en länk till {email}. Klicka på den inom # minut: hela filen börjar översättas, och vi mejlar filerna till dig när de är klara.} other {Vi skickade en länk till {email}. Klicka på den inom # minuter: hela filen börjar översättas, och vi mejlar filerna till dig när de är klara.}}",
+    "emailLabel": "Din e-postadress",
+    "noCard": "Inget kort, inget lösenord. Vi mejlar dig en länk.",
+    "stickyLabel": "Översätt hela filen"
+  },
+  "packs": {
+    "covers": "Täcker den här filen",
+    "pages": "({about})",
+    "opening": "Öppnar…",
+    "buyFor": "Köp för {price}",
+    "howCredits": "{languages, plural, one {Betala en gång, ingen prenumeration. En kredit motsvarar ett källord till ett språk, så en fil på {file, number} ord som översätts till # språk använder {credits, number}.} other {Betala en gång, ingen prenumeration. En kredit motsvarar ett källord till ett språk, så en fil på {file, number} ord som översätts till # språk använder {credits, number}.}}",
+    "byEmail": "Onlinebetalning kommer snart. Fram till dess öppnar ett paket ett mejl till <a>{email}</a>, och vi lägger till orden på ditt konto."
+  },
+  "pricing": {
+    "title": "Köp ord",
+    "intro": "Översätt hela dokument till så många språk du behöver. Du behåller den designbevarande PDF-filen, Word-filen och den ton du väljer.",
+    "balance": "{words, plural, one {<b>Du har # ord</b>{hasPages, select, yes {<muted> ({about})</muted>} other {}}.} other {<b>Du har # ord</b>{hasPages, select, yes {<muted> ({about})</muted>} other {}}.}}",
+    "newHereBody": "Det är {amount}, innan du köper något.",
+    "signUp": "Registrera dig",
+    "freeDaily": "Gratis varje dag: ett dokument på upp till {amount}."
+  },
+  "thanks": {
+    "notFound": "Vi kunde inte hitta den här betalningen.",
+    "lateTitle": "Din betalning gick igenom",
+    "lateBody": "Det tar längre tid än vanligt för orden att nå ditt konto. Svara på kvittomejlet så lägger en person till dem.",
+    "adding": "Lägger till dina ord…",
+    "paid": "Betald",
+    "inAccount": "{words, plural, one {{amount} finns på ditt konto} other {{amount} finns på ditt konto}}",
+    "signedInAs": "Inloggad som {email}.",
+    "translateMine": "Översätt min fil nu",
+    "translateOne": "Översätt ett dokument",
+    "hasAccount": "{email} har redan ett konto, så logga in med det för att använda orden.",
+    "linkSent": "Vi skickade en inloggningslänk till {email}.",
+    "sendLink": "Mejla mig en inloggningslänk",
+    "uploadAgain": "Ladda upp filen igen för att översätta den."
+  },
+  "login": {
+    "title": "Logga in eller registrera dig",
+    "intro": "Inget lösenord. Vi mejlar dig en länk som loggar in dig eller skapar ditt konto.",
+    "expired": "Länken har gått ut eller har redan använts. Begär en ny.",
+    "newHereBody": "Det är {words} på ditt konto så snart du klickar på länken.",
+    "sentBody": "{minutes, plural, one {Vi skickade en länk till {email}. Det fungerar i # minut.} other {Vi skickade en länk till {email}. Det fungerar i # minuter.}}",
+    "sentCredit": "Nytt konto? Klicka på den så är dina {amount} krediter redo: {words}.",
+    "submit": "Mejla mig en länk"
+  },
+  "account": {
+    "signInFirst": "<a>Logga in</a> för att se ditt konto.",
+    "title": "Konto",
+    "balanceLabel": "Ord i ditt konto",
+    "creditRule": "En kredit motsvarar ett källord översatt till ett språk.",
+    "history": "Historik",
+    "kind": {
+      "purchase": "Köp",
+      "charge": "Översättning",
+      "refund": "Återbetalning",
+      "grant": "Tillagd av wxrks",
+      "signup": "Registreringskredit"
+    }
+  },
+  "jobs": {
+    "signInFirst": "<a>Logga in</a> för att se dina jobb.",
+    "empty": "Inga jobb ännu. <a>Översätt något</a>.",
+    "languages": "{source} → {targets}",
+    "status": {
+      "inProgress": "Pågår",
+      "delivered": "Klart",
+      "failed": "Stoppad",
+      "cancelled": "Avbruten",
+      "over_free_limit": "Redo att översätta",
+      "needs_credits": "Krediter behövs",
+      "no_text": "Ingen text hittades"
+    }
+  },
+  "feedback": {
+    "expired": "Den här länken har gått ut.",
+    "upTitle": "Vad bra att det fungerade. Tack.",
+    "downTitle": "Tyvärr fungerade det inte. Tack för att du berättade det för oss.",
+    "up": "Det fungerade",
+    "down": "Något var fel",
+    "thanks": "Uppfattat. En person läser varje anteckning.",
+    "upLabel": "Är det något vi bör känna till? (valfritt)",
+    "downLabel": "Vad gick fel? (valfritt)"
+  },
+  "activity": {
+    "pill": "{words, plural, one {<b># ord</b> översatt från {from} till {to}{when, select, moments { · för en liten stund sedan} minutes { · för några minuter sedan} today { · tidigare i dag} other {}}} other {<b># ord</b> översatta från {from} till {to}{when, select, moments { · för en liten stund sedan} minutes { · för några minuter sedan} today { · tidigare i dag} other {}}}}",
+    "close": "Stäng"
+  }
+}

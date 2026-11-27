@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { api } from "../api";
+import { Link } from "../i18n/routing";
 import { ThumbIcon } from "./Job";
 
 // Where the feedback email's links land (/feedback?job=…&r=up|down&t=…): the click is the answer,
 // recorded at once; a note is optional.
 export default function Feedback() {
+  const { t: tr } = useTranslation();
   const [params] = useSearchParams();
   const job = params.get("job");
   const t = params.get("t");
@@ -36,12 +39,10 @@ export default function Feedback() {
     <section className="mx-auto max-w-xl">
       <div className="rounded-[10px] border border-brand-200 bg-white p-6 sm:p-8">
         {state === "missing" ? (
-          <p className="text-[15px]">This link has expired.</p>
+          <p className="text-[15px]">{tr("feedback.expired")}</p>
         ) : (
           <>
-            <h1 className="text-[22px] font-medium tracking-[-0.3px]">
-              {rating === "up" ? "Glad it worked. Thank you." : "Sorry it didn't work. Thank you for telling us."}
-            </h1>
+            <h1 className="text-[22px] font-medium tracking-[-0.3px]">{rating === "up" ? tr("feedback.upTitle") : tr("feedback.downTitle")}</h1>
             <div className="mt-4 flex flex-wrap gap-2">
               {["up", "down"].map((r) => (
                 <button
@@ -52,33 +53,34 @@ export default function Feedback() {
                   className={`wx-button inline-flex items-center gap-2 ${rating === r ? "wx-button--primary" : ""}`}
                 >
                   <ThumbIcon down={r === "down"} />
-                  {r === "up" ? "It worked" : "Something was off"}
+                  {r === "up" ? tr("feedback.up") : tr("feedback.down")}
                 </button>
               ))}
             </div>
             {state === "sent" ? (
-              <p className="mt-4 text-[13px] text-brand-500">Got it. A person reads every note.</p>
+              <p className="mt-4 text-[13px] text-brand-500">{tr("feedback.thanks")}</p>
             ) : (
               <form onSubmit={send} className="mt-5 space-y-2">
                 <label className="wx-label" htmlFor="fb-note">
-                  {rating === "up" ? "Anything we should know? (optional)" : "What went wrong? (optional)"}
+                  {rating === "up" ? tr("feedback.upLabel") : tr("feedback.downLabel")}
                 </label>
                 <textarea
                   id="fb-note"
                   className="wx-input w-full"
                   rows={4}
+                  dir="auto"
                   maxLength={2000}
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                   style={{ height: "auto", paddingTop: 8, paddingBottom: 8 }}
                 />
                 <button type="submit" className="wx-button wx-button--primary" disabled={!comment.trim() || state === "sending"}>
-                  Send
+                  {tr("common.send")}
                 </button>
               </form>
             )}
             <Link to="/" className="mt-6 inline-block text-xs underline">
-              Translate another document
+              {tr("common.translateAnother")}
             </Link>
           </>
         )}

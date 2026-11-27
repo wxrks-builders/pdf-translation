@@ -1,4 +1,6 @@
 import { api } from "./api";
+import i18n from "./i18n";
+import { formatMoney } from "./i18n/format";
 
 // The word packs, paid once. One credit is one source word into one language, so a 10,000-word
 // pack covers a 5,000-word file into two languages. Buying goes through Stripe Checkout once
@@ -20,26 +22,29 @@ export const SIGNUP_CREDIT = { words: 20000, dollars: 18 };
 
 export const BUY_EMAIL = "demetrio@wxrks.com";
 
-const n = (x) => x.toLocaleString("en-US");
-
 // A page is about 250 words, the figure translators quote by.
 export const pagesFor = (words) => Math.max(1, Math.round(words / 250));
 
 // Every word count the visitor reads carries its pages (Rodrigo, 2026-11-09: "always between
-// parentheses an estimation of pages"): "10,000 words (about 40 pages)".
-export const aboutPages = (words) => `about ${n(pagesFor(words))} ${pagesFor(words) === 1 ? "page" : "pages"}`;
-export const wordsAndPages = (words) => (words > 0 ? `${n(words)} words (${aboutPages(words)})` : `${n(words || 0)} words`);
+// parentheses an estimation of pages"): "10,000 words (about 40 pages)". The phrases live in the
+// messages (units.*) so each language writes its own plurals; prices are US dollars everywhere.
+export const aboutPages = (words) => i18n.t("units.aboutPages", { pages: pagesFor(words) });
+export const wordsAndPages = (words) =>
+  words > 0 ? i18n.t("units.wordsAndPages", { words, pages: pagesFor(words) }) : i18n.t("units.words", { words: words || 0 });
 
-export const packLabel = (pack) => `$${pack.price} for ${wordsAndPages(pack.words)}`;
+export const packLabel = (pack) => i18n.t("units.packLabel", { price: formatMoney(pack.price), amount: wordsAndPages(pack.words) });
 
 // In whole cents, so $99 for 400,000 reads $0.25 and not a float's $0.2475.
-export const perThousand = (pack) => `$${(Math.round((pack.price * 100000) / pack.words) / 100).toFixed(2)} per 1,000 words`;
+export const perThousand = (pack) =>
+  i18n.t("units.perThousand", { price: formatMoney(Math.round((pack.price * 100000) / pack.words) / 100, { cents: true }), words: 1000 });
 
 // The smallest pack that covers this many credits, or null when none does.
 export const packFor = (credits) => PACKS.find((p) => p.words >= credits) || null;
 
+// The request goes to the wxrks team, who grant the words by hand, so its subject stays in
+// English in every language (LOCALIZATION.md).
 export function buyHref(pack) {
-  const subject = `Buy the ${n(pack.words)}-word pack ($${pack.price})`;
+  const subject = `Buy the ${pack.words.toLocaleString("en-US")}-word pack ($${pack.price})`;
   return `mailto:${BUY_EMAIL}?subject=${encodeURIComponent(subject)}`;
 }
 

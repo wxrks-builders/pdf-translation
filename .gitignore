@@ -7,3 +7,5 @@ spikes/out/
 .DS_Store
 data/
 __pycache__/
+# The pseudo-locale, generated for testing (npm run i18n:pseudo --prefix client)
+client/src/locales/en-XA.json
